@@ -545,6 +545,12 @@ def get_jobs():
     for j in unique:
         j["app_status"] = status.get(j["id"], {}).get("status", "")
 
+    show_hidden = request.args.get("show_hidden") == "1"
+    hidden_count = sum(1 for j in unique if j.get("hidden"))
+
+    if not show_hidden:
+        unique = [j for j in unique if not j.get("hidden")]
+
     q      = request.args.get("q", "").lower()
     source = request.args.get("source", "")
     st     = request.args.get("status", "")
@@ -558,7 +564,21 @@ def get_jobs():
     if q:
         unique = [j for j in unique if q in j.get("title", "").lower() or q in j.get("company", "").lower()]
 
-    return jsonify(unique)
+    resp = jsonify(unique)
+    resp.headers["X-Hidden-Count"] = str(hidden_count)
+    return resp
+
+
+@app.route("/api/jobs/<job_id>/hide", methods=["POST"])
+@login_required
+def hide_job(job_id):
+    job = Job.query.filter_by(user_id=current_user.id, source_job_id=job_id).first()
+    if not job:
+        return jsonify({"error": "Not found"}), 404
+    data = request.json or {}
+    job.hidden = bool(data.get("hidden", True))
+    db.session.commit()
+    return jsonify({"ok": True, "hidden": job.hidden})
 
 
 # ── Applications ───────────────────────────────────────────────────────────────
@@ -914,6 +934,96 @@ Work history:
     merged = dict(profile)
     merged.update(polished)
     return jsonify({"ok": True, "profile": merged})
+
+
+@app.route("/api/resume/tailor", methods=["POST"])
+@login_required
+@limiter.limit("5/minute;20/hour")
+def resume_tailor():
+    import config as cfg
+    import requests as _req
+
+    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    if not api_key:
+        return jsonify({"error": "Gemini API key not configured"}), 400
+
+    data   = request.json or {}
+    job_id = (data.get("job_id") or "").strip()
+    if not job_id:
+        return jsonify({"error": "job_id required"}), 400
+
+    job = Job.query.filter_by(user_id=current_user.id, source_job_id=job_id).first()
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+
+    profile = _get_or_create_profile(current_user.id)
+    p       = profile.to_dict()
+
+    work_lines = "\n".join(
+        f"  - {w.get('title','')} at {w.get('company','')} ({w.get('period','')}): {w.get('summary','')}"
+        for w in (p.get("work_history") or [])
+    ) or "  (none)"
+
+    prompt = f"""You are a professional resume coach specialising in Singapore job applications.
+
+Given the following job listing and the candidate's existing profile, suggest tailored resume improvements specifically for this role.
+
+Job: {job.title} at {job.company}
+Location: {job.location or 'Singapore'}
+Salary: {'$'+str(job.salary_min)+'–$'+str(job.salary_max)+'/mo' if job.salary_min and job.salary_max else 'Not specified'}
+Match reasons: {job.match_reasons or 'N/A'}
+
+Candidate profile:
+Name: {p.get('name','')}
+Current summary: {p.get('experience_summary','(none)')}
+Technical skills: {', '.join(p.get('technical_skills') or [])}
+Soft skills: {', '.join(p.get('soft_skills') or [])}
+Work history:
+{work_lines}
+
+Return ONLY a valid JSON object with exactly this structure:
+{{
+  "tailored_summary": "2-3 sentence professional summary rewritten to emphasise fit for this specific role",
+  "work_history": [
+    {{
+      "title": "same job title as in input",
+      "company": "same company as in input",
+      "period": "same period as in input",
+      "tailored_bullets": "rewritten bullet points emphasising skills relevant to this job — one per line starting with •"
+    }}
+  ],
+  "skills_to_highlight": ["skill1", "skill2", "skill3"],
+  "tips": ["actionable tip 1", "actionable tip 2", "actionable tip 3"]
+}}"""
+
+    try:
+        resp = _req.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            params={"key": api_key},
+            headers={"Content-Type": "application/json"},
+            json={"contents": [{"parts": [{"text": prompt}]}]},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        return jsonify({"error": f"Gemini request failed: {e}"}), 502
+
+    import re as _re, json as _json
+    match = _re.search(r'\{[\s\S]*\}', raw)
+    if not match:
+        return jsonify({"error": "Gemini returned unexpected format"}), 502
+
+    try:
+        tailored = _json.loads(match.group())
+    except Exception:
+        return jsonify({"error": "Could not parse Gemini response"}), 502
+
+    return jsonify({
+        "ok": True,
+        "job": {"title": job.title, "company": job.company},
+        "tailored": tailored,
+    })
 
 
 @app.route("/api/resume/download", methods=["POST"])

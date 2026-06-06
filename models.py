@@ -138,6 +138,7 @@ class Job(db.Model):
     score         = db.Column(db.Integer, default=0)
     match_reasons = db.Column(db.Text)
     closing_date  = db.Column(db.String(32))
+    hidden        = db.Column(db.Boolean, default=False)
     scan_date     = db.Column(db.DateTime(timezone=True), default=_now)
 
     user = db.relationship("User", back_populates="jobs")
@@ -156,6 +157,7 @@ class Job(db.Model):
             "score":         self.score or 0,
             "match_reasons": self.match_reasons or "",
             "closing_date":  self.closing_date or "",
+            "hidden":        bool(self.hidden),
             "scan_date":     self.scan_date.strftime("%Y-%m-%d %H:%M") if self.scan_date else "",
         }
 
