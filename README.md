@@ -1,4 +1,4 @@
-# 🔍 Job Scanner - Jayden's Automated Job Matching Tool
+# 🔍 Job Scanner - Automated Job Matching Tool
 
 Scrapes MyCareersFuture, Indeed, and LinkedIn for analyst roles that match your profile, scores them, generates tailored cover notes, and sends the best matches straight to your Telegram.
 
