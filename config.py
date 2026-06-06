@@ -17,6 +17,12 @@ _load_dotenv()
 GEMINI_API_KEY = _os.getenv("GEMINI_API_KEY", "")
 
 # ============================================================
+# ADZUNA API  (free — register at developer.adzuna.com)
+# ============================================================
+ADZUNA_APP_ID  = _os.getenv("ADZUNA_APP_ID", "")
+ADZUNA_APP_KEY = _os.getenv("ADZUNA_APP_KEY", "")
+
+# ============================================================
 # YOUR PROFILE
 # ============================================================
 PROFILE = {
