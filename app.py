@@ -729,7 +729,12 @@ def update_config():
     for key in ("min_salary", "max_salary", "min_score_threshold", "max_jobs_per_notification"):
         if key in data:
             setattr(s, key, data[key])
-    for key in ("email_enabled", "email_to", "preferred_location"):
+    if "email_to" in data:
+        email_to = (data["email_to"] or "").strip()
+        if email_to and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email_to):
+            return jsonify({"error": "Invalid email address"}), 400
+        s.email_to = email_to
+    for key in ("email_enabled", "preferred_location"):
         if key in data:
             setattr(s, key, data[key])
     for key in ("target_titles", "preferred_keywords", "negative_keywords", "location_keywords"):
@@ -1007,10 +1012,13 @@ def get_schedule():
 @app.route("/api/schedule", methods=["POST"])
 @login_required
 def set_schedule():
-    data     = request.json or {}
-    s        = _get_or_create_settings(current_user.id)
+    data = request.json or {}
+    s    = _get_or_create_settings(current_user.id)
+    raw_time = data.get("time", "09:00")
+    if not re.match(r'^\d{2}:\d{2}$', raw_time):
+        return jsonify({"error": "Invalid time format — use HH:MM"}), 400
     s.schedule_enabled = data.get("enabled", False)
-    s.schedule_time    = data.get("time", "09:00")
+    s.schedule_time    = raw_time
     db.session.commit()
     return jsonify({"ok": True, "enabled": s.schedule_enabled, "time": s.schedule_time})
 
@@ -1173,11 +1181,14 @@ def billing_portal():
     return jsonify({"url": session.url})
 
 
-@app.route("/api/billing/webhook", methods=["POST"])
+@app.route("/api/stripe/webhook", methods=["POST"])
 def billing_webhook():
     import stripe
     stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
     secret         = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+    if not secret:
+        return "", 400
 
     payload = request.get_data()
     sig     = request.headers.get("Stripe-Signature", "")

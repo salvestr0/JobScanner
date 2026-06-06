@@ -45,6 +45,8 @@ class User(UserMixin, db.Model):
         self.password_hash = bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
     def check_password(self, plain: str) -> bool:
+        if not self.password_hash:
+            return False
         return bcrypt.checkpw(plain.encode(), self.password_hash.encode())
 
 
