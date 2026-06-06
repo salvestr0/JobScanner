@@ -1096,6 +1096,77 @@
           </svg>
           <span x-text="profileSaving?'Saving…':'Save Profile'"></span>
         </button>
+
+        <!-- ── Resume Builder ── -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
+          <div>
+            <h3 class="font-bold text-slate-800 text-sm">Resume Builder</h3>
+            <p class="text-slate-400 text-xs mt-1">AI polishes your profile into a professional resume, then generates a downloadable PDF.</p>
+          </div>
+
+          <!-- Step 1: Polish -->
+          <div class="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
+            <div class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</div>
+            <div class="flex-1">
+              <p class="text-sm font-semibold text-slate-700 mb-1">Polish with AI</p>
+              <p class="text-xs text-slate-400 mb-3">Gemini rewrites your summary, experience, and skills to sound more professional and ATS-friendly.</p>
+              <button @click="polishResume()" :disabled="resumePolishing"
+                class="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
+                <svg x-show="resumePolishing" class="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <svg x-show="!resumePolishing" class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/>
+                </svg>
+                <span x-text="resumePolishing ? 'Polishing…' : (resumePolished ? 'Re-polish' : 'Polish with AI')"></span>
+              </button>
+
+              <!-- Polished preview -->
+              <div x-show="resumePolished" x-cloak class="mt-4 space-y-3">
+                <div class="flex items-center gap-2 text-emerald-600 text-xs font-semibold">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                  AI polishing complete — preview below
+                </div>
+                <div class="text-xs bg-white border border-slate-200 rounded-xl p-4 space-y-3 max-h-52 overflow-y-auto">
+                  <div x-show="resumePolished?.experience_summary">
+                    <p class="font-semibold text-slate-600 mb-1">Summary</p>
+                    <p class="text-slate-500 leading-relaxed" x-text="resumePolished?.experience_summary"></p>
+                  </div>
+                  <template x-if="resumePolished?.work_history?.length">
+                    <div>
+                      <p class="font-semibold text-slate-600 mb-1">Experience (first role)</p>
+                      <p class="text-slate-500 leading-relaxed" x-text="resumePolished.work_history[0]?.summary"></p>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Download -->
+          <div class="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
+            <div class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold"
+              :class="resumePolished ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-400'">2</div>
+            <div class="flex-1">
+              <p class="text-sm font-semibold text-slate-700 mb-1">Download PDF</p>
+              <p class="text-xs text-slate-400 mb-3" x-text="resumePolished ? 'Downloads your AI-polished resume as a PDF.' : 'Polish first to get the best result, or download your raw profile.'"></p>
+              <button @click="downloadResume()" :disabled="resumeDownloading"
+                class="flex items-center gap-2 px-4 py-2.5 disabled:opacity-40 text-sm font-semibold rounded-xl transition-colors border"
+                :class="resumePolished ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent' : 'border-slate-200 text-slate-600 hover:bg-slate-50'">
+                <svg x-show="resumeDownloading" class="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <svg x-show="!resumeDownloading" class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                <span x-text="resumeDownloading ? 'Generating…' : (resumePolished ? 'Download Polished PDF' : 'Download Raw PDF')"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -1412,6 +1483,9 @@ function app() {
     resumeParseMsg: '',
     resumeParseOk: true,
     resumeHighlighted: new Set(),
+    resumePolishing: false,
+    resumePolished: null,
+    resumeDownloading: false,
 
     // Billing
     billing: { status: null, trial_days_left: null, has_access: true, is_free: true, scan_limit: 10 },
@@ -1731,6 +1805,48 @@ function app() {
         this.flash(d.ok?'Profile saved!':'Save failed', d.ok);
       } catch(_){ this.flash('Network error', false); }
       this.profileSaving = false;
+    },
+
+    async polishResume() {
+      this.resumePolishing = true;
+      try {
+        this.profile.technical_skills = this.techSkillsText.split(',').map(s=>s.trim()).filter(Boolean);
+        this.profile.soft_skills      = this.softSkillsText.split(',').map(s=>s.trim()).filter(Boolean);
+        this.profile.certifications   = this.certsText.split(',').map(s=>s.trim()).filter(Boolean);
+        const res = await fetch('/api/resume/polish', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({profile: this.profile}),
+        });
+        const d = await res.json();
+        if (res.ok && d.ok) {
+          this.resumePolished = d.profile;
+          this.flash('Resume polished!', true);
+        } else {
+          this.flash(d.error || 'Polish failed', false);
+        }
+      } catch(_){ this.flash('Network error', false); }
+      this.resumePolishing = false;
+    },
+
+    async downloadResume() {
+      this.resumeDownloading = true;
+      try {
+        const payload = this.resumePolished || this.profile;
+        const res = await fetch('/api/resume/download', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) { this.flash('PDF generation failed', false); this.resumeDownloading = false; return; }
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        const name = (this.profile.name || 'resume').toLowerCase().replace(/\s+/g,'_');
+        a.href = url; a.download = name + '_resume.pdf'; a.click();
+        URL.revokeObjectURL(url);
+      } catch(_){ this.flash('Network error', false); }
+      this.resumeDownloading = false;
     },
 
     async loadSchedule() {

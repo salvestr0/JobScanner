@@ -810,6 +810,108 @@ def save_profile():
     return jsonify({"ok": True})
 
 
+# ── Resume Builder ────────────────────────────────────────────────────────────
+
+@app.route("/api/resume/polish", methods=["POST"])
+@login_required
+@limiter.limit("5/minute;20/hour")
+def resume_polish():
+    import config as cfg
+    import requests as _req
+
+    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    if not api_key:
+        return jsonify({"error": "Gemini API key not configured"}), 400
+
+    data    = request.json or {}
+    profile = data.get("profile", {})
+
+    prompt = f"""You are a professional resume writer specialising in Singapore job applications.
+
+Rewrite the following profile sections to sound polished, confident, and ATS-friendly.
+Use action verbs and quantify achievements where reasonable. Keep it concise and truthful.
+
+Return ONLY a valid JSON object with exactly these keys (do not add or remove keys):
+{{
+  "experience_summary": "rewritten 2-4 sentence professional summary",
+  "work_history": [
+    {{
+      "title": "same job title",
+      "company": "same company",
+      "period": "same period",
+      "summary": "rewritten bullet points, one per line starting with •"
+    }}
+  ],
+  "technical_skills": ["cleaned", "list", "of", "technical", "skills"],
+  "soft_skills": ["cleaned", "list", "of", "soft", "skills"]
+}}
+
+Raw profile to rewrite:
+Name: {profile.get("name", "")}
+Experience summary: {profile.get("experience_summary", "(none)")}
+Technical skills: {", ".join(profile.get("technical_skills") or [])}
+Soft skills: {", ".join(profile.get("soft_skills") or [])}
+Work history:
+{chr(10).join(
+    f'  - {j.get("title","")} at {j.get("company","")} ({j.get("period","")}): {j.get("summary","")}'
+    for j in (profile.get("work_history") or [])
+) or "  (none)"}
+"""
+
+    try:
+        resp = _req.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            params={"key": api_key},
+            headers={"Content-Type": "application/json"},
+            json={"contents": [{"parts": [{"text": prompt}]}]},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        return jsonify({"error": f"Gemini request failed: {e}"}), 502
+
+    import re as _re, json as _json
+    match = _re.search(r'\{[\s\S]*\}', raw)
+    if not match:
+        return jsonify({"error": "Gemini returned unexpected format"}), 502
+
+    try:
+        polished = _json.loads(match.group())
+    except Exception:
+        return jsonify({"error": "Could not parse Gemini response"}), 502
+
+    # Merge polished fields back onto the full profile
+    merged = dict(profile)
+    merged.update(polished)
+    return jsonify({"ok": True, "profile": merged})
+
+
+@app.route("/api/resume/download", methods=["POST"])
+@login_required
+def resume_download():
+    from resume_builder import generate_pdf
+    from flask import make_response
+
+    profile = request.json or {}
+    # Fill email from authenticated user if missing
+    if not profile.get("email"):
+        profile["email"] = current_user.email
+
+    try:
+        pdf_bytes = generate_pdf(profile)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    name_slug = (profile.get("name") or "resume").lower().replace(" ", "_")
+    filename  = f"{name_slug}_resume.pdf"
+
+    resp = make_response(pdf_bytes)
+    resp.headers["Content-Type"]        = "application/pdf"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
+
+
 # ── Analytics ──────────────────────────────────────────────────────────────────
 
 @app.route("/api/analytics")
