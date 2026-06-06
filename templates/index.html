@@ -903,6 +903,44 @@
         <p class="text-slate-500 text-sm mt-1">Insights from your job search data</p>
       </div>
 
+      <!-- Pro gate -->
+      <template x-if="billing.is_free">
+        <div class="relative rounded-2xl overflow-hidden">
+          <!-- Blurred preview -->
+          <div class="blur-sm pointer-events-none select-none space-y-4">
+            <div class="grid grid-cols-4 gap-4">
+              <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center"><div class="h-8 w-12 bg-slate-200 rounded mx-auto mb-2"></div><div class="h-3 w-16 bg-slate-100 rounded mx-auto"></div></div>
+              <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center"><div class="h-8 w-12 bg-slate-200 rounded mx-auto mb-2"></div><div class="h-3 w-16 bg-slate-100 rounded mx-auto"></div></div>
+              <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center"><div class="h-8 w-12 bg-slate-200 rounded mx-auto mb-2"></div><div class="h-3 w-16 bg-slate-100 rounded mx-auto"></div></div>
+              <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center"><div class="h-8 w-12 bg-slate-200 rounded mx-auto mb-2"></div><div class="h-3 w-16 bg-slate-100 rounded mx-auto"></div></div>
+            </div>
+            <div class="grid grid-cols-2 gap-6">
+              <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6"><div class="h-4 w-32 bg-slate-200 rounded mb-4"></div><div class="h-48 bg-slate-100 rounded-xl"></div></div>
+              <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6"><div class="h-4 w-32 bg-slate-200 rounded mb-4"></div><div class="h-48 bg-slate-100 rounded-xl"></div></div>
+              <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6"><div class="h-4 w-32 bg-slate-200 rounded mb-4"></div><div class="h-48 bg-slate-100 rounded-xl"></div></div>
+              <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6"><div class="h-4 w-32 bg-slate-200 rounded mb-4"></div><div class="h-48 bg-slate-100 rounded-xl"></div></div>
+            </div>
+          </div>
+          <!-- Overlay -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm rounded-2xl">
+            <div class="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+            </div>
+            <p class="font-bold text-slate-800 text-lg mb-1">Pro Plan Only</p>
+            <p class="text-slate-500 text-sm mb-5 text-center max-w-xs">Analytics and insights are available on the Pro plan.</p>
+            <button @click="subscribe()" :disabled="subscribing"
+              class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-indigo-600/20">
+              <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Actual content (Pro users only) -->
+      <template x-if="!billing.is_free">
+      <div>
       <!-- Funnel stat chips -->
       <div class="grid grid-cols-4 gap-4 mb-8">
         <div class="stat-card bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
@@ -963,6 +1001,8 @@
           </div>
         </div>
       </div>
+      </div>
+      </template>
     </div>
 
     <!-- ████ PROFILE ████ -->
@@ -1257,6 +1297,35 @@
         <p class="text-slate-500 text-sm mt-1">Pick a job and Gemini generates tailored interview questions</p>
       </div>
 
+      <!-- Pro gate -->
+      <template x-if="billing.is_free">
+        <div class="relative rounded-2xl overflow-hidden">
+          <!-- Blurred preview -->
+          <div class="blur-sm pointer-events-none select-none space-y-4">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6"><div class="h-4 w-24 bg-slate-200 rounded mb-3"></div><div class="h-10 bg-slate-100 rounded-xl mb-4"></div><div class="h-10 w-40 bg-slate-200 rounded-xl"></div></div>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden"><div class="px-6 py-4 border-b border-slate-100"><div class="h-4 w-36 bg-slate-200 rounded"></div></div><div class="px-6 py-4 space-y-3"><div class="h-3 w-full bg-slate-100 rounded"></div><div class="h-3 w-4/5 bg-slate-100 rounded"></div><div class="h-8 w-full bg-indigo-50 rounded-lg"></div></div></div>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden"><div class="px-6 py-4 border-b border-slate-100"><div class="h-4 w-40 bg-slate-200 rounded"></div></div><div class="px-6 py-4 space-y-3"><div class="h-3 w-full bg-slate-100 rounded"></div><div class="h-3 w-3/4 bg-slate-100 rounded"></div><div class="h-8 w-full bg-violet-50 rounded-lg"></div></div></div>
+          </div>
+          <!-- Overlay -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm rounded-2xl">
+            <div class="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+            </div>
+            <p class="font-bold text-slate-800 text-lg mb-1">Pro Plan Only</p>
+            <p class="text-slate-500 text-sm mb-5 text-center max-w-xs">AI interview prep questions are available on the Pro plan.</p>
+            <button @click="subscribe()" :disabled="subscribing"
+              class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-indigo-600/20">
+              <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Actual content (Pro users only) -->
+      <template x-if="!billing.is_free">
+      <div>
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-4">
         <label class="block text-sm font-semibold text-slate-700 mb-2">Select a Job</label>
         <select x-model="prepJobId"
@@ -1346,6 +1415,8 @@
           </div>
         </div>
       </div>
+      </div>
+      </template>
     </div>
 
     <!-- ████ SETTINGS ████ -->
@@ -1356,18 +1427,6 @@
       </div>
 
       <div class="space-y-4">
-
-        <!-- Gemini API Key -->
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-          <h3 class="font-bold text-slate-800 text-sm mb-5">Gemini API Key</h3>
-          <div>
-            <label class="block text-xs font-semibold text-slate-500 mb-1.5">API Key</label>
-            <input x-model="creds.gemini_api_key" type="password" placeholder="AIzaSy…"
-              class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-            <p class="text-slate-400 text-xs mt-1">Required for cover note generation. Free at <span class="font-mono">aistudio.google.com/apikey</span>.</p>
-          </div>
-          <button @click="saveCreds()" class="mt-4 px-4 py-2.5 bg-slate-900 hover:bg-slate-700 text-white text-sm font-semibold rounded-xl transition-colors">Save</button>
-        </div>
 
         <!-- Search Configuration -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
