@@ -278,10 +278,13 @@ def _build_user_env(user: User) -> dict:
         }
 
     data_dir = f"data/users/{user.id}"
-    return {
+    env = {
         "JOBSCANNER_USER_CONFIG": json.dumps(user_cfg),
         "JOBSCANNER_DATA_DIR":    data_dir,
     }
+    if user.subscription_status not in ("active",):
+        env["JOBSCANNER_MAX_JOBS"] = "10"
+    return env
 
 
 # ── DB helpers ─────────────────────────────────────────────────────────────────
@@ -377,8 +380,7 @@ def auth_register():
 
     user = User(
         email=email,
-        subscription_status="trialing",
-        trial_ends_at=datetime.now(timezone.utc) + timedelta(days=3),
+        subscription_status="free",
     )
     user.set_password(password)
     db.session.add(user)
@@ -445,8 +447,7 @@ def auth_google_callback():
             user = User(
                 email=email,
                 google_id=google_id,
-                subscription_status="trialing",
-                trial_ends_at=datetime.now(timezone.utc) + timedelta(days=3),
+                subscription_status="free",
             )
             db.session.add(user)
             db.session.commit()
@@ -986,33 +987,37 @@ def reset_seen():
 # ── Billing ───────────────────────────────────────────────────────────────────
 
 def _is_active(user) -> bool:
-    """Return True if the user has a live trial or active subscription."""
-    if user.subscription_status == "active":
+    """Return True if user has access (free tier or active subscription)."""
+    if user.subscription_status in ("active", "free"):
         return True
     if user.subscription_status in (None, "trialing"):
         ends = user.trial_ends_at
         if ends is None:
-            return False  # no trial period set — deny access
+            return True  # legacy users without trial end — treat as free
         return datetime.now(timezone.utc) <= ends
     return False
 
 
 def _billing_status(user) -> dict:
-    ends   = user.trial_ends_at
-    status = user.subscription_status or "trialing"
-    trial_days_left = None
+    status  = user.subscription_status or "free"
+    is_free = status not in ("active",)
 
-    if ends:
-        delta = ends - datetime.now(timezone.utc)
+    # Legacy trial handling — keep working for existing trialing users
+    trial_days_left = None
+    if status == "trialing" and user.trial_ends_at:
+        delta = user.trial_ends_at - datetime.now(timezone.utc)
         trial_days_left = max(0, delta.days)
-        if status == "trialing" and datetime.now(timezone.utc) > ends:
+        if datetime.now(timezone.utc) > user.trial_ends_at:
             status = "expired"
+            is_free = False
 
     return {
         "status":          status,
-        "trial_ends_at":   ends.isoformat() if ends else None,
-        "trial_days_left": trial_days_left,
         "has_access":      _is_active(user),
+        "is_free":         is_free and status not in ("expired", "cancelled", "past_due"),
+        "scan_limit":      10 if (is_free and status not in ("expired", "cancelled", "past_due")) else None,
+        "trial_ends_at":   user.trial_ends_at.isoformat() if user.trial_ends_at else None,
+        "trial_days_left": trial_days_left,
     }
 
 

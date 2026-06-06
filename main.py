@@ -121,6 +121,11 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
     matched_jobs = filter_jobs(scored_jobs, threshold)
     print(f"✅ Jobs above score threshold ({threshold}): {len(matched_jobs)}")
 
+    max_jobs = int(os.environ.get("JOBSCANNER_MAX_JOBS", 0))
+    if max_jobs > 0 and len(matched_jobs) > max_jobs:
+        print(f"⚠️  Free plan: showing top {max_jobs} of {len(matched_jobs)} matches")
+        matched_jobs = matched_jobs[:max_jobs]
+
     # Show top results
     max_notify = SEARCH_CONFIG["max_jobs_per_notification"]
     top_jobs = matched_jobs[:max_notify]
