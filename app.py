@@ -247,6 +247,7 @@ def _sync_scan_results(user_id: str, data_dir: str):
                     source        = row.get("source", ""),
                     url           = row.get("url", ""),
                     posted_date   = row.get("posted_date", ""),
+                    closing_date  = row.get("closing_date", "") or None,
                     salary_min    = _int(row.get("salary_min")),
                     salary_max    = _int(row.get("salary_max")),
                     score         = _int(row.get("score")) or 0,

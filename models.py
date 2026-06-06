@@ -137,6 +137,7 @@ class Job(db.Model):
     salary_max    = db.Column(db.Integer)
     score         = db.Column(db.Integer, default=0)
     match_reasons = db.Column(db.Text)
+    closing_date  = db.Column(db.String(32))
     scan_date     = db.Column(db.DateTime(timezone=True), default=_now)
 
     user = db.relationship("User", back_populates="jobs")
@@ -154,6 +155,7 @@ class Job(db.Model):
             "salary_max":    self.salary_max or "",
             "score":         self.score or 0,
             "match_reasons": self.match_reasons or "",
+            "closing_date":  self.closing_date or "",
             "scan_date":     self.scan_date.strftime("%Y-%m-%d %H:%M") if self.scan_date else "",
         }
 

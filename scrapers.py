@@ -138,6 +138,11 @@ def fetch_mcf(max_pages: int = 3) -> list:
 
                     metadata = r.get("metadata", {}) if isinstance(r.get("metadata"), dict) else {}
                     posted = metadata.get("newPostingDate", "")
+                    closing_date = (
+                        metadata.get("closingDate", "")
+                        or r.get("closingDate", "")
+                        or ""
+                    )
                     job_id = r.get("uuid") or hashlib.md5(r.get("title", "").encode()).hexdigest()[:12]
                     job_details_url = metadata.get("jobDetailsUrl", job_id)
 
@@ -162,6 +167,7 @@ def fetch_mcf(max_pages: int = 3) -> list:
                         "location": location,
                         "url": job_url,
                         "posted_date": posted,
+                        "closing_date": closing_date,
                         "source": "MyCareersFuture",
                         "experience_required": r.get("minimumYearsExperience"),
                     })

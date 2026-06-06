@@ -662,10 +662,15 @@
                   x-text="job.app_status==='interview'?'Interview':job.app_status?job.app_status.charAt(0).toUpperCase()+job.app_status.slice(1):''"></span>
               </div>
 
-              <div class="text-slate-500 text-xs mb-3">
+              <div class="text-slate-500 text-xs mb-3 flex flex-wrap items-center gap-x-1 gap-y-1">
                 <span x-text="job.company"></span>
                 <span x-show="job.location"> · <span x-text="job.location"></span></span>
                 <span x-show="job.salary_min&&job.salary_max"> · $<span x-text="Number(job.salary_min).toLocaleString()"></span>–$<span x-text="Number(job.salary_max).toLocaleString()"></span>/mo</span>
+                <template x-if="job.closing_date && deadlineInfo(job.closing_date)">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border font-semibold"
+                    :class="deadlineInfo(job.closing_date).cls"
+                    x-text="deadlineInfo(job.closing_date).label"></span>
+                </template>
               </div>
 
               <!-- Actions -->
@@ -1751,6 +1756,22 @@ function app() {
       if (!url) return '#';
       const u = String(url).trim();
       return /^https?:\/\//i.test(u) ? u : '#';
+    },
+
+    deadlineInfo(dateStr) {
+      if (!dateStr) return null;
+      const closing = new Date(dateStr);
+      if (isNaN(closing)) return null;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      closing.setHours(0, 0, 0, 0);
+      const days = Math.round((closing - today) / 86400000);
+      if (days < 0)  return { label: 'Expired',              cls: 'bg-slate-100 text-slate-400 border-slate-200' };
+      if (days === 0) return { label: 'Closes today',         cls: 'bg-red-50 text-red-600 border-red-200' };
+      if (days === 1) return { label: 'Closes tomorrow',      cls: 'bg-red-50 text-red-600 border-red-200' };
+      if (days <= 3)  return { label: `Closes in ${days} days`, cls: 'bg-red-50 text-red-600 border-red-200' };
+      if (days <= 7)  return { label: `Closes in ${days} days`, cls: 'bg-amber-50 text-amber-600 border-amber-200' };
+      return { label: `Closes ${dateStr}`, cls: 'bg-slate-50 text-slate-400 border-slate-200' };
     },
 
     // ── Computed ──────────────────────────────────────────────

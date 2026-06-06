@@ -64,7 +64,7 @@ def save_jobs_csv(jobs: list):
         writer = csv.DictWriter(f, fieldnames=[
             "scan_date", "id", "title", "company", "location",
             "salary_min", "salary_max", "score", "match_reasons",
-            "source", "url", "posted_date",
+            "source", "url", "posted_date", "closing_date",
         ])
 
         if not file_exists:
@@ -84,6 +84,7 @@ def save_jobs_csv(jobs: list):
                 "source": job.get("source", ""),
                 "url": job.get("url", ""),
                 "posted_date": job.get("posted_date", ""),
+                "closing_date": job.get("closing_date", ""),
             })
 
 
