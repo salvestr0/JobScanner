@@ -77,6 +77,8 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | `ENCRYPTION_KEY` | Fernet key for encrypting user Gemini keys in DB |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `SENTRY_DSN` | Sentry DSN for error monitoring (optional) |
+| `REDIS_URL` | Redis URL for persistent rate limiting (optional, falls back to memory) |
 
 Generate secrets locally:
 ```bash

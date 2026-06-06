@@ -16,6 +16,18 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
+
+_sentry_dsn = os.getenv("SENTRY_DSN", "").strip()
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        integrations=[FlaskIntegration()],
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
+
 from authlib.integrations.flask_client import OAuth
 from cryptography.fernet import Fernet, InvalidToken
 from dotenv import load_dotenv
@@ -73,11 +85,12 @@ login_manager = LoginManager(app)
 login_manager.login_view = "login_page"
 login_manager.login_message = ""
 
+_redis_url = os.getenv("REDIS_URL", "").strip()
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
     default_limits=[],
-    storage_uri="memory://",
+    storage_uri=_redis_url if _redis_url else "memory://",
 )
 
 oauth = OAuth(app)

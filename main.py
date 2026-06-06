@@ -29,6 +29,12 @@ from datetime import datetime
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+import sentry_sdk
+
+_sentry_dsn = os.environ.get("SENTRY_DSN", "").strip()
+if _sentry_dsn:
+    sentry_sdk.init(dsn=_sentry_dsn, traces_sample_rate=0.0, send_default_pii=False)
+
 from config import DATA_DIR, JOBS_CSV, SEEN_JOBS_FILE, COVER_NOTES_DIR, SEARCH_CONFIG, set_mode, list_modes
 from scrapers import scrape_all_sources
 from scorer import score_job, rank_jobs, filter_jobs
