@@ -21,7 +21,8 @@ class User(UserMixin, db.Model):
 
     id             = db.Column(db.String(36), primary_key=True, default=_uuid)
     email          = db.Column(db.String(255), unique=True, nullable=False)
-    password_hash  = db.Column(db.String(255), nullable=False)
+    password_hash  = db.Column(db.String(255), nullable=True)
+    google_id      = db.Column(db.String(255), unique=True, nullable=True)
     created_at     = db.Column(db.DateTime(timezone=True), default=_now)
 
     # Per-user API credentials (optional — fall back to env vars if blank)

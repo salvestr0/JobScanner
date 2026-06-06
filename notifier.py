@@ -38,7 +38,8 @@ def send_email_digest(jobs: list, settings: dict, subject_override: str = "") ->
             company = _html.escape(job.get("company", ""))
             location = _html.escape(job.get("location", ""))
             source  = _html.escape(job.get("source", ""))
-            url     = _html.escape(job.get("url", "#"))
+            _raw_url = job.get("url", "") or ""
+            url     = _html.escape(_raw_url) if _raw_url.startswith(("http://", "https://")) else "#"
 
             if score >= 70:
                 badge_bg, badge_fg = "#D1FAE5", "#065F46"

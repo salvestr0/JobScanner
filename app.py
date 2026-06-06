@@ -16,12 +16,15 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from authlib.integrations.flask_client import OAuth
+from cryptography.fernet import Fernet, InvalidToken
 from dotenv import load_dotenv
-from flask import Flask, Response, jsonify, redirect, render_template, request, stream_with_context, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, session, stream_with_context, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_migrate import Migrate
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import (
     ApplicationStatus, Job, SearchMode, SeenJob, User,
@@ -30,10 +33,21 @@ from models import (
 
 load_dotenv()
 
+_secret_key = os.getenv("SECRET_KEY", "").strip()
+if not _secret_key:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\" "
+        "then add SECRET_KEY=<value> to your .env file or hosting environment."
+    )
+
+_in_dev = os.getenv("FLASK_ENV") == "development"
+
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.config["JSON_SORT_KEYS"]       = False
-app.config["MAX_CONTENT_LENGTH"]   = 5 * 1024 * 1024  # 5 MB upload cap
-app.config["SECRET_KEY"]           = os.getenv("SECRET_KEY") or "dev-secret-change-me"
+app.config["MAX_CONTENT_LENGTH"]   = 5 * 1024 * 1024
+app.config["SECRET_KEY"]           = _secret_key
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
     "DATABASE_URL",
     "sqlite:///jobscanner_dev.db",
@@ -43,14 +57,14 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
     "pool_recycle":  300,
 }
-
-if app.config["SECRET_KEY"] == "dev-secret-change-me":
-    warnings.warn(
-        "\n\n  ⚠️  SECRET_KEY is the insecure default — change it before deploying.\n"
-        "  Generate one: python -c \"import secrets; print(secrets.token_hex(32))\"\n"
-        "  Then set SECRET_KEY=<value> in your .env file.\n",
-        stacklevel=2,
-    )
+app.config.update(
+    SESSION_COOKIE_SECURE=not _in_dev,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    REMEMBER_COOKIE_SECURE=not _in_dev,
+    REMEMBER_COOKIE_HTTPONLY=True,
+    REMEMBER_COOKIE_SAMESITE="Lax",
+)
 
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -65,6 +79,33 @@ limiter = Limiter(
     default_limits=[],
     storage_uri="memory://",
 )
+
+oauth = OAuth(app)
+google_oauth = oauth.register(
+    name="google",
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={"scope": "openid email profile"},
+)
+
+_enc_key = (os.getenv("ENCRYPTION_KEY") or "").strip().encode()
+_fernet  = Fernet(_enc_key) if _enc_key else None
+
+
+def _encrypt_api_key(plaintext: str) -> str:
+    if not plaintext or not _fernet:
+        return plaintext
+    return _fernet.encrypt(plaintext.encode()).decode()
+
+
+def _decrypt_api_key(ciphertext: str) -> str:
+    if not ciphertext or not _fernet:
+        return ciphertext
+    try:
+        return _fernet.decrypt(ciphertext.encode()).decode()
+    except (InvalidToken, Exception):
+        return ciphertext  # Legacy plaintext fallback
 
 
 @login_manager.user_loader
@@ -214,7 +255,7 @@ def _build_user_env(user: User) -> dict:
     user_cfg: dict = {}
 
     if user.gemini_api_key:
-        user_cfg["gemini_api_key"] = user.gemini_api_key
+        user_cfg["gemini_api_key"] = _decrypt_api_key(user.gemini_api_key)
 
     if profile:
         user_cfg["profile"] = profile.to_dict()
@@ -332,7 +373,7 @@ def auth_register():
     if len(password) < 8:
         return jsonify({"error": "Password must be at least 8 characters"}), 400
     if User.query.filter_by(email=email).first():
-        return jsonify({"error": "An account with that email already exists"}), 409
+        return jsonify({"error": "Registration failed — try signing in instead"}), 409
 
     user = User(
         email=email,
@@ -366,6 +407,54 @@ def auth_login():
 def auth_logout():
     logout_user()
     return jsonify({"ok": True})
+
+
+@app.route("/api/auth/google")
+def auth_google():
+    redirect_uri = url_for("auth_google_callback", _external=True)
+    return google_oauth.authorize_redirect(redirect_uri)
+
+
+@app.route("/api/auth/google/callback")
+def auth_google_callback():
+    try:
+        token    = google_oauth.authorize_access_token()
+        userinfo = token.get("userinfo") or {}
+        email     = (userinfo.get("email") or "").strip().lower()
+        google_id = userinfo.get("sub") or ""
+    except Exception:
+        return redirect("/login?error=google_failed")
+
+    if not email or not google_id:
+        return redirect("/login?error=google_failed")
+
+    if not userinfo.get("email_verified"):
+        return redirect("/login?error=google_failed")
+
+    # Check by google_id first (returning Google user)
+    user = User.query.filter_by(google_id=google_id).first()
+
+    if not user:
+        # Check by email (link to existing email account)
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.google_id = google_id
+            db.session.commit()
+        else:
+            # Brand-new user via Google
+            user = User(
+                email=email,
+                google_id=google_id,
+                subscription_status="trialing",
+                trial_ends_at=datetime.now(timezone.utc) + timedelta(days=3),
+            )
+            db.session.add(user)
+            db.session.commit()
+            login_user(user, remember=True)
+            return redirect("/onboarding")
+
+    login_user(user, remember=True)
+    return redirect("/app")
 
 
 @app.route("/api/auth/me")
@@ -513,6 +602,7 @@ def get_modes():
 
 @app.route("/api/modes/generate", methods=["POST"])
 @login_required
+@limiter.limit("5/minute;20/hour")
 def generate_mode():
     mode_name = (request.json or {}).get("mode", "").strip().lower()
     if not mode_name:
@@ -602,7 +692,7 @@ def save_credentials():
     data = request.json or {}
     key = (data.get("gemini_api_key") or "").strip()
     if key and key != "***":
-        current_user.gemini_api_key = key
+        current_user.gemini_api_key = _encrypt_api_key(key)
     db.session.commit()
     return jsonify({"ok": True})
 
@@ -665,13 +755,14 @@ def test_email():
 
 @app.route("/api/profile/parse-resume", methods=["POST"])
 @login_required
+@limiter.limit("5/minute;30/hour")
 def parse_resume():
     file = request.files.get("resume")
     if not file or not file.filename:
         return jsonify({"error": "No file uploaded"}), 400
 
     import config as cfg
-    api_key = current_user.gemini_api_key or cfg.GEMINI_API_KEY
+    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
     if not api_key:
         return jsonify({"error": "GEMINI_API_KEY not configured"}), 400
 
@@ -831,6 +922,7 @@ def scan_status():
 
 @app.route("/api/scan/start", methods=["POST"])
 @login_required
+@limiter.limit("3/minute;15/hour")
 def start_scan():
     if not _is_active(current_user):
         return jsonify({"error": "trial_expired"}), 403

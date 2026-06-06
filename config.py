@@ -20,67 +20,16 @@ GEMINI_API_KEY = _os.getenv("GEMINI_API_KEY", "")
 # YOUR PROFILE
 # ============================================================
 PROFILE = {
-    "name": "Tng Shao Bin Jayden",
-    "email": "jaydentng82@gmail.com",
-    "phone": "90185228",
-    "education": "Diploma in Infocomm (Artificial Intelligence), Temasek Polytechnic (2023-2026)",
-    "certifications": [
-        "Certificate in Application Development (2024)",
-        "Certificate in Data Science (2024)",
-        "Certificate in Artificial Intelligence (2025)",
-        "Certificate in AI in Process Automation (2025)",
-    ],
-    "technical_skills": [
-        "Python", "SQL", "Microsoft Excel", "Power BI",
-        "Data Analysis", "Database Management", "Microsoft PowerPoint",
-        "Data Entry", "Data Science", "AI", "Machine Learning",
-    ],
-    "soft_skills": [
-        "Adaptability", "Attention to Detail", "Communication",
-        "Customer Service", "Problem-Solving", "Teamwork", "Time Management",
-    ],
-    "experience_summary": (
-        "Recent Diploma graduate in AI with certifications in Data Science, AI, "
-        "and Process Automation. Experience as a Business Support Executive handling "
-        "backend administration, logistics coordination, and inventory database management. "
-        "Built a personal Expense & Income Tracker project for spending analysis. "
-        "Strong customer service background from roles at Resorts World Sentosa and "
-        "Marina Bay Cruise Centre."
-    ),
-    "work_history": [
-        {
-            "title": "Card Consultant (PT)",
-            "company": "Concept Grading",
-            "period": "Oct 2025 - Jan 2026",
-            "summary": "Graded customer cards and provided advisory services",
-        },
-        {
-            "title": "Business Support Executive (Logistics)",
-            "company": "Choo Chiang Marketing",
-            "period": "Mar 2025 - Jun 2025",
-            "summary": "Handled backend administration and frontend logistics. "
-                       "Managed stock intake, database logging, delivery scheduling, "
-                       "and inventory accuracy.",
-        },
-        {
-            "title": "Barista (PT)",
-            "company": "Jewel Coffee",
-            "period": "Jun 2022 - Dec 2022",
-            "summary": "Part-time cafe operations",
-        },
-        {
-            "title": "Banquet Server (PT)",
-            "company": "Resorts World Sentosa",
-            "period": "Jan 2019 - Dec 2020",
-            "summary": "Served high-end customers at banquet events",
-        },
-    ],
-    "projects": [
-        {
-            "name": "Expense & Income Tracker",
-            "description": "Personal project to track spending, analyze categories, and identify savings opportunities",
-        },
-    ],
+    "name": "",
+    "email": "",
+    "phone": "",
+    "education": "",
+    "certifications": [],
+    "technical_skills": [],
+    "soft_skills": [],
+    "experience_summary": "",
+    "work_history": [],
+    "projects": [],
 }
 
 # ============================================================
