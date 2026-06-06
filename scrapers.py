@@ -6,6 +6,7 @@ the Singapore market well. All previous scrapers (LinkedIn, Indeed,
 JobStreet, Glints) violated those platforms' ToS and have been removed.
 """
 
+import hashlib
 import time
 
 import requests
@@ -113,7 +114,7 @@ def fetch_mcf(max_pages: int = 3) -> list:
 
                     metadata = r.get("metadata", {}) if isinstance(r.get("metadata"), dict) else {}
                     posted = metadata.get("newPostingDate", "")
-                    job_id = r.get("uuid", str(hash(r.get("title", "")))[:12])
+                    job_id = r.get("uuid") or hashlib.md5(r.get("title", "").encode()).hexdigest()[:12]
                     job_details_url = metadata.get("jobDetailsUrl", job_id)
 
                     if job_details_url.startswith("http"):

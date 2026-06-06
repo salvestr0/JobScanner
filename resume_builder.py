@@ -3,6 +3,7 @@ Generate a professional PDF resume from a user profile dict.
 Uses reportlab Platypus for clean, ATS-friendly output.
 """
 import io
+from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
@@ -88,15 +89,15 @@ def generate_pdf(profile: dict) -> bytes:
     phone   = (profile.get("phone") or "").strip()
     contact_parts = [p for p in [email, phone, "Singapore"] if p]
 
-    story.append(Paragraph(name, s["name"]))
-    story.append(Paragraph(" · ".join(contact_parts), s["contact"]))
+    story.append(Paragraph(escape(name), s["name"]))
+    story.append(Paragraph(escape(" · ".join(contact_parts)), s["contact"]))
     story.append(Spacer(1, 10))
 
     # ── Summary ───────────────────────────────────────────────────────────────
     summary = (profile.get("experience_summary") or "").strip()
     if summary:
         story += _section("Professional Summary", s)
-        story.append(Paragraph(summary, s["body"]))
+        story.append(Paragraph(escape(summary), s["body"]))
 
     # ── Skills ────────────────────────────────────────────────────────────────
     tech   = profile.get("technical_skills") or []
@@ -104,10 +105,10 @@ def generate_pdf(profile: dict) -> bytes:
     if tech or soft:
         story += _section("Skills", s)
         if tech:
-            skills_str = ", ".join(tech) if isinstance(tech, list) else str(tech)
+            skills_str = escape(", ".join(tech) if isinstance(tech, list) else str(tech))
             story.append(Paragraph(f"<b>Technical:</b>  {skills_str}", s["body"]))
         if soft:
-            soft_str = ", ".join(soft) if isinstance(soft, list) else str(soft)
+            soft_str = escape(", ".join(soft) if isinstance(soft, list) else str(soft))
             story.append(Paragraph(f"<b>Interpersonal:</b>  {soft_str}", s["body"]))
 
     # ── Work Experience ────────────────────────────────────────────────────────
@@ -120,15 +121,15 @@ def generate_pdf(profile: dict) -> bytes:
             period  = (job.get("period") or "").strip()
             summary = (job.get("summary") or "").strip()
 
-            header_left  = f"<b>{title}</b>" + (f"  ·  {company}" if company else "")
+            header_left  = f"<b>{escape(title)}</b>" + (f"  ·  {escape(company)}" if company else "")
             block = [Paragraph(header_left, s["job_title"])]
             if period:
-                block.append(Paragraph(period, s["job_meta"]))
+                block.append(Paragraph(escape(period), s["job_meta"]))
             if summary:
                 for line in summary.split("\n"):
                     line = line.strip().lstrip("•-").strip()
                     if line:
-                        block.append(Paragraph(f"• {line}", s["bullet"]))
+                        block.append(Paragraph(f"• {escape(line)}", s["bullet"]))
             block.append(Spacer(1, 4))
             story.append(KeepTogether(block))
 
@@ -136,7 +137,7 @@ def generate_pdf(profile: dict) -> bytes:
     education = (profile.get("education") or "").strip()
     if education:
         story += _section("Education", s)
-        story.append(Paragraph(education, s["body"]))
+        story.append(Paragraph(escape(education), s["body"]))
 
     # ── Certifications ────────────────────────────────────────────────────────
     certs = profile.get("certifications") or []
@@ -145,7 +146,7 @@ def generate_pdf(profile: dict) -> bytes:
         for cert in certs:
             cert = cert.strip() if isinstance(cert, str) else str(cert)
             if cert:
-                story.append(Paragraph(f"• {cert}", s["bullet"]))
+                story.append(Paragraph(f"• {escape(cert)}", s["bullet"]))
 
     # ── Projects ──────────────────────────────────────────────────────────────
     projects = profile.get("projects") or []
@@ -155,9 +156,9 @@ def generate_pdf(profile: dict) -> bytes:
             pname = (proj.get("name") or "").strip()
             pdesc = (proj.get("description") or "").strip()
             if pname:
-                block = [Paragraph(f"<b>{pname}</b>", s["job_title"])]
+                block = [Paragraph(f"<b>{escape(pname)}</b>", s["job_title"])]
                 if pdesc:
-                    block.append(Paragraph(pdesc, s["body_light"]))
+                    block.append(Paragraph(escape(pdesc), s["body_light"]))
                 block.append(Spacer(1, 4))
                 story.append(KeepTogether(block))
 
