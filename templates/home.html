@@ -49,7 +49,7 @@
           Sign in
         </a>
         <a href="/register" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
-          Start free trial
+          Get started free
         </a>
       </div>
     </div>
@@ -80,7 +80,7 @@
       <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
         <a href="/register"
           class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-7 py-3.5 rounded-xl transition-colors text-base shadow-lg shadow-indigo-900/30">
-          Start free — 3 days on us
+          Get started free — no card needed
         </a>
         <a href="/login"
           class="w-full sm:w-auto border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white font-medium px-7 py-3.5 rounded-xl transition-colors text-base">
@@ -236,23 +236,55 @@
         <p class="text-slate-500 mt-3 text-base">Start free. No credit card required.</p>
       </div>
 
-      <div class="max-w-sm mx-auto">
-        <div class="pricing-card rounded-2xl p-8 shadow-xl shadow-indigo-950/30">
-          <!-- Badge -->
-          <div class="inline-flex items-center gap-1.5 bg-indigo-600/20 text-indigo-300 text-xs font-semibold px-3 py-1 rounded-full mb-6 border border-indigo-600/30">
-            <span class="w-1.5 h-1.5 bg-indigo-400 rounded-full"></span>
-            3-day free trial
-          </div>
+      <div class="max-w-3xl mx-auto grid sm:grid-cols-2 gap-6">
 
+        <!-- Free tier -->
+        <div class="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-8">
+          <div class="inline-flex items-center gap-1.5 bg-slate-700/50 text-slate-300 text-xs font-semibold px-3 py-1 rounded-full mb-6 border border-slate-600/40">
+            Free
+          </div>
+          <div class="mb-6">
+            <span class="text-5xl font-bold text-white">S$0</span>
+            <span class="text-slate-400 ml-2">/ forever</span>
+          </div>
+          <ul class="space-y-3 mb-8">
+            <li class="flex items-center gap-3 text-sm text-slate-300">
+              <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Up to 10 job matches per scan
+            </li>
+            <li class="flex items-center gap-3 text-sm text-slate-300">
+              <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Profile &amp; resume builder
+            </li>
+            <li class="flex items-center gap-3 text-sm text-slate-300">
+              <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Application tracker
+            </li>
+          </ul>
+          <a href="/register"
+            class="block w-full text-center border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white font-semibold py-3.5 rounded-xl transition-colors">
+            Get started free
+          </a>
+          <p class="text-slate-600 text-xs text-center mt-3">No credit card required</p>
+        </div>
+
+        <!-- Pro tier -->
+        <div class="pricing-card rounded-2xl p-8 shadow-xl shadow-indigo-950/30 relative">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2">
+            <span class="bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow">Most popular</span>
+          </div>
+          <div class="inline-flex items-center gap-1.5 bg-indigo-600/20 text-indigo-300 text-xs font-semibold px-3 py-1 rounded-full mb-6 border border-indigo-600/30">
+            <span class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse"></span>
+            Pro
+          </div>
           <div class="mb-6">
             <span class="text-5xl font-bold text-white">S$8</span>
             <span class="text-slate-400 ml-2">/ month</span>
           </div>
-
           <ul class="space-y-3 mb-8">
             <li class="flex items-center gap-3 text-sm text-slate-300">
               <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-              Unlimited daily scans
+              <strong class="text-white">Unlimited</strong>&nbsp;job matches per scan
             </li>
             <li class="flex items-center gap-3 text-sm text-slate-300">
               <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
@@ -264,24 +296,24 @@
             </li>
             <li class="flex items-center gap-3 text-sm text-slate-300">
               <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-              Application tracker &amp; analytics
+              Multiple AI scan modes
             </li>
             <li class="flex items-center gap-3 text-sm text-slate-300">
               <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-              Multiple AI scan modes
+              Analytics &amp; application tracker
             </li>
             <li class="flex items-center gap-3 text-sm text-slate-300">
               <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
               Cancel anytime
             </li>
           </ul>
-
           <a href="/register"
             class="block w-full text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3.5 rounded-xl transition-colors shadow-lg shadow-indigo-900/30">
-            Start your free trial
+            Get started free
           </a>
-          <p class="text-slate-600 text-xs text-center mt-3">No credit card required</p>
+          <p class="text-slate-600 text-xs text-center mt-3">Start free, upgrade anytime</p>
         </div>
+
       </div>
     </div>
   </section>
@@ -291,7 +323,7 @@
     <div class="max-w-3xl mx-auto text-center">
       <div class="bg-gradient-to-br from-indigo-950/60 to-slate-900/60 border border-indigo-800/30 rounded-3xl p-12 shadow-xl">
         <h2 class="text-3xl sm:text-4xl font-bold mb-4">Stop scrolling job boards.</h2>
-        <p class="text-slate-400 text-lg mb-8">Let Job Scanner do the work. Start your 3-day free trial — no card needed, cancel anytime.</p>
+        <p class="text-slate-400 text-lg mb-8">Let Job Scanner do the work. Free to start — no card needed, ever.</p>
         <a href="/register"
           class="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-xl transition-colors text-base shadow-lg shadow-indigo-900/40">
           Get started for free
