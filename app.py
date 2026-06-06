@@ -117,8 +117,11 @@ def _decrypt_api_key(ciphertext: str) -> str:
         return ciphertext
     try:
         return _fernet.decrypt(ciphertext.encode()).decode()
-    except (InvalidToken, Exception):
-        return ciphertext  # Legacy plaintext fallback
+    except InvalidToken:
+        warnings.warn("Fernet decryption failed — ENCRYPTION_KEY mismatch or corrupted value. Returning raw value.")
+        return ciphertext
+    except Exception:
+        return ciphertext
 
 
 @login_manager.user_loader
@@ -136,12 +139,20 @@ def unauthorized():
 # ── Per-user scan state ────────────────────────────────────────────────────────
 # Keyed by user_id string so each user has independent scan state.
 _scans: dict[str, dict] = {}
+_scan_locks: dict[str, threading.Lock] = {}
+_config_lock = threading.Lock()
 
 
 def _get_scan(user_id: str) -> dict:
     if user_id not in _scans:
         _scans[user_id] = {"running": False, "q": queue.Queue(), "proc": None}
     return _scans[user_id]
+
+
+def _get_scan_lock(user_id: str) -> threading.Lock:
+    if user_id not in _scan_locks:
+        _scan_locks[user_id] = threading.Lock()
+    return _scan_locks[user_id]
 
 
 def _run_subprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, extra_env: dict):
@@ -623,11 +634,10 @@ def generate_mode():
         return jsonify({"error": "mode name required"}), 400
 
     import config as cfg
-    cfg.set_mode(mode_name, refresh=(request.json or {}).get("refresh", False))
-
-    # Persist generated mode to DB for this user
-    from config import SEARCH_CONFIG
-    mode_cfg = dict(SEARCH_CONFIG)
+    with _config_lock:
+        cfg.set_mode(mode_name, refresh=(request.json or {}).get("refresh", False))
+        from config import SEARCH_CONFIG
+        mode_cfg = dict(SEARCH_CONFIG)
 
     row = SearchMode.query.filter_by(user_id=current_user.id, name=mode_name).first()
     if row:
@@ -921,7 +931,7 @@ def resume_download():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    name_slug = (profile.get("name") or "resume").lower().replace(" ", "_")
+    name_slug = re.sub(r'[^a-z0-9_\-]', '_', (profile.get("name") or "resume").lower().replace(" ", "_"))
     filename  = f"{name_slug}_resume.pdf"
 
     resp = make_response(pdf_bytes)
@@ -1051,10 +1061,6 @@ def start_scan():
     if not _is_active(current_user):
         return jsonify({"error": "trial_expired"}), 403
 
-    scan = _get_scan(current_user.id)
-    if scan["running"]:
-        return jsonify({"error": "Scan already running"}), 409
-
     data   = request.json or {}
     mode   = data.get("mode", "analyst")
     notify = data.get("notify", True)
@@ -1062,8 +1068,12 @@ def start_scan():
     if not re.match(r'^[a-z0-9_-]{1,32}$', mode):
         return jsonify({"error": "Invalid mode name"}), 400
 
-    scan["running"] = True
-    scan["q"]       = queue.Queue()
+    with _get_scan_lock(current_user.id):
+        scan = _get_scan(current_user.id)
+        if scan["running"]:
+            return jsonify({"error": "Scan already running"}), 409
+        scan["running"] = True
+        scan["q"]       = queue.Queue()
 
     extra_env = _build_user_env(current_user)
     t = threading.Thread(
@@ -1364,7 +1374,8 @@ def cron_scan():
         except Exception:
             continue
 
-        if abs(now_min - sched_min) <= 7:
+        diff = abs(now_min - sched_min)
+        if min(diff, 1440 - diff) <= 7:
             user  = db.session.get(User, s.user_id)
             scan  = _get_scan(s.user_id)
             if user and not scan["running"]:
