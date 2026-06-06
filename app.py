@@ -1,0 +1,1062 @@
+"""
+Job Scanner Web UI — Flask backend (multi-user)
+Run: python run.py
+Open: http://localhost:5000
+"""
+import hmac
+import json
+import os
+import queue
+import re
+import subprocess
+import sys
+import threading
+import warnings
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from dotenv import load_dotenv
+from flask import Flask, Response, jsonify, redirect, render_template, request, stream_with_context, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_login import LoginManager, current_user, login_required, login_user, logout_user
+from flask_migrate import Migrate
+
+from models import (
+    ApplicationStatus, Job, SearchMode, SeenJob, User,
+    UserProfile, UserSettings, db,
+)
+
+load_dotenv()
+
+app = Flask(__name__)
+app.config["JSON_SORT_KEYS"]       = False
+app.config["MAX_CONTENT_LENGTH"]   = 5 * 1024 * 1024  # 5 MB upload cap
+app.config["SECRET_KEY"]           = os.getenv("SECRET_KEY") or "dev-secret-change-me"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
+    "DATABASE_URL",
+    "sqlite:///jobscanner_dev.db",
+)
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle":  300,
+}
+
+if app.config["SECRET_KEY"] == "dev-secret-change-me":
+    warnings.warn(
+        "\n\n  ⚠️  SECRET_KEY is the insecure default — change it before deploying.\n"
+        "  Generate one: python -c \"import secrets; print(secrets.token_hex(32))\"\n"
+        "  Then set SECRET_KEY=<value> in your .env file.\n",
+        stacklevel=2,
+    )
+
+db.init_app(app)
+migrate = Migrate(app, db)
+
+login_manager = LoginManager(app)
+login_manager.login_view = "login_page"
+login_manager.login_message = ""
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri="memory://",
+)
+
+
+@login_manager.user_loader
+def load_user(user_id: str):
+    return db.session.get(User, user_id)
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Unauthorized"}), 401
+    return redirect(url_for("login_page"))
+
+
+# ── Per-user scan state ────────────────────────────────────────────────────────
+# Keyed by user_id string so each user has independent scan state.
+_scans: dict[str, dict] = {}
+
+
+def _get_scan(user_id: str) -> dict:
+    if user_id not in _scans:
+        _scans[user_id] = {"running": False, "q": queue.Queue(), "proc": None}
+    return _scans[user_id]
+
+
+def _run_subprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, extra_env: dict):
+    args = [sys.executable, "-X", "utf8", "-u", "main.py"]
+    if mode != "analyst":
+        args.append(f"--mode={mode}")
+    if not notify:
+        args.append("--no-notify")
+
+    env = os.environ.copy()
+    # Strip Flask/Stripe secrets — subprocess only needs scan-related vars
+    for _k in ("SECRET_KEY", "STRIPE_SECRET_KEY", "STRIPE_PRICE_ID",
+               "STRIPE_WEBHOOK_SECRET", "CRON_SECRET"):
+        env.pop(_k, None)
+    env.update({
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8":       "1",
+    })
+    env.update(extra_env)
+
+    scan = _get_scan(user_id)
+    try:
+        proc = subprocess.Popen(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+        scan["proc"] = proc
+
+        for line in proc.stdout:
+            line = line.rstrip("\n").strip()
+            if line:
+                q.put(line)
+
+        proc.wait()
+    except Exception as exc:
+        q.put(f"ERROR: {exc}")
+    finally:
+        # Sync CSV/seen_jobs written by the subprocess back into the DB
+        with app.app_context():
+            _sync_scan_results(user_id, extra_env.get("JOBSCANNER_DATA_DIR", f"data/users/{user_id}"))
+        q.put(None)
+        scan["running"] = False
+        scan["proc"]    = None
+
+
+def _sync_scan_results(user_id: str, data_dir: str):
+    """
+    Import matched_jobs.csv and seen_jobs.json written by the scan subprocess
+    into the database. Called automatically after each scan finishes.
+    """
+    import csv as _csv
+
+    jobs_csv   = os.path.join(data_dir, "matched_jobs.csv")
+    seen_file  = os.path.join(data_dir, "seen_jobs.json")
+
+    # ── Import new jobs from CSV ───────────────────────────────────────────────
+    if os.path.exists(jobs_csv):
+        def _int(v):
+            try:
+                return int(v) if v and str(v).strip() else None
+            except ValueError:
+                return None
+
+        new_count = 0
+        with open(jobs_csv, newline="", encoding="utf-8") as f:
+            for row in _csv.DictReader(f):
+                job_id = (row.get("id") or "").strip()
+                if not job_id:
+                    continue
+                exists = Job.query.filter_by(user_id=user_id, source_job_id=job_id).first()
+                if exists:
+                    continue
+                scan_dt = None
+                for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                    try:
+                        scan_dt = datetime.strptime(row.get("scan_date", ""), fmt).replace(tzinfo=timezone.utc)
+                        break
+                    except (ValueError, TypeError):
+                        pass
+                db.session.add(Job(
+                    user_id       = user_id,
+                    source_job_id = job_id,
+                    title         = row.get("title", ""),
+                    company       = row.get("company", ""),
+                    location      = row.get("location", ""),
+                    source        = row.get("source", ""),
+                    url           = row.get("url", ""),
+                    posted_date   = row.get("posted_date", ""),
+                    salary_min    = _int(row.get("salary_min")),
+                    salary_max    = _int(row.get("salary_max")),
+                    score         = _int(row.get("score")) or 0,
+                    match_reasons = row.get("match_reasons", ""),
+                    scan_date     = scan_dt or datetime.now(timezone.utc),
+                ))
+                new_count += 1
+        db.session.commit()
+
+    # ── Sync seen job IDs ──────────────────────────────────────────────────────
+    if os.path.exists(seen_file):
+        with open(seen_file, encoding="utf-8") as f:
+            seen_ids = set(json.load(f))
+        existing_ids = {
+            r.job_source_id
+            for r in SeenJob.query.filter_by(user_id=user_id).with_entities(SeenJob.job_source_id).all()
+        }
+        new_seen = seen_ids - existing_ids
+        for job_id in new_seen:
+            db.session.add(SeenJob(user_id=user_id, job_source_id=job_id))
+        if new_seen:
+            db.session.commit()
+
+
+def _build_user_env(user: User) -> dict:
+    """Serialize user credentials + settings into env vars for the subprocess."""
+    settings = user.settings
+    profile  = user.profile
+
+    user_cfg: dict = {}
+
+    if user.gemini_api_key:
+        user_cfg["gemini_api_key"] = user.gemini_api_key
+
+    if profile:
+        user_cfg["profile"] = profile.to_dict()
+        user_cfg["profile"]["email"] = user.email
+
+    if settings:
+        sc = settings.to_dict()
+        user_cfg["search_config"] = {
+            "min_salary":                sc["min_salary"],
+            "max_salary":                sc["max_salary"],
+            "min_score_threshold":       sc["min_score_threshold"],
+            "max_jobs_per_notification": sc["max_jobs_per_notification"],
+            "preferred_location":        sc["preferred_location"],
+            "location_keywords":         sc["location_keywords"] or [],
+            "target_titles":             sc["target_titles"] or [],
+            "preferred_keywords":        sc["preferred_keywords"] or [],
+            "negative_keywords":         sc["negative_keywords"] or [],
+            "email_enabled":             sc["email_enabled"],
+            "email_to":                  sc["email_to"] or "",
+        }
+
+    data_dir = f"data/users/{user.id}"
+    return {
+        "JOBSCANNER_USER_CONFIG": json.dumps(user_cfg),
+        "JOBSCANNER_DATA_DIR":    data_dir,
+    }
+
+
+# ── DB helpers ─────────────────────────────────────────────────────────────────
+
+def _jobs_for_user(user_id: str) -> list[dict]:
+    rows = (
+        Job.query
+        .filter_by(user_id=user_id)
+        .order_by(Job.scan_date.desc())
+        .all()
+    )
+    return [r.to_dict() for r in rows]
+
+
+def _statuses_for_user(user_id: str) -> dict:
+    rows = ApplicationStatus.query.filter_by(user_id=user_id).all()
+    return {r.job_source_id: r.to_dict() for r in rows}
+
+
+def _get_or_create_settings(user_id: str) -> UserSettings:
+    s = db.session.get(UserSettings, user_id)
+    if s is None:
+        import config as cfg
+        s = UserSettings(
+            user_id=user_id,
+            min_salary=cfg.SEARCH_CONFIG.get("min_salary", 2200),
+            max_salary=cfg.SEARCH_CONFIG.get("max_salary", 4000),
+            min_score_threshold=cfg.SEARCH_CONFIG.get("min_score_threshold", 40),
+            max_jobs_per_notification=cfg.SEARCH_CONFIG.get("max_jobs_per_notification", 20),
+            target_titles=cfg.SEARCH_CONFIG.get("target_titles", []),
+            preferred_keywords=cfg.SEARCH_CONFIG.get("preferred_keywords", []),
+            negative_keywords=cfg.SEARCH_CONFIG.get("negative_keywords", []),
+            location_keywords=cfg.SEARCH_CONFIG.get("location_keywords", []),
+            preferred_location=cfg.SEARCH_CONFIG.get("preferred_location", "Sengkang"),
+        )
+        db.session.add(s)
+        db.session.commit()
+    return s
+
+
+def _get_or_create_profile(user_id: str) -> UserProfile:
+    p = db.session.get(UserProfile, user_id)
+    if p is None:
+        import config as cfg
+        p = UserProfile(
+            user_id=user_id,
+            name=cfg.PROFILE.get("name", ""),
+            phone=cfg.PROFILE.get("phone", ""),
+            education=cfg.PROFILE.get("education", ""),
+            experience_summary=cfg.PROFILE.get("experience_summary", ""),
+            technical_skills=cfg.PROFILE.get("technical_skills", []),
+            soft_skills=cfg.PROFILE.get("soft_skills", []),
+            work_history=cfg.PROFILE.get("work_history", []),
+            certifications=cfg.PROFILE.get("certifications", []),
+            projects=cfg.PROFILE.get("projects", []),
+        )
+        db.session.add(p)
+        db.session.commit()
+    return p
+
+
+# ── Auth pages ─────────────────────────────────────────────────────────────────
+
+@app.route("/login")
+def login_page():
+    if current_user.is_authenticated:
+        return redirect(url_for("app_page"))
+    return render_template("login.html")
+
+
+@app.route("/register")
+def register_page():
+    if current_user.is_authenticated:
+        return redirect(url_for("app_page"))
+    return render_template("register.html")
+
+
+# ── Auth API ───────────────────────────────────────────────────────────────────
+
+@app.route("/api/auth/register", methods=["POST"])
+@limiter.limit("5/minute;20/hour")
+def auth_register():
+    data     = request.json or {}
+    email    = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "An account with that email already exists"}), 409
+
+    user = User(
+        email=email,
+        subscription_status="trialing",
+        trial_ends_at=datetime.now(timezone.utc) + timedelta(days=3),
+    )
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    login_user(user, remember=True)
+    return jsonify({"ok": True, "email": user.email, "onboarding": True})
+
+
+@app.route("/api/auth/login", methods=["POST"])
+@limiter.limit("10/minute;50/hour")
+def auth_login():
+    data     = request.json or {}
+    email    = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.check_password(password):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    login_user(user, remember=True)
+    return jsonify({"ok": True, "email": user.email})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+@login_required
+def auth_logout():
+    logout_user()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/auth/me")
+def auth_me():
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({"email": current_user.email, "id": current_user.id})
+
+
+# ── Pages ─────────────────────────────────────────────────────────────────────
+
+@app.route("/")
+def home_page():
+    if current_user.is_authenticated:
+        return redirect(url_for("app_page"))
+    return render_template("home.html")
+
+
+@app.route("/app")
+@login_required
+def app_page():
+    return render_template("index.html")
+
+
+@app.route("/onboarding")
+@login_required
+def onboarding():
+    return render_template("onboarding.html")
+
+
+# ── Stats ──────────────────────────────────────────────────────────────────────
+
+@app.route("/api/stats")
+@login_required
+def stats():
+    jobs   = _jobs_for_user(current_user.id)
+    status = _statuses_for_user(current_user.id)
+
+    unique = list({j["id"]: j for j in jobs}.values())
+    for j in unique:
+        j["app_status"] = status.get(j["id"], {}).get("status", "")
+
+    return jsonify({
+        "total_jobs":  len(unique),
+        "applied":     sum(1 for v in status.values() if v["status"] == "applied"),
+        "interviews":  sum(1 for v in status.values() if v["status"] == "interview"),
+        "skipped":     sum(1 for v in status.values() if v["status"] == "skip"),
+        "last_scan":   jobs[0].get("scan_date", "Never") if jobs else "Never",
+        "recent_jobs": unique[:5],
+    })
+
+
+# ── Jobs ───────────────────────────────────────────────────────────────────────
+
+@app.route("/api/jobs")
+@login_required
+def get_jobs():
+    all_jobs = _jobs_for_user(current_user.id)
+    status   = _statuses_for_user(current_user.id)
+
+    unique = list({j["id"]: j for j in all_jobs}.values())
+    for j in unique:
+        j["app_status"] = status.get(j["id"], {}).get("status", "")
+
+    q      = request.args.get("q", "").lower()
+    source = request.args.get("source", "")
+    st     = request.args.get("status", "")
+
+    if source:
+        unique = [j for j in unique if j.get("source", "") == source]
+    if st == "untracked":
+        unique = [j for j in unique if not j.get("app_status")]
+    elif st:
+        unique = [j for j in unique if j.get("app_status") == st]
+    if q:
+        unique = [j for j in unique if q in j.get("title", "").lower() or q in j.get("company", "").lower()]
+
+    return jsonify(unique)
+
+
+# ── Applications ───────────────────────────────────────────────────────────────
+
+@app.route("/api/applications", methods=["GET"])
+@login_required
+def get_applications():
+    return jsonify(_statuses_for_user(current_user.id))
+
+
+@app.route("/api/applications/<job_id>", methods=["POST"])
+@login_required
+def update_application(job_id):
+    data       = request.json or {}
+    new_status = data.get("status", "")
+
+    if new_status == "clear":
+        row = db.session.get(ApplicationStatus, (current_user.id, job_id))
+        if row:
+            db.session.delete(row)
+            db.session.commit()
+        return jsonify({"ok": True})
+
+    # Look up the job to fill in title/company/url
+    job_row = Job.query.filter_by(user_id=current_user.id, source_job_id=job_id).first()
+    existing = db.session.get(ApplicationStatus, (current_user.id, job_id))
+
+    if existing:
+        existing.status         = new_status
+        existing.title          = (job_row.title   if job_row else None) or existing.title
+        existing.company        = (job_row.company if job_row else None) or existing.company
+        existing.url            = (job_row.url     if job_row else None) or existing.url
+        existing.notes          = data.get("notes",          existing.notes)
+        existing.interview_date = data.get("interview_date", existing.interview_date)
+        existing.interview_time = data.get("interview_time", existing.interview_time)
+        existing.updated_at     = datetime.now(timezone.utc)
+    else:
+        existing = ApplicationStatus(
+            user_id       = current_user.id,
+            job_source_id = job_id,
+            status        = new_status,
+            title         = job_row.title   if job_row else "",
+            company       = job_row.company if job_row else "",
+            url           = job_row.url     if job_row else "",
+            notes         = data.get("notes", ""),
+            interview_date = data.get("interview_date", ""),
+            interview_time = data.get("interview_time", ""),
+        )
+        db.session.add(existing)
+
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+# ── Modes ──────────────────────────────────────────────────────────────────────
+
+@app.route("/api/modes")
+@login_required
+def get_modes():
+    modes = [{"name": "analyst", "titles": ["Data Analyst", "Business Analyst", "Operations Analyst"]}]
+    rows = SearchMode.query.filter_by(user_id=current_user.id).all()
+    for row in rows:
+        cfg = row.config or {}
+        modes.append({"name": row.name, "titles": cfg.get("target_titles", [])[:3]})
+    return jsonify(modes)
+
+
+@app.route("/api/modes/generate", methods=["POST"])
+@login_required
+def generate_mode():
+    mode_name = (request.json or {}).get("mode", "").strip().lower()
+    if not mode_name:
+        return jsonify({"error": "mode name required"}), 400
+
+    import config as cfg
+    cfg.set_mode(mode_name, refresh=(request.json or {}).get("refresh", False))
+
+    # Persist generated mode to DB for this user
+    from config import SEARCH_CONFIG
+    mode_cfg = dict(SEARCH_CONFIG)
+
+    row = SearchMode.query.filter_by(user_id=current_user.id, name=mode_name).first()
+    if row:
+        row.config = mode_cfg
+    else:
+        row = SearchMode(user_id=current_user.id, name=mode_name, config=mode_cfg)
+        db.session.add(row)
+    db.session.commit()
+
+    return jsonify({"ok": True, "mode": mode_name, "titles": mode_cfg.get("target_titles", [])[:3]})
+
+
+# ── Cover notes ────────────────────────────────────────────────────────────────
+
+def _cover_notes_dir(user_id: str) -> Path:
+    return Path(f"data/users/{user_id}/cover_notes")
+
+
+@app.route("/api/cover-notes")
+@login_required
+def list_cover_notes():
+    notes_dir = _cover_notes_dir(current_user.id)
+    if not notes_dir.exists():
+        return jsonify([])
+
+    notes = []
+    for f in sorted(notes_dir.glob("*.txt"), key=os.path.getmtime, reverse=True):
+        try:
+            lines      = f.read_text(encoding="utf-8").split("\n")
+            title_line = lines[0].replace("Cover Note for:", "").strip()
+            parts      = title_line.split("@", 1)
+            job_title  = parts[0].strip()
+            company    = parts[1].strip() if len(parts) > 1 else ""
+            score_line = next((l for l in lines if "Match Score:" in l), "")
+            score      = score_line.replace("Match Score:", "").replace("/100", "").strip() if score_line else ""
+            url_line   = next((l for l in lines if "Job URL:" in l), "")
+            url        = url_line.replace("Job URL:", "").strip() if url_line else ""
+            notes.append({
+                "filename": f.name,
+                "title":    job_title,
+                "company":  company,
+                "score":    int(score) if score.isdigit() else "",
+                "url":      url,
+                "modified": datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+            })
+        except Exception:
+            notes.append({"filename": f.name, "title": f.stem, "company": "", "score": "", "url": "", "modified": ""})
+
+    return jsonify(notes)
+
+
+@app.route("/api/cover-notes/<filename>")
+@login_required
+def get_cover_note(filename):
+    safe = os.path.basename(filename)
+    path = _cover_notes_dir(current_user.id) / safe
+    if not path.exists():
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({"content": path.read_text(encoding="utf-8")})
+
+
+# ── Config / settings ──────────────────────────────────────────────────────────
+
+@app.route("/api/credentials", methods=["GET"])
+@login_required
+def get_credentials():
+    return jsonify({
+        "gemini_api_key":   "***" if current_user.gemini_api_key else "",
+        "gemini_configured": bool(current_user.gemini_api_key),
+    })
+
+
+@app.route("/api/credentials", methods=["POST"])
+@login_required
+def save_credentials():
+    data = request.json or {}
+    key = (data.get("gemini_api_key") or "").strip()
+    if key and key != "***":
+        current_user.gemini_api_key = key
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/config", methods=["GET"])
+@login_required
+def get_config():
+    import config as cfg
+    s = _get_or_create_settings(current_user.id)
+    return jsonify({
+        "gemini_api_key":            bool(current_user.gemini_api_key or cfg.GEMINI_API_KEY),
+        "email_configured":          bool(os.getenv("RESEND_API_KEY")),
+        "min_salary":                s.min_salary,
+        "max_salary":                s.max_salary,
+        "min_score_threshold":       s.min_score_threshold,
+        "max_jobs_per_notification": s.max_jobs_per_notification,
+        "email_enabled":             s.email_enabled,
+        "email_to":                  s.email_to or "",
+        "target_titles":             s.target_titles or [],
+        "preferred_keywords":        s.preferred_keywords or [],
+        "negative_keywords":         s.negative_keywords or [],
+        "location_keywords":         s.location_keywords or [],
+        "preferred_location":        s.preferred_location or "Sengkang",
+    })
+
+
+@app.route("/api/config", methods=["POST"])
+@login_required
+def update_config():
+    data = request.json or {}
+    s    = _get_or_create_settings(current_user.id)
+
+    for key in ("min_salary", "max_salary", "min_score_threshold", "max_jobs_per_notification"):
+        if key in data:
+            setattr(s, key, data[key])
+    for key in ("email_enabled", "email_to", "preferred_location"):
+        if key in data:
+            setattr(s, key, data[key])
+    for key in ("target_titles", "preferred_keywords", "negative_keywords", "location_keywords"):
+        if key in data and isinstance(data[key], list):
+            setattr(s, key, data[key])
+
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/email/test", methods=["POST"])
+@login_required
+def test_email():
+    from notifier import send_email_digest
+    s      = _get_or_create_settings(current_user.id)
+    ok = send_email_digest(
+        [], s.to_dict(),
+        subject_override="Job Scanner — connection test",
+    )
+    return jsonify({"ok": ok})
+
+
+# ── Profile ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/profile/parse-resume", methods=["POST"])
+@login_required
+def parse_resume():
+    file = request.files.get("resume")
+    if not file or not file.filename:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    import config as cfg
+    api_key = current_user.gemini_api_key or cfg.GEMINI_API_KEY
+    if not api_key:
+        return jsonify({"error": "GEMINI_API_KEY not configured"}), 400
+
+    from resume_parser import extract_text, parse_with_gemini
+    try:
+        text = extract_text(file.read(), file.filename)
+    except (ImportError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
+
+    if not text.strip():
+        return jsonify({"error": "Could not extract text from the file"}), 400
+
+    try:
+        profile = parse_with_gemini(text, api_key)
+    except Exception:
+        return jsonify({"error": "AI parsing failed. Check your Gemini API key and try again."}), 500
+
+    return jsonify(profile)
+
+
+@app.route("/api/profile", methods=["GET"])
+@login_required
+def get_profile():
+    p = _get_or_create_profile(current_user.id)
+    d = p.to_dict()
+    d["email"] = current_user.email
+    return jsonify(d)
+
+
+@app.route("/api/profile", methods=["POST"])
+@login_required
+def save_profile():
+    data = request.json or {}
+    p    = _get_or_create_profile(current_user.id)
+
+    for field in ("name", "phone", "education", "experience_summary"):
+        if field in data:
+            setattr(p, field, data[field])
+    for field in ("technical_skills", "soft_skills", "work_history", "certifications", "projects"):
+        if field in data:
+            setattr(p, field, data[field])
+
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+# ── Analytics ──────────────────────────────────────────────────────────────────
+
+@app.route("/api/analytics")
+@login_required
+def get_analytics():
+    jobs   = _jobs_for_user(current_user.id)
+    status = _statuses_for_user(current_user.id)
+
+    empty = {
+        "total_unique": 0,
+        "sources": {},
+        "score_distribution": {"labels": ["0-9","10-19","20-29","30-39","40-49","50-59","60-69","70-79","80-89","90+"], "data": [0]*10},
+        "funnel": {"total": 0, "applied": 0, "interviews": 0, "skipped": 0},
+        "top_companies": {"labels": [], "data": []},
+        "weekly_trend": {"labels": [], "data": []},
+    }
+    if not jobs:
+        return jsonify(empty)
+
+    unique = list({j["id"]: j for j in jobs}.values())
+    sources = dict(Counter(j.get("source", "Unknown") for j in unique))
+
+    bins = [0] * 10
+    for j in unique:
+        idx = min(int(j.get("score", 0)) // 10, 9)
+        bins[idx] += 1
+
+    applied    = sum(1 for v in status.values() if v.get("status") == "applied")
+    interviews = sum(1 for v in status.values() if v.get("status") == "interview")
+    skipped    = sum(1 for v in status.values() if v.get("status") == "skip")
+
+    companies = Counter(
+        j.get("company", "") for j in unique
+        if j.get("company") and j.get("company").lower() not in ("unknown", "")
+    )
+    top = companies.most_common(8)
+
+    weekly: dict = defaultdict(int)
+    for j in unique:
+        date_str = j.get("scan_date", "")
+        if not date_str:
+            continue
+        try:
+            dt       = datetime.strptime(date_str.split()[0], "%Y-%m-%d")
+            week_key = dt.strftime("%Y-W%W")
+            weekly[week_key] += 1
+        except ValueError:
+            pass
+
+    sorted_weeks = sorted(weekly.items())[-12:]
+    week_labels  = []
+    for wk, _ in sorted_weeks:
+        try:
+            yr, wn = wk.split("-W")
+            dt = datetime.strptime(f"{yr}-{wn}-1", "%Y-%W-%w")
+            week_labels.append(dt.strftime("%b %d"))
+        except Exception:
+            week_labels.append(wk)
+
+    return jsonify({
+        "total_unique": len(unique),
+        "sources": sources,
+        "score_distribution": {
+            "labels": ["0-9","10-19","20-29","30-39","40-49","50-59","60-69","70-79","80-89","90+"],
+            "data":   bins,
+        },
+        "funnel": {
+            "total":      len(unique),
+            "applied":    applied,
+            "interviews": interviews,
+            "skipped":    skipped,
+        },
+        "top_companies": {
+            "labels": [c[0] for c in top],
+            "data":   [c[1] for c in top],
+        },
+        "weekly_trend": {
+            "labels": week_labels,
+            "data":   [w[1] for w in sorted_weeks],
+        },
+    })
+
+
+# ── Schedule ───────────────────────────────────────────────────────────────────
+
+@app.route("/api/schedule", methods=["GET"])
+@login_required
+def get_schedule():
+    s = _get_or_create_settings(current_user.id)
+    return jsonify({"enabled": s.schedule_enabled, "time": s.schedule_time or "09:00"})
+
+
+@app.route("/api/schedule", methods=["POST"])
+@login_required
+def set_schedule():
+    data     = request.json or {}
+    s        = _get_or_create_settings(current_user.id)
+    s.schedule_enabled = data.get("enabled", False)
+    s.schedule_time    = data.get("time", "09:00")
+    db.session.commit()
+    return jsonify({"ok": True, "enabled": s.schedule_enabled, "time": s.schedule_time})
+
+
+# ── Scan ───────────────────────────────────────────────────────────────────────
+
+@app.route("/api/scan/status")
+@login_required
+def scan_status():
+    return jsonify({"running": _get_scan(current_user.id)["running"]})
+
+
+@app.route("/api/scan/start", methods=["POST"])
+@login_required
+def start_scan():
+    if not _is_active(current_user):
+        return jsonify({"error": "trial_expired"}), 403
+
+    scan = _get_scan(current_user.id)
+    if scan["running"]:
+        return jsonify({"error": "Scan already running"}), 409
+
+    data   = request.json or {}
+    mode   = data.get("mode", "analyst")
+    notify = data.get("notify", True)
+
+    if not re.match(r'^[a-z0-9_-]{1,32}$', mode):
+        return jsonify({"error": "Invalid mode name"}), 400
+
+    scan["running"] = True
+    scan["q"]       = queue.Queue()
+
+    extra_env = _build_user_env(current_user)
+    t = threading.Thread(
+        target=_run_subprocess,
+        args=(current_user.id, mode, notify, scan["q"], extra_env),
+        daemon=True,
+    )
+    scan["thread"] = t
+    t.start()
+
+    return jsonify({"started": True})
+
+
+@app.route("/api/scan/stream")
+@login_required
+def stream_scan():
+    user_id = current_user.id
+
+    @stream_with_context
+    def generate():
+        q = _get_scan(user_id)["q"]
+        while True:
+            try:
+                line = q.get(timeout=60)
+                if line is None:
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    break
+                yield f"data: {json.dumps({'type': 'log', 'text': line})}\n\n"
+            except queue.Empty:
+                yield f"data: {json.dumps({'type': 'ping'})}\n\n"
+
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/api/reset", methods=["POST"])
+@login_required
+def reset_seen():
+    SeenJob.query.filter_by(user_id=current_user.id).delete()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+# ── Billing ───────────────────────────────────────────────────────────────────
+
+def _is_active(user) -> bool:
+    """Return True if the user has a live trial or active subscription."""
+    if user.subscription_status == "active":
+        return True
+    if user.subscription_status in (None, "trialing"):
+        ends = user.trial_ends_at
+        if ends is None:
+            return False  # no trial period set — deny access
+        return datetime.now(timezone.utc) <= ends
+    return False
+
+
+def _billing_status(user) -> dict:
+    ends   = user.trial_ends_at
+    status = user.subscription_status or "trialing"
+    trial_days_left = None
+
+    if ends:
+        delta = ends - datetime.now(timezone.utc)
+        trial_days_left = max(0, delta.days)
+        if status == "trialing" and datetime.now(timezone.utc) > ends:
+            status = "expired"
+
+    return {
+        "status":          status,
+        "trial_ends_at":   ends.isoformat() if ends else None,
+        "trial_days_left": trial_days_left,
+        "has_access":      _is_active(user),
+    }
+
+
+@app.route("/api/billing/status")
+@login_required
+def billing_status():
+    return jsonify(_billing_status(current_user))
+
+
+@app.route("/api/billing/create-checkout", methods=["POST"])
+@login_required
+def create_checkout():
+    import stripe
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+    price_id       = os.getenv("STRIPE_PRICE_ID", "")
+
+    if not stripe.api_key or not price_id:
+        return jsonify({"error": "Billing not configured on the server"}), 500
+
+    if not current_user.stripe_customer_id:
+        customer = stripe.Customer.create(email=current_user.email)
+        current_user.stripe_customer_id = customer.id
+        db.session.commit()
+
+    base = request.host_url.rstrip("/")
+    session = stripe.checkout.Session.create(
+        customer=current_user.stripe_customer_id,
+        payment_method_types=["card"],
+        line_items=[{"price": price_id, "quantity": 1}],
+        mode="subscription",
+        success_url=f"{base}/?billing=success",
+        cancel_url=f"{base}/?billing=cancel",
+    )
+    return jsonify({"url": session.url})
+
+
+@app.route("/api/billing/portal", methods=["POST"])
+@login_required
+def billing_portal():
+    import stripe
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+
+    if not current_user.stripe_customer_id:
+        return jsonify({"error": "No billing account found — subscribe first"}), 400
+
+    base    = request.host_url.rstrip("/")
+    session = stripe.billing_portal.Session.create(
+        customer=current_user.stripe_customer_id,
+        return_url=f"{base}/",
+    )
+    return jsonify({"url": session.url})
+
+
+@app.route("/api/billing/webhook", methods=["POST"])
+def billing_webhook():
+    import stripe
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+    secret         = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+    payload = request.get_data()
+    sig     = request.headers.get("Stripe-Signature", "")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, secret)
+    except (stripe.error.SignatureVerificationError, ValueError):
+        return "", 400
+
+    obj         = event["data"]["object"]
+    customer_id = obj.get("customer")
+    if not customer_id:
+        return "", 200
+
+    user = User.query.filter_by(stripe_customer_id=customer_id).first()
+    if not user:
+        return "", 200
+
+    et = event["type"]
+    if et in ("customer.subscription.created", "customer.subscription.updated"):
+        stripe_status = obj.get("status", "")
+        user.subscription_status = "active" if stripe_status == "active" else stripe_status
+    elif et == "customer.subscription.deleted":
+        user.subscription_status = "cancelled"
+    elif et == "invoice.payment_failed":
+        user.subscription_status = "past_due"
+
+    db.session.commit()
+    return "", 200
+
+
+# ── Cron endpoint (Railway scheduled job) ─────────────────────────────────────
+
+@app.route("/api/cron/scan", methods=["POST"])
+def cron_scan():
+    """
+    Called by Railway cron every 15 minutes.
+    Header X-Cron-Secret must match CRON_SECRET env var.
+    Triggers scans for all users whose schedule_time is within ±7 minutes of now.
+    """
+    secret   = os.getenv("CRON_SECRET", "")
+    incoming = request.headers.get("X-Cron-Secret", "")
+    if not secret or not hmac.compare_digest(incoming, secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    now_hm  = datetime.now(timezone.utc).strftime("%H:%M")
+    now_h   = int(now_hm.split(":")[0])
+    now_m   = int(now_hm.split(":")[1])
+    now_min = now_h * 60 + now_m
+
+    triggered = []
+    users_due = UserSettings.query.filter_by(schedule_enabled=True).all()
+    for s in users_due:
+        if not s.schedule_time:
+            continue
+        try:
+            sh, sm = s.schedule_time.split(":")
+            sched_min = int(sh) * 60 + int(sm)
+        except Exception:
+            continue
+
+        if abs(now_min - sched_min) <= 7:
+            user  = db.session.get(User, s.user_id)
+            scan  = _get_scan(s.user_id)
+            if user and not scan["running"]:
+                scan["running"] = True
+                scan["q"]       = queue.Queue()
+                extra_env = _build_user_env(user)
+                t = threading.Thread(
+                    target=_run_subprocess,
+                    args=(s.user_id, "analyst", True, scan["q"], extra_env),
+                    daemon=True,
+                )
+                scan["thread"] = t
+                t.start()
+                triggered.append(user.email)
+
+    return jsonify({"triggered": triggered})
+
+
+# Entry point is run.py — do not run app.py directly.

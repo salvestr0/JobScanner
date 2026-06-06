@@ -1,0 +1,1872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Scanner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
+    .mono    { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+    /* ── Sidebar nav ── */
+    .nav-item { border-left: 2px solid transparent; transition: all .15s ease; }
+    .nav-item:hover:not(.active) { background: rgba(255,255,255,.04); color: #CBD5E1; }
+    .nav-item.active { background: rgba(99,102,241,.13); color: #A5B4FC; border-left-color: #6366F1; }
+
+    /* ── Score badges ── */
+    .score-hi  { background:#D1FAE5; color:#065F46; }
+    .score-mid { background:#FEF3C7; color:#92400E; }
+    .score-lo  { background:#FEE2E2; color:#991B1B; }
+
+    /* ── Source chips ── */
+    .chip-mcf       { background:#EEF2FF; color:#4338CA; }
+    .chip-jobstreet { background:#F0FDF4; color:#166534; }
+    .chip-indeed    { background:#FFF7ED; color:#C2410C; }
+    .chip-linkedin  { background:#EFF6FF; color:#1D4ED8; }
+    .chip-glints    { background:#FFF0F6; color:#BE185D; }
+    .chip-other     { background:#F1F5F9; color:#475569; }
+
+    /* ── Terminal ── */
+    #terminal {
+      background: #0d1117;
+      color: #7ee787;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      line-height: 1.7;
+      border-radius: 10px;
+      overflow-y: auto;
+      max-height: 400px;
+      padding: 18px 20px;
+      scroll-behavior: smooth;
+    }
+    .log-err  { color: #f85149; }
+    .log-warn { color: #d29922; }
+    .log-dim  { color: #484f58; }
+    .log-line { animation: fadeRow .18s ease; }
+    @keyframes fadeRow { from { opacity:0; transform:translateY(2px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Cards ── */
+    .job-card { transition: box-shadow .15s, transform .15s; }
+    .job-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.09); transform: translateY(-1px); }
+
+    /* ── Misc ── */
+    [x-cloak] { display:none !important; }
+    .fade-in  { animation: fadeRow .2s ease; }
+
+    ::-webkit-scrollbar         { width:5px; height:5px; }
+    ::-webkit-scrollbar-track   { background:transparent; }
+    ::-webkit-scrollbar-thumb   { background:#CBD5E1; border-radius:99px; }
+
+    input[type=range] { accent-color:#6366F1; }
+
+    /* Toggle */
+    .toggle-on  { background:#6366F1; }
+    .toggle-off { background:#E2E8F0; }
+
+    /* Toast slide */
+    .toast { animation: toastIn .28s cubic-bezier(.34,1.56,.64,1); }
+    @keyframes toastIn { from { transform:translateY(16px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+
+    /* Pulse dot */
+    .pulsing { animation: dot 1.4s ease-in-out infinite; }
+    @keyframes dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* Page enter */
+    .page-in { animation: pageIn .2s ease; }
+    @keyframes pageIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+
+    /* Stat card hover */
+    .stat-card { transition: transform .15s, box-shadow .15s; }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+
+    /* ── Mobile ── */
+    .hamburger { display: none; position: fixed; top: 1rem; left: 1rem; z-index: 60; }
+    @media (max-width: 768px) {
+      aside { transform: translateX(-256px); transition: transform .25s ease; z-index: 50; position: fixed; top:0; bottom:0; }
+      aside.sidebar-open { transform: translateX(0); }
+      main { margin-left: 0 !important; }
+      .hamburger { display: flex; }
+      .grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+      .grid-cols-3 { grid-template-columns: 1fr !important; }
+    }
+
+    /* ── Modal ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 40; }
+    .modal-panel { position: fixed; right: 0; top: 0; bottom: 0; width: 420px; max-width: 100vw; background: white; z-index: 50; overflow-y: auto; box-shadow: -4px 0 32px rgba(0,0,0,.12); }
+    @media (max-width: 480px) { .modal-panel { width: 100vw; } }
+
+    /* Slide-in animation for modal */
+    .modal-panel { animation: slideIn .25s ease; }
+    @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  </style>
+</head>
+
+<body class="bg-slate-50 antialiased" x-data="app()" x-init="boot()">
+
+<!-- ── Toast ─────────────────────────────────────────────── -->
+<div x-show="toast.show" x-cloak
+  class="fixed bottom-6 right-6 z-50 toast rounded-xl shadow-xl px-5 py-3 text-sm font-medium text-white flex items-center gap-2.5"
+  :class="toast.ok ? 'bg-emerald-500' : 'bg-red-500'">
+  <svg x-show="toast.ok" class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+  <svg x-show="!toast.ok" class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+  <span x-text="toast.msg"></span>
+</div>
+
+<!-- ── Hamburger (mobile) ─────────────────────────────────── -->
+<button class="hamburger bg-white shadow-md rounded-lg p-2.5 items-center justify-center"
+  @click="sidebarOpen=!sidebarOpen" aria-label="Toggle menu">
+  <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+  </svg>
+</button>
+
+<!-- Sidebar overlay (mobile) -->
+<div x-show="sidebarOpen" x-cloak @click="sidebarOpen=false" class="modal-overlay md:hidden"></div>
+
+<!-- ── Application edit modal ──────────────────────────────── -->
+<template x-if="editApp">
+  <div>
+    <div class="modal-overlay" @click="editApp=null"></div>
+    <div class="modal-panel p-6 flex flex-col gap-5">
+      <!-- Header -->
+      <div class="flex items-start justify-between">
+        <div>
+          <div class="font-bold text-slate-800 text-base" x-text="editApp.title"></div>
+          <div class="text-slate-500 text-sm mt-0.5" x-text="editApp.company"></div>
+        </div>
+        <button @click="editApp=null" class="text-slate-400 hover:text-slate-600 transition-colors p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Status -->
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Status</label>
+        <div class="flex gap-2">
+          <template x-for="s in ['applied','interview','skip']">
+            <button @click="editApp.status=s"
+              class="flex-1 py-2 rounded-xl border text-xs font-semibold transition-all"
+              :class="editApp.status===s
+                ? (s==='applied'?'bg-emerald-50 border-emerald-300 text-emerald-700':s==='interview'?'bg-violet-50 border-violet-300 text-violet-700':'bg-red-50 border-red-300 text-red-600')
+                : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+              x-text="s.charAt(0).toUpperCase()+s.slice(1)"></button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Interview date/time (visible when status=interview) -->
+      <div x-show="editApp.status==='interview'" class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1.5">Interview Date</label>
+          <input type="date" x-model="editInterviewDate"
+            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1.5">Time</label>
+          <input type="time" x-model="editInterviewTime"
+            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Notes</label>
+        <textarea x-model="editNotes" rows="5"
+          placeholder="Add notes about this application…"
+          class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></textarea>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex gap-2 mt-auto">
+        <button @click="editApp=null"
+          class="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-colors">
+          Cancel
+        </button>
+        <button @click="saveEditModal()"
+          class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+          Save
+        </button>
+      </div>
+
+      <a x-show="editApp?.url" :href="editApp?.url" target="_blank"
+        class="text-center text-xs text-indigo-500 hover:text-indigo-700 font-semibold -mt-2">
+        View original listing →
+      </a>
+    </div>
+  </div>
+</template>
+
+<!-- ── Layout ─────────────────────────────────────────────── -->
+<div class="flex h-screen overflow-hidden">
+
+  <!-- ══ Sidebar ══════════════════════════════════════════ -->
+  <aside class="w-64 flex-shrink-0 bg-[#0C1220] flex flex-col overflow-y-auto h-screen"
+    :class="{ 'sidebar-open': sidebarOpen }">
+
+    <!-- Logo -->
+    <div class="px-5 pt-6 pb-5">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30 flex-shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="text-white font-semibold text-sm">Job Scanner</div>
+          <div class="text-slate-500 text-xs mt-0.5">Singapore</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active scan banner -->
+    <div x-show="scanning" x-cloak class="mx-4 mb-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-3 py-2 flex items-center gap-2.5">
+      <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full pulsing"></div>
+      <span class="text-indigo-400 text-xs font-medium">Scan running…</span>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 px-3 space-y-0.5 pb-4">
+      <template x-for="n in nav" :key="n.id">
+        <button @click="go(n.id); sidebarOpen=false"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-r-lg text-slate-500 text-sm cursor-pointer"
+          :class="{ 'active': page === n.id }">
+          <span class="w-4 h-4 flex-shrink-0" x-html="n.icon"></span>
+          <span x-text="n.label"></span>
+        </button>
+      </template>
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-5 pb-5 border-t border-slate-800 pt-4">
+      <div class="text-slate-600 text-xs flex items-center gap-1.5">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>Last scan: <span x-text="stats.last_scan ? stats.last_scan.split(' ')[0] : 'Never'" class="text-slate-500"></span></span>
+      </div>
+
+      <!-- Account / logout -->
+      <div class="mt-3 pt-3 border-t border-slate-800">
+        <div class="text-xs text-slate-500 truncate px-1 mb-1.5" x-text="userEmail"></div>
+        <button @click="logout()"
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-red-400 hover:bg-red-950 transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/>
+          </svg>
+          Sign out
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ Main ═════════════════════════════════════════════ -->
+  <main class="flex-1 overflow-y-auto bg-slate-50">
+
+    <!-- ── Trial / billing banner ── -->
+    <div x-show="billing.status && billing.status !== 'active'" x-cloak
+      class="sticky top-0 z-20 flex items-center justify-between px-6 py-2.5 text-sm font-medium"
+      :class="{
+        'bg-amber-50 border-b border-amber-200 text-amber-800': billing.trial_days_left > 1,
+        'bg-orange-50 border-b border-orange-200 text-orange-800': billing.trial_days_left === 1,
+        'bg-red-50 border-b border-red-200 text-red-800': billing.status === 'expired' || billing.trial_days_left === 0,
+        'bg-red-100 border-b border-red-300 text-red-900': billing.status === 'past_due',
+      }">
+      <span x-text="
+        billing.status === 'active'    ? '' :
+        billing.status === 'past_due'  ? 'Payment failed — please update your payment method to keep access.' :
+        billing.status === 'cancelled' ? 'Subscription cancelled — subscribe to continue scanning.' :
+        (billing.status === 'expired' || billing.trial_days_left === 0)
+          ? 'Your free trial has ended — subscribe to continue scanning.' :
+        billing.trial_days_left === 1  ? '1 day left in your free trial.' :
+        billing.trial_days_left + ' days left in your free trial.'
+      "></span>
+      <div class="flex items-center gap-3 flex-shrink-0 ml-4">
+        <button x-show="billing.status === 'active' || billing.status === 'past_due'"
+          @click="manageSubscription()"
+          class="px-3 py-1 rounded-lg border border-current text-xs font-semibold hover:opacity-80 transition-opacity">
+          Manage Subscription
+        </button>
+        <button x-show="billing.status !== 'active'"
+          @click="subscribe()" :disabled="subscribing"
+          class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors disabled:opacity-50">
+          <span x-text="subscribing ? 'Redirecting…' : 'Subscribe — $8/mo'"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ████ DASHBOARD ████ -->
+    <div x-show="page==='dashboard'" class="page-in p-8 max-w-5xl mx-auto">
+
+      <div class="flex items-start justify-between mb-8">
+        <div>
+          <h1 class="text-2xl font-semibold text-slate-900">Dashboard</h1>
+          <p class="text-slate-500 text-sm mt-1">Your job search at a glance</p>
+        </div>
+        <button @click="go('scan')"
+          class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-indigo-600/20">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Run New Scan
+        </button>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="grid grid-cols-4 gap-4 mb-8">
+        <div class="stat-card bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Found</span>
+            <div class="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center">
+              <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold text-slate-900" x-text="stats.total_jobs ?? 0"></div>
+          <div class="text-xs text-slate-400 mt-1">total listings</div>
+        </div>
+
+        <div class="stat-card bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Applied</span>
+            <div class="w-8 h-8 bg-emerald-50 rounded-xl flex items-center justify-center">
+              <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold text-slate-900" x-text="stats.applied ?? 0"></div>
+          <div class="text-xs text-slate-400 mt-1">applications sent</div>
+        </div>
+
+        <div class="stat-card bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Interviews</span>
+            <div class="w-8 h-8 bg-violet-50 rounded-xl flex items-center justify-center">
+              <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold text-slate-900" x-text="stats.interviews ?? 0"></div>
+          <div class="text-xs text-slate-400 mt-1">scheduled</div>
+        </div>
+
+        <div class="stat-card bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Skipped</span>
+            <div class="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M6 18L18 6M6 6l12 12"/></svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold text-slate-900" x-text="stats.skipped ?? 0"></div>
+          <div class="text-xs text-slate-400 mt-1">not interested</div>
+        </div>
+      </div>
+
+      <!-- Recent matches -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h2 class="font-semibold text-slate-800 text-sm">Recent Matches</h2>
+          <button @click="go('jobs')" class="text-indigo-600 hover:text-indigo-700 text-xs font-semibold transition-colors">View all →</button>
+        </div>
+
+        <div x-show="!stats.recent_jobs?.length" class="py-14 text-center">
+          <div class="text-slate-300 text-4xl mb-3">○</div>
+          <p class="text-slate-400 text-sm">No jobs yet —
+            <button @click="go('scan')" class="text-indigo-500 font-medium hover:underline">run your first scan</button>
+          </p>
+        </div>
+
+        <div class="divide-y divide-slate-50">
+          <template x-for="job in (stats.recent_jobs||[])" :key="job.id">
+            <div class="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50/80 transition-colors group">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0"
+                :class="job.score>=70?'score-hi':job.score>=50?'score-mid':'score-lo'"
+                x-text="job.score"></div>
+              <div class="flex-1 min-w-0">
+                <div class="font-semibold text-slate-800 text-sm truncate" x-text="job.title"></div>
+                <div class="text-slate-400 text-xs truncate" x-text="job.company + (job.location?' · '+job.location:'')"></div>
+              </div>
+              <span class="text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0"
+                :class="chipClass(job.source)"
+                x-text="job.source?.replace('MyCareersFuture','MCF')"></span>
+              <div class="flex gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button @click="quickStatus(job,'applied')"
+                  class="text-xs px-2.5 py-1 rounded-lg border transition-all"
+                  :class="job.app_status==='applied'?'bg-emerald-50 border-emerald-200 text-emerald-700 font-semibold':'border-slate-200 text-slate-500 hover:border-emerald-200 hover:text-emerald-600'">✓</button>
+                <button @click="quickStatus(job,'skip')"
+                  class="text-xs px-2.5 py-1 rounded-lg border transition-all"
+                  :class="job.app_status==='skip'?'bg-red-50 border-red-200 text-red-600 font-semibold':'border-slate-200 text-slate-500 hover:border-red-200 hover:text-red-500'">✕</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- ████ SCAN ████ -->
+    <div x-show="page==='scan'" class="page-in p-8 max-w-2xl mx-auto">
+      <div class="mb-8">
+        <h1 class="text-2xl font-semibold text-slate-900">Run Scan</h1>
+        <p class="text-slate-500 text-sm mt-1">Fetch jobs from MyCareersFuture and find new matches</p>
+      </div>
+
+      <!-- Paywall (shown when trial expired / cancelled) -->
+      <div x-show="!billing.has_access" x-cloak
+        class="bg-white rounded-2xl shadow-sm border border-slate-100 p-10 text-center">
+        <div class="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+        <h2 class="text-lg font-bold text-slate-800 mb-2">
+          <span x-text="billing.status === 'past_due' ? 'Payment required' : 'Your free trial has ended'"></span>
+        </h2>
+        <p class="text-slate-500 text-sm mb-6 max-w-xs mx-auto">
+          Subscribe to continue scanning. You'll keep all your existing job history and applications.
+        </p>
+        <button @click="subscribe()" :disabled="subscribing"
+          class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors shadow-md shadow-indigo-600/20">
+          <span x-text="subscribing ? 'Redirecting to checkout…' : 'Subscribe — $8 / month'"></span>
+        </button>
+        <p class="text-slate-400 text-xs mt-3">Secured by Stripe. Cancel anytime.</p>
+      </div>
+
+      <!-- Normal scan UI (hidden when no access) -->
+      <div x-show="billing.has_access">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-4 space-y-6">
+
+        <!-- Mode -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">Search Mode</label>
+          <select x-model="selMode"
+            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            <template x-for="m in modes" :key="m.name">
+              <option :value="m.name"
+                x-text="m.name.charAt(0).toUpperCase()+m.name.slice(1)+' — '+(m.titles||[]).slice(0,2).join(', ')+'...'"></option>
+            </template>
+          </select>
+        </div>
+
+        <!-- Add mode -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">Add Custom Mode</label>
+          <div class="flex gap-2">
+            <input x-model="newMode" @keydown.enter="genMode()" type="text"
+              placeholder="e.g. healthcare, fnb, logistics…"
+              class="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            <button @click="genMode()" :disabled="genning||!newMode.trim()"
+              class="px-4 py-2.5 bg-slate-900 hover:bg-slate-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2">
+              <svg x-show="genning" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <span x-text="genning?'Generating…':'AI Generate'"></span>
+            </button>
+          </div>
+          <p class="text-slate-400 text-xs mt-1.5">Gemini generates job titles + keywords for any industry</p>
+        </div>
+
+        <!-- Notify toggle -->
+        <div class="flex items-center justify-between py-0.5">
+          <div>
+            <div class="text-sm font-semibold text-slate-700">Email notification</div>
+            <div class="text-slate-400 text-xs mt-0.5">Send top matches to your email after scan</div>
+          </div>
+          <button @click="notify=!notify"
+            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+            :class="notify?'toggle-on':'toggle-off'">
+            <span class="inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
+              :class="notify?'translate-x-6':'translate-x-1'"></span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Start button -->
+      <button @click="startScan()" :disabled="scanning"
+        class="w-full py-3.5 rounded-2xl font-bold text-sm transition-all mb-5 flex items-center justify-center gap-3"
+        :class="scanning?'bg-indigo-100 text-indigo-400 cursor-not-allowed':'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 hover:shadow-lg hover:shadow-indigo-600/25'">
+        <svg x-show="scanning" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <svg x-show="!scanning" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span x-text="scanning?'Scanning job boards…':'Start Scan'"></span>
+      </button>
+
+      <!-- Done banner -->
+      <div x-show="scanDone&&!scanning" x-cloak
+        class="mb-4 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4 flex items-center justify-between fade-in">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <div>
+            <div class="text-emerald-800 font-semibold text-sm">Scan complete</div>
+            <div class="text-emerald-600 text-xs mt-0.5">New matches added to your jobs list</div>
+          </div>
+        </div>
+        <button @click="go('jobs')" class="text-emerald-700 font-semibold text-sm hover:text-emerald-800 transition-colors">View Jobs →</button>
+      </div>
+
+      <!-- Zero-results warning -->
+      <div x-show="scanDone&&!scanning&&zeroNewJobs" x-cloak
+        class="mb-4 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex items-start gap-3 fade-in">
+        <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        <div class="text-amber-800 text-sm">
+          <span class="font-semibold">All scrapers returned 0 new jobs.</span>
+          Your history may be stale — try
+          <button @click="go('settings')" class="underline font-semibold hover:text-amber-900">Settings → Clear Seen History</button>,
+          or check your internet connection.
+        </div>
+      </div>
+
+      <!-- Terminal -->
+      <div x-show="logs.length||scanning" id="terminal" x-ref="terminal">
+        <div class="text-slate-600 mono text-xs mb-2">$ python main.py --mode=<span x-text="selMode" class="text-blue-400"></span></div>
+        <template x-for="(l,i) in logs" :key="i">
+          <div class="log-line"
+            :class="l.includes('ERROR')||l.includes('❌')?'log-err':l.includes('⚠️')||l.includes('Warning')?'log-warn':''"
+            x-text="l"></div>
+        </template>
+        <div x-show="scanning" class="text-green-400 mono animate-pulse mt-1">▋</div>
+      </div>
+    </div>
+    </div> <!-- /billing.has_access -->
+    </div>
+
+    <!-- ████ JOBS ████ -->
+    <div x-show="page==='jobs'" class="page-in p-8 max-w-5xl mx-auto">
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-semibold text-slate-900">Jobs</h1>
+          <p class="text-slate-500 text-sm mt-1" x-text="filteredJobs.length+' listings'"></p>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-4 flex gap-3 flex-wrap">
+        <div class="flex-1 min-w-44 relative">
+          <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input x-model="jSearch" @input="loadJobs()" type="text" placeholder="Search title or company…"
+            class="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+        </div>
+        <select x-model="jSource" @change="loadJobs()"
+          class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+          <option value="">All Sources</option>
+          <option value="MyCareersFuture">MyCareersFuture</option>
+          <option value="JobStreet">JobStreet</option>
+          <option value="Indeed">Indeed</option>
+          <option value="LinkedIn">LinkedIn</option>
+          <option value="Glints">Glints</option>
+        </select>
+        <select x-model="jStatus" @change="loadJobs()"
+          class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+          <option value="">All Statuses</option>
+          <option value="untracked">Untracked</option>
+          <option value="applied">Applied</option>
+          <option value="interview">Interview</option>
+          <option value="skip">Skipped</option>
+        </select>
+      </div>
+
+      <div x-show="jobsLoading" class="text-center py-16 text-slate-400 text-sm">Loading…</div>
+
+      <!-- Empty: no jobs at all -->
+      <div x-show="!jobsLoading&&allJobsEmpty&&!jSearch&&!jSource&&!jStatus"
+        class="text-center py-16">
+        <svg class="w-14 h-14 mx-auto mb-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        <p class="text-slate-400 text-sm">No scans yet —
+          <button @click="go('scan')" class="text-indigo-500 font-medium hover:underline">go to Run Scan to find your first matches</button>.
+        </p>
+      </div>
+
+      <!-- Empty: filters returning nothing -->
+      <div x-show="!jobsLoading&&!filteredJobs.length&&!allJobsEmpty&&(jSearch||jSource||jStatus)"
+        class="text-center py-16">
+        <div class="text-slate-300 text-4xl mb-3">⊘</div>
+        <p class="text-slate-400 text-sm mb-2">No jobs match your filters.</p>
+        <button @click="jSearch='';jSource='';jStatus='';loadJobs()"
+          class="text-indigo-500 text-sm font-semibold hover:underline">Clear filters</button>
+      </div>
+
+      <div class="space-y-2">
+        <template x-for="job in filteredJobs" :key="job.id">
+          <div class="job-card bg-white rounded-2xl shadow-sm border border-slate-100 px-5 py-4 flex gap-4">
+            <!-- Score -->
+            <div class="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-sm"
+              :class="job.score>=70?'score-hi':job.score>=50?'score-mid':'score-lo'"
+              x-text="job.score"></div>
+
+            <!-- Info -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap mb-1">
+                <a :href="job.url" target="_blank"
+                  class="font-bold text-slate-800 text-sm hover:text-indigo-600 transition-colors" x-text="job.title"></a>
+                <span class="text-xs px-2.5 py-0.5 rounded-full font-semibold"
+                  :class="chipClass(job.source)"
+                  x-text="job.source?.replace('MyCareersFuture','MCF')"></span>
+                <span x-show="job.app_status" class="text-xs px-2.5 py-0.5 rounded-full font-semibold"
+                  :class="job.app_status==='applied'?'bg-emerald-50 text-emerald-700':job.app_status==='interview'?'bg-violet-50 text-violet-700':'bg-red-50 text-red-600'"
+                  x-text="job.app_status==='interview'?'Interview':job.app_status?job.app_status.charAt(0).toUpperCase()+job.app_status.slice(1):''"></span>
+              </div>
+
+              <div class="text-slate-500 text-xs mb-3">
+                <span x-text="job.company"></span>
+                <span x-show="job.location"> · <span x-text="job.location"></span></span>
+                <span x-show="job.salary_min&&job.salary_max"> · $<span x-text="Number(job.salary_min).toLocaleString()"></span>–$<span x-text="Number(job.salary_max).toLocaleString()"></span>/mo</span>
+              </div>
+
+              <!-- Actions -->
+              <div class="flex gap-1.5 flex-wrap">
+                <button @click="setStatus(job,'applied')"
+                  class="text-xs px-3 py-1.5 rounded-xl border font-semibold transition-all"
+                  :class="job.app_status==='applied'?'bg-emerald-50 border-emerald-300 text-emerald-700':'border-slate-200 text-slate-500 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700'">✓ Applied</button>
+                <button @click="setStatus(job,'interview')"
+                  class="text-xs px-3 py-1.5 rounded-xl border font-semibold transition-all"
+                  :class="job.app_status==='interview'?'bg-violet-50 border-violet-300 text-violet-700':'border-slate-200 text-slate-500 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700'">🎯 Interview</button>
+                <button @click="setStatus(job,'skip')"
+                  class="text-xs px-3 py-1.5 rounded-xl border font-semibold transition-all"
+                  :class="job.app_status==='skip'?'bg-red-50 border-red-300 text-red-600':'border-slate-200 text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600'">✕ Skip</button>
+                <button x-show="job.app_status" @click="setStatus(job,'clear')"
+                  class="text-xs px-3 py-1.5 rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 font-semibold transition-all ml-1">Clear</button>
+                <a :href="job.url" target="_blank"
+                  class="ml-auto text-xs px-3 py-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 font-semibold transition-all flex items-center gap-1">
+                  View <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                </a>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ████ APPLICATIONS ████ -->
+    <div x-show="page==='applications'" class="page-in p-8">
+      <div class="mb-8">
+        <h1 class="text-2xl font-semibold text-slate-900">Applications</h1>
+        <p class="text-slate-500 text-sm mt-1">Track your application progress</p>
+      </div>
+
+      <div class="grid grid-cols-3 gap-6">
+        <!-- Applied -->
+        <div>
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-2 h-2 bg-emerald-400 rounded-full"></div>
+            <span class="text-sm font-bold text-slate-700">Applied</span>
+            <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-semibold" x-text="applied.length"></span>
+          </div>
+          <div class="space-y-3">
+            <div x-show="!applied.length" class="text-slate-400 text-sm text-center py-10 bg-white rounded-2xl border border-dashed border-slate-200">No applications yet</div>
+            <template x-for="j in applied" :key="j.job_id">
+              <div @click="openEditModal(j)"
+                class="job-card bg-white rounded-2xl border border-slate-100 shadow-sm p-4 cursor-pointer">
+                <div class="font-semibold text-slate-800 text-sm mb-0.5" x-text="j.title"></div>
+                <div class="text-slate-500 text-xs mb-2" x-text="j.company"></div>
+                <div x-show="j.notes" class="text-slate-400 text-xs mb-2 line-clamp-1 italic" x-text="j.notes?.slice(0,60)+(j.notes?.length>60?'…':'')"></div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-400 text-xs" x-text="j.updated_at"></span>
+                  <div class="flex items-center gap-2" @click.stop>
+                    <a :href="j.url" target="_blank" class="text-xs text-indigo-500 hover:text-indigo-700 font-semibold">View</a>
+                    <span class="text-slate-200">|</span>
+                    <button @click="clearApp(j.job_id)" class="text-xs text-slate-400 hover:text-red-500 font-semibold transition-colors">Clear</button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Interviews -->
+        <div>
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-2 h-2 bg-violet-400 rounded-full"></div>
+            <span class="text-sm font-bold text-slate-700">Interviews</span>
+            <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-semibold" x-text="interviews.length"></span>
+          </div>
+          <div class="space-y-3">
+            <div x-show="!interviews.length"
+              class="text-slate-400 text-sm text-center py-10 bg-white rounded-2xl border border-dashed border-slate-200"
+              title="Mark a job as Interview in the Jobs tab.">
+              No interviews yet
+            </div>
+            <template x-for="j in interviews" :key="j.job_id">
+              <div @click="openEditModal(j)"
+                class="job-card bg-white rounded-2xl border border-violet-100 shadow-sm p-4 relative overflow-hidden cursor-pointer">
+                <div class="absolute inset-y-0 left-0 w-1 bg-violet-400 rounded-l-2xl"></div>
+                <div class="pl-3">
+                  <div class="font-semibold text-slate-800 text-sm mb-0.5" x-text="j.title"></div>
+                  <div class="text-slate-500 text-xs mb-1" x-text="j.company"></div>
+                  <!-- Interview date badge -->
+                  <div x-show="j.interview_date" class="inline-flex items-center gap-1 bg-violet-50 text-violet-700 text-xs px-2 py-0.5 rounded-full font-semibold mb-2">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span x-text="j.interview_date + (j.interview_time?' '+j.interview_time:'')"></span>
+                  </div>
+                  <div x-show="j.notes" class="text-slate-400 text-xs mb-2 line-clamp-1 italic" x-text="j.notes?.slice(0,60)+(j.notes?.length>60?'…':'')"></div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-slate-400 text-xs" x-text="j.updated_at"></span>
+                    <div class="flex items-center gap-2" @click.stop>
+                      <a :href="j.url" target="_blank" class="text-xs text-indigo-500 hover:text-indigo-700 font-semibold">View</a>
+                      <span class="text-slate-200">|</span>
+                      <button @click="clearApp(j.job_id)" class="text-xs text-slate-400 hover:text-red-500 font-semibold transition-colors">Clear</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Skipped -->
+        <div>
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-2 h-2 bg-slate-300 rounded-full"></div>
+            <span class="text-sm font-bold text-slate-700">Skipped</span>
+            <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-semibold" x-text="skipped.length"></span>
+          </div>
+          <div class="space-y-3">
+            <div x-show="!skipped.length" class="text-slate-400 text-sm text-center py-10 bg-white rounded-2xl border border-dashed border-slate-200">Nothing skipped</div>
+            <template x-for="j in skipped" :key="j.job_id">
+              <div @click="openEditModal(j)"
+                class="job-card bg-white rounded-2xl border border-slate-100 shadow-sm p-4 opacity-60 hover:opacity-100 transition-opacity cursor-pointer">
+                <div class="font-semibold text-slate-700 text-sm mb-0.5" x-text="j.title"></div>
+                <div class="text-slate-400 text-xs mb-2" x-text="j.company"></div>
+                <div x-show="j.notes" class="text-slate-400 text-xs mb-2 line-clamp-1 italic" x-text="j.notes?.slice(0,60)+(j.notes?.length>60?'…':'')"></div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-300 text-xs" x-text="j.updated_at"></span>
+                  <button @click.stop="clearApp(j.job_id)" class="text-xs text-slate-400 hover:text-red-500 font-semibold transition-colors">Clear</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ████ COVER NOTES ████ -->
+    <div x-show="page==='coverNotes'" class="page-in p-8 max-w-4xl mx-auto">
+      <div class="mb-8">
+        <h1 class="text-2xl font-semibold text-slate-900">Cover Notes</h1>
+        <p class="text-slate-500 text-sm mt-1" x-text="notes.length+' generated'"></p>
+      </div>
+
+      <!-- List -->
+      <div x-show="!selNote">
+        <div x-show="!notes.length" class="text-center py-16">
+          <svg class="w-14 h-14 mx-auto mb-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <p class="text-slate-400 text-sm">No cover notes yet. Run a scan to generate them.</p>
+        </div>
+        <div class="space-y-2">
+          <template x-for="n in notes" :key="n.filename">
+            <div @click="openNote(n)"
+              class="job-card bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4 flex items-center gap-4 cursor-pointer group">
+              <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-semibold text-slate-800 text-sm truncate" x-text="n.title||n.filename"></div>
+                <div class="text-slate-400 text-xs" x-text="n.company+(n.score?' · Score: '+n.score+'/100':'')+' · '+n.modified"></div>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <span x-show="n.score" class="text-xs px-2.5 py-0.5 rounded-full font-semibold"
+                  :class="n.score>=70?'score-hi':n.score>=50?'score-mid':'score-lo'"
+                  x-text="n.score+'/100'"></span>
+                <svg class="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Note detail -->
+      <div x-show="selNote" x-cloak class="fade-in">
+        <div class="flex items-center gap-3 mb-6">
+          <button @click="selNote=null;noteBody=''"
+            class="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 text-sm font-semibold transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            Back
+          </button>
+          <div class="h-4 w-px bg-slate-200"></div>
+          <span class="text-sm text-slate-500 truncate" x-text="selNote?.title"></span>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <div>
+              <div class="font-bold text-slate-800 text-sm" x-text="selNote?.title"></div>
+              <div class="text-slate-500 text-xs mt-0.5" x-text="selNote?.company"></div>
+            </div>
+            <button @click="copyNote()"
+              class="flex items-center gap-2 text-xs font-semibold px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              Copy
+            </button>
+          </div>
+          <pre class="p-6 text-slate-700 text-sm leading-relaxed whitespace-pre-wrap font-sans" x-text="noteBody"></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ████ ANALYTICS ████ -->
+    <div x-show="page==='analytics'" class="page-in p-8 max-w-5xl mx-auto">
+      <div class="mb-8">
+        <h1 class="text-2xl font-semibold text-slate-900">Analytics</h1>
+        <p class="text-slate-500 text-sm mt-1">Insights from your job search data</p>
+      </div>
+
+      <!-- Funnel stat chips -->
+      <div class="grid grid-cols-4 gap-4 mb-8">
+        <div class="stat-card bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
+          <div class="text-3xl font-bold text-slate-900" x-text="analytics.funnel?.total ?? 0"></div>
+          <div class="text-xs text-slate-400 mt-1 font-medium">Total Jobs</div>
+        </div>
+        <div class="stat-card bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
+          <div class="text-3xl font-bold text-emerald-600" x-text="analytics.funnel?.applied ?? 0"></div>
+          <div class="text-xs text-slate-400 mt-1 font-medium">Applied</div>
+        </div>
+        <div class="stat-card bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
+          <div class="text-3xl font-bold text-violet-600" x-text="analytics.funnel?.interviews ?? 0"></div>
+          <div class="text-xs text-slate-400 mt-1 font-medium">Interviews</div>
+        </div>
+        <div class="stat-card bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
+          <div class="text-3xl font-bold text-slate-400" x-text="analytics.funnel?.skipped ?? 0"></div>
+          <div class="text-xs text-slate-400 mt-1 font-medium">Skipped</div>
+        </div>
+      </div>
+
+      <!-- No data state -->
+      <div x-show="!analytics.funnel?.total" class="text-center py-16 bg-white rounded-2xl border border-slate-100 shadow-sm">
+        <svg class="w-14 h-14 mx-auto mb-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <p class="text-slate-400 text-sm">No data yet — run a scan first.</p>
+      </div>
+
+      <!-- 2×2 Chart grid -->
+      <div x-show="analytics.funnel?.total" class="grid grid-cols-2 gap-6">
+        <!-- Source Breakdown -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-semibold text-slate-700 text-sm mb-4">Source Breakdown</h3>
+          <div class="relative h-56 flex items-center justify-center">
+            <canvas id="chartSources"></canvas>
+          </div>
+        </div>
+
+        <!-- Score Distribution -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-semibold text-slate-700 text-sm mb-4">Score Distribution</h3>
+          <div class="relative h-56">
+            <canvas id="chartScores"></canvas>
+          </div>
+        </div>
+
+        <!-- Weekly Trend -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-semibold text-slate-700 text-sm mb-4">Weekly Trend</h3>
+          <div class="relative h-56">
+            <canvas id="chartTrend"></canvas>
+          </div>
+        </div>
+
+        <!-- Top Companies -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-semibold text-slate-700 text-sm mb-4">Top Companies</h3>
+          <div class="relative h-56">
+            <canvas id="chartCompanies"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ████ PROFILE ████ -->
+    <div x-show="page==='profile'" class="page-in p-8 max-w-2xl mx-auto">
+      <div class="mb-8">
+        <h1 class="text-2xl font-semibold text-slate-900">Profile</h1>
+        <p class="text-slate-500 text-sm mt-1">Used to personalise cover notes and scoring</p>
+      </div>
+
+      <div class="space-y-4">
+
+        <!-- Resume Upload -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-1">Import from Resume</h3>
+          <p class="text-slate-400 text-xs mb-4">Upload a PDF, DOCX, or TXT file — Gemini will extract and fill in your profile fields.</p>
+
+          <!-- Drop zone -->
+          <label
+            class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors"
+            :class="resumeDragging ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'"
+            @dragover.prevent="resumeDragging=true"
+            @dragleave.prevent="resumeDragging=false"
+            @drop.prevent="resumeDragging=false; handleResumeDrop($event)">
+            <input type="file" class="hidden" accept=".pdf,.docx,.doc,.txt"
+              @change="handleResumeFile($event)">
+            <svg class="w-8 h-8 mb-2" :class="resumeDragging?'text-indigo-400':'text-slate-300'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <span class="text-sm font-medium" :class="resumeDragging?'text-indigo-500':'text-slate-400'"
+              x-text="resumeFile ? resumeFile.name : 'Drop resume here or click to browse'"></span>
+            <span class="text-xs text-slate-400 mt-0.5">PDF · DOCX · TXT</span>
+          </label>
+
+          <!-- Parse button + status -->
+          <div class="flex items-center gap-3 mt-3">
+            <button @click="parseResume()"
+              :disabled="!resumeFile || resumeParsing"
+              class="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
+              <svg x-show="resumeParsing" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <svg x-show="!resumeParsing" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              <span x-text="resumeParsing ? 'Parsing…' : 'Parse with AI'"></span>
+            </button>
+            <span x-show="resumeParseMsg" x-text="resumeParseMsg"
+              class="text-xs font-medium"
+              :class="resumeParseOk ? 'text-emerald-600' : 'text-red-500'"></span>
+          </div>
+        </div>
+
+        <!-- Basic Info -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-5">Basic Info</h3>
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1.5">Full Name</label>
+                <input x-model="profile.name" type="text" placeholder="Jane Doe"
+                  class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                  :class="resumeHighlighted.has('name') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1.5">Phone</label>
+                <input x-model="profile.phone" type="text" placeholder="+65 9123 4567"
+                  class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                  :class="resumeHighlighted.has('name') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">Email</label>
+              <input x-model="profile.email" type="email" placeholder="jane@example.com"
+                class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                :class="resumeHighlighted.has('email') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'">
+            </div>
+          </div>
+        </div>
+
+        <!-- Education -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-5">Education</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">Highest Education</label>
+              <input x-model="profile.education" type="text" placeholder="e.g. B.Sc. Computer Science, NUS"
+                class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                :class="resumeHighlighted.has('education') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">Certifications <span class="font-normal text-slate-400">(comma-separated)</span></label>
+              <textarea x-model="certsText" rows="2" placeholder="AWS Solutions Architect, PMP, Google Analytics…"
+                class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                :class="resumeHighlighted.has('skills') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Skills -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-5">Skills</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">Technical Skills <span class="font-normal text-slate-400">(comma-separated)</span></label>
+              <textarea x-model="techSkillsText" rows="2" placeholder="Python, SQL, Power BI, Excel, Tableau…"
+                class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                :class="resumeHighlighted.has('skills') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'"></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">Soft Skills <span class="font-normal text-slate-400">(comma-separated)</span></label>
+              <textarea x-model="softSkillsText" rows="2" placeholder="Communication, Leadership, Problem-solving…"
+                class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                :class="resumeHighlighted.has('skills') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Experience Summary -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-5">Experience Summary</h3>
+          <textarea x-model="profile.experience_summary" rows="4"
+            placeholder="Brief overview of your professional background and key achievements…"
+            class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+            :class="resumeHighlighted.has('experience_summary') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'"></textarea>
+        </div>
+
+        <!-- Work History -->
+        <div class="rounded-2xl border shadow-sm p-6 transition-colors"
+          :class="resumeHighlighted.has('work_history') ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-100'">
+          <div class="flex items-center justify-between mb-5">
+            <h3 class="font-bold text-slate-800 text-sm">Work History</h3>
+            <button @click="profile.work_history.push({title:'',company:'',period:'',summary:''})"
+              class="text-xs px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold rounded-xl transition-colors">
+              + Add
+            </button>
+          </div>
+          <div x-show="!profile.work_history.length" class="text-slate-400 text-sm text-center py-6 border border-dashed border-slate-200 rounded-xl">
+            No work history yet
+          </div>
+          <div class="space-y-4">
+            <template x-for="(job, i) in profile.work_history" :key="i">
+              <div class="border border-slate-200 rounded-xl p-4 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <input x-model="job.title" type="text" placeholder="Job Title"
+                    class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  <input x-model="job.company" type="text" placeholder="Company"
+                    class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                </div>
+                <input x-model="job.period" type="text" placeholder="e.g. Jan 2022 – Present"
+                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <textarea x-model="job.summary" rows="2" placeholder="Key responsibilities and achievements…"
+                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></textarea>
+                <button @click="profile.work_history.splice(i,1)"
+                  class="text-xs text-red-400 hover:text-red-600 font-semibold transition-colors">Remove</button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Projects -->
+        <div class="rounded-2xl border shadow-sm p-6 transition-colors"
+          :class="resumeHighlighted.has('projects') ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-100'">
+          <div class="flex items-center justify-between mb-5">
+            <h3 class="font-bold text-slate-800 text-sm">Projects</h3>
+            <button @click="profile.projects.push({name:'',description:''})"
+              class="text-xs px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold rounded-xl transition-colors">
+              + Add
+            </button>
+          </div>
+          <div x-show="!profile.projects.length" class="text-slate-400 text-sm text-center py-6 border border-dashed border-slate-200 rounded-xl">
+            No projects yet
+          </div>
+          <div class="space-y-3">
+            <template x-for="(proj, i) in profile.projects" :key="i">
+              <div class="border border-slate-200 rounded-xl p-4 space-y-3">
+                <input x-model="proj.name" type="text" placeholder="Project name"
+                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <textarea x-model="proj.description" rows="2" placeholder="What it does and your role…"
+                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></textarea>
+                <button @click="profile.projects.splice(i,1)"
+                  class="text-xs text-red-400 hover:text-red-600 font-semibold transition-colors">Remove</button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Save -->
+        <button @click="saveProfile()" :disabled="profileSaving"
+          class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-2xl font-bold text-sm transition-colors shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2">
+          <svg x-show="profileSaving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <span x-text="profileSaving?'Saving…':'Save Profile'"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ████ SETTINGS ████ -->
+    <div x-show="page==='settings'" class="page-in p-8 max-w-xl mx-auto">
+      <div class="mb-8">
+        <h1 class="text-2xl font-semibold text-slate-900">Settings</h1>
+        <p class="text-slate-500 text-sm mt-1">Configure your job scanner preferences</p>
+      </div>
+
+      <div class="space-y-4">
+
+        <!-- Gemini API Key -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-5">Gemini API Key</h3>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1.5">API Key</label>
+            <input x-model="creds.gemini_api_key" type="password" placeholder="AIzaSy…"
+              class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            <p class="text-slate-400 text-xs mt-1">Required for cover note generation. Free at <span class="font-mono">aistudio.google.com/apikey</span>.</p>
+          </div>
+          <button @click="saveCreds()" class="mt-4 px-4 py-2.5 bg-slate-900 hover:bg-slate-700 text-white text-sm font-semibold rounded-xl transition-colors">Save</button>
+        </div>
+
+        <!-- Search Configuration -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-5">Search Configuration</h3>
+          <div class="space-y-5">
+            <!-- Target Titles -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-2">Job Titles to Search</label>
+              <div class="flex flex-wrap gap-1.5 mb-2 min-h-[28px]">
+                <template x-for="(t,i) in cfg.target_titles" :key="i">
+                  <span class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                    <span x-text="t"></span>
+                    <button @click="cfg.target_titles.splice(i,1)" class="text-indigo-400 hover:text-indigo-700 leading-none ml-0.5">&times;</button>
+                  </span>
+                </template>
+              </div>
+              <div class="flex gap-2">
+                <input x-model="newSearchInput.title" type="text" placeholder="e.g. Data Analyst"
+                  @keydown.enter.prevent="addSearchTag('target_titles','title')"
+                  class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <button @click="addSearchTag('target_titles','title')"
+                  class="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm rounded-xl font-semibold transition-colors">Add</button>
+              </div>
+            </div>
+            <!-- Preferred Keywords -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-2">Boost Keywords <span class="font-normal text-slate-400">(score higher when matched)</span></label>
+              <div class="flex flex-wrap gap-1.5 mb-2 min-h-[28px]">
+                <template x-for="(k,i) in cfg.preferred_keywords" :key="i">
+                  <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                    <span x-text="k"></span>
+                    <button @click="cfg.preferred_keywords.splice(i,1)" class="text-emerald-400 hover:text-emerald-700 leading-none ml-0.5">&times;</button>
+                  </span>
+                </template>
+              </div>
+              <div class="flex gap-2">
+                <input x-model="newSearchInput.preferred" type="text" placeholder="e.g. SQL, Python"
+                  @keydown.enter.prevent="addSearchTag('preferred_keywords','preferred')"
+                  class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <button @click="addSearchTag('preferred_keywords','preferred')"
+                  class="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm rounded-xl font-semibold transition-colors">Add</button>
+              </div>
+            </div>
+            <!-- Negative Keywords -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-2">Negative Keywords <span class="font-normal text-slate-400">(score lower when matched)</span></label>
+              <div class="flex flex-wrap gap-1.5 mb-2 min-h-[28px]">
+                <template x-for="(k,i) in cfg.negative_keywords" :key="i">
+                  <span class="inline-flex items-center gap-1 bg-red-50 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                    <span x-text="k"></span>
+                    <button @click="cfg.negative_keywords.splice(i,1)" class="text-red-400 hover:text-red-700 leading-none ml-0.5">&times;</button>
+                  </span>
+                </template>
+              </div>
+              <div class="flex gap-2">
+                <input x-model="newSearchInput.negative" type="text" placeholder="e.g. senior, 5 years"
+                  @keydown.enter.prevent="addSearchTag('negative_keywords','negative')"
+                  class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <button @click="addSearchTag('negative_keywords','negative')"
+                  class="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm rounded-xl font-semibold transition-colors">Add</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scan prefs -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-5">Scan Preferences</h3>
+          <div class="space-y-5">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1.5">Min Salary (SGD/mo)</label>
+                <input x-model.number="cfg.min_salary" type="number" step="100"
+                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1.5">Max Salary (SGD/mo)</label>
+                <input x-model.number="cfg.max_salary" type="number" step="100"
+                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+              </div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-xs font-semibold text-slate-500">Min Match Score</label>
+                <span class="text-sm font-bold text-indigo-600" x-text="cfg.min_score_threshold+'/100'"></span>
+              </div>
+              <input x-model.number="cfg.min_score_threshold" type="range" min="0" max="100"
+                class="w-full h-2 rounded-full appearance-none cursor-pointer">
+              <div class="flex justify-between text-xs text-slate-400 mt-1.5">
+                <span>0 — show all</span>
+                <span>100 — perfect only</span>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">Max Jobs per Notification</label>
+              <input x-model.number="cfg.max_jobs_per_notification" type="number" min="1" max="50" step="1"
+                class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+              <p class="text-slate-400 text-xs mt-1.5">How many top matches to notify you about per scan.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Email Notifications -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-5">Email Notifications</h3>
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm font-semibold text-slate-700">Send email digest</div>
+                <div class="text-xs text-slate-400 mt-0.5">Email top matches after each scan</div>
+              </div>
+              <button @click="cfg.email_enabled=!cfg.email_enabled"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                :class="cfg.email_enabled?'toggle-on':'toggle-off'">
+                <span class="inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
+                  :class="cfg.email_enabled?'translate-x-6':'translate-x-1'"></span>
+              </button>
+            </div>
+
+            <div x-show="cfg.email_enabled" class="space-y-3 pt-1">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1.5">Recipient Email</label>
+                <input x-model="cfg.email_to" type="email" placeholder="you@gmail.com"
+                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <p class="text-slate-400 text-xs mt-1.5">Top matches will be emailed here after each scan.</p>
+              </div>
+              <div x-show="!cfg.email_configured"
+                class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 text-xs text-amber-700">
+                <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                Email sending requires <code class="font-mono bg-amber-100 px-1 rounded">RESEND_API_KEY</code> to be set in your environment.
+              </div>
+              <button @click="testEmail()" :disabled="emailTesting || !cfg.email_configured"
+                class="flex items-center gap-2 text-sm px-4 py-2.5 bg-slate-900 hover:bg-slate-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors">
+                <svg x-show="emailTesting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <svg x-show="!emailTesting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <span x-text="emailTesting?'Sending…':'Send Test Email'"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Daily Schedule -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-5">Daily Schedule</h3>
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm font-semibold text-slate-700">Run scan daily</div>
+                <div class="text-xs text-slate-400 mt-0.5">Registers a Windows Task Scheduler job named "JobScanner"</div>
+              </div>
+              <button @click="schedule.enabled=!schedule.enabled"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                :class="schedule.enabled?'toggle-on':'toggle-off'">
+                <span class="inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
+                  :class="schedule.enabled?'translate-x-6':'translate-x-1'"></span>
+              </button>
+            </div>
+            <div x-show="schedule.enabled">
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">Scan Time</label>
+              <input x-model="schedule.time" type="time"
+                class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            </div>
+            <button @click="saveSchedule()"
+              class="text-sm px-4 py-2.5 bg-slate-900 hover:bg-slate-700 text-white rounded-xl font-semibold transition-colors">
+              Save Schedule
+            </button>
+          </div>
+        </div>
+
+        <!-- Billing -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-4">Billing</h3>
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm font-semibold text-slate-700 capitalize"
+                x-text="{
+                  trialing: 'Free trial',
+                  active:   'Active subscription',
+                  expired:  'Trial expired',
+                  past_due: 'Payment failed',
+                  cancelled:'Subscription cancelled',
+                }[billing.status] || 'Free trial'"></div>
+              <div class="text-xs text-slate-400 mt-0.5"
+                x-text="
+                  billing.status === 'active'   ? 'Your subscription is active.' :
+                  billing.status === 'past_due'  ? 'Update your payment method to restore access.' :
+                  billing.status === 'cancelled' ? 'Subscribe again to continue scanning.' :
+                  (billing.trial_days_left !== null)
+                    ? billing.trial_days_left + ' day(s) remaining in your trial.'
+                    : 'Scan for free during your trial period.'
+                "></div>
+            </div>
+            <div class="flex gap-2">
+              <button x-show="billing.status === 'active' || billing.status === 'past_due'"
+                @click="manageSubscription()"
+                class="text-sm px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold transition-colors">
+                Manage
+              </button>
+              <button x-show="billing.status !== 'active'"
+                @click="subscribe()" :disabled="subscribing"
+                class="text-sm px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors">
+                <span x-text="subscribing ? 'Redirecting…' : 'Subscribe — $8/mo'"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danger zone -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 class="font-bold text-slate-800 text-sm mb-1">Reset History</h3>
+          <p class="text-slate-400 text-xs mb-4">The next scan will treat all jobs as new listings.</p>
+          <button @click="doReset()"
+            class="text-sm px-4 py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded-xl font-semibold transition-colors">
+            Clear Seen History
+          </button>
+        </div>
+
+        <button @click="saveCfg()"
+          class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm transition-colors shadow-md shadow-indigo-600/20">
+          Save Settings
+        </button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function app() {
+  return {
+    page: 'dashboard',
+    userEmail: '',
+
+    // Data
+    stats: {},
+    filteredJobs: [],
+    allJobsEmpty: false,
+    modes: [{name:'analyst', titles:['Data Analyst','Business Analyst']}],
+    notes: [],
+    selNote: null,
+    noteBody: '',
+    applications: [],
+    cfg: { min_salary:2200, max_salary:4000, min_score_threshold:40, max_jobs_per_notification:20,
+           email_enabled:false, email_configured:false, email_to:'' },
+
+    // Scan
+    scanning: false,
+    logs: [],
+    scanDone: false,
+    zeroNewJobs: false,
+    selMode: 'analyst',
+    notify: true,
+    newMode: '',
+    genning: false,
+
+    // Jobs filters
+    jSearch: '', jSource: '', jStatus: '',
+    jobsLoading: false,
+
+    // Toast
+    toast: { show:false, msg:'', ok:true },
+
+    // Mobile
+    sidebarOpen: false,
+
+    // Analytics
+    analytics: {},
+    charts: {},
+
+    // Application edit modal
+    editApp: null,
+    editNotes: '',
+    editInterviewDate: '',
+    editInterviewTime: '',
+
+    // Profile
+    profile: { name:'', email:'', phone:'', education:'', certifications:[], technical_skills:[], soft_skills:[], experience_summary:'', work_history:[], projects:[] },
+    techSkillsText: '',
+    softSkillsText: '',
+    certsText: '',
+    profileSaving: false,
+    resumeFile: null,
+    resumeDragging: false,
+    resumeParsing: false,
+    resumeParseMsg: '',
+    resumeParseOk: true,
+    resumeHighlighted: new Set(),
+
+    // Billing
+    billing: { status: null, trial_days_left: null, has_access: true },
+    subscribing: false,
+
+    // Credentials (Gemini)
+    creds: { gemini_api_key: '' },
+
+    // New tag inputs for search config
+    newSearchInput: { title: '', preferred: '', negative: '' },
+
+    // Schedule
+    schedule: { enabled: false, time: '09:00' },
+
+    // Email testing
+    emailTesting: false,
+
+    // Nav
+    nav: [
+      { id:'dashboard',    label:'Dashboard',    icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>' },
+      { id:'scan',         label:'Run Scan',     icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' },
+      { id:'jobs',         label:'Jobs',         icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>' },
+      { id:'applications', label:'Applications', icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>' },
+      { id:'analytics',    label:'Analytics',    icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>' },
+      { id:'coverNotes',   label:'Cover Notes',  icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>' },
+      { id:'profile',      label:'Profile',      icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>' },
+      { id:'settings',     label:'Settings',     icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>' },
+    ],
+
+    // ── Computed ──────────────────────────────────────────────
+    get applied()    { return this.applications.filter(j=>j.status==='applied'); },
+    get interviews() { return this.applications.filter(j=>j.status==='interview'); },
+    get skipped()    { return this.applications.filter(j=>j.status==='skip'); },
+
+    // ── Init ──────────────────────────────────────────────────
+    async boot() {
+      // Verify auth before loading any data
+      const me = await fetch('/api/auth/me');
+      if (me.status === 401) { window.location = '/login'; return; }
+      const meData = await me.json();
+      this.userEmail = meData.email || '';
+
+      await Promise.all([
+        this.loadStats(),
+        this.loadModes(),
+        this.loadCfg(),
+        this.loadCreds(),
+        this.loadBilling(),
+        this.loadSchedule(),
+        this.loadProfile(),
+      ]);
+    },
+
+    async logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location = '/login';
+    },
+
+    async go(target) {
+      this.page = target;
+      if (target==='dashboard')    await this.loadStats();
+      if (target==='jobs')         await this.loadJobs();
+      if (target==='applications') await this.loadApps();
+      if (target==='analytics')    await this.loadAnalytics();
+      if (target==='profile')      await this.loadProfile();
+      if (target==='coverNotes')   { this.selNote=null; this.noteBody=''; await this.loadNotes(); }
+    },
+
+    // ── API calls ──────────────────────────────────────────────
+    async loadStats() {
+      try { this.stats = await (await fetch('/api/stats')).json(); } catch(_){}
+    },
+
+    async loadModes() {
+      try {
+        const d = await (await fetch('/api/modes')).json();
+        if (d.length) this.modes = d;
+      } catch(_){}
+    },
+
+    async loadCfg() {
+      try {
+        const d = await (await fetch('/api/config')).json();
+        this.cfg = { ...this.cfg, ...d };
+        if (!this.cfg.target_titles)      this.cfg.target_titles      = [];
+        if (!this.cfg.preferred_keywords) this.cfg.preferred_keywords = [];
+        if (!this.cfg.negative_keywords)  this.cfg.negative_keywords  = [];
+      } catch(_){}
+    },
+
+    async loadCreds() {
+      try {
+        const d = await (await fetch('/api/credentials')).json();
+        this.creds.gemini_api_key = d.gemini_api_key || '';
+      } catch(_){}
+    },
+
+    async saveCreds() {
+      try {
+        const r = await fetch('/api/credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.creds),
+        });
+        const d = await r.json();
+        this.flash(d.ok ? 'Credentials saved!' : 'Save failed', d.ok);
+        if (d.ok) await this.loadCfg();
+      } catch(_) { this.flash('Network error', false); }
+    },
+
+    addSearchTag(list, inputKey) {
+      const v = this.newSearchInput[inputKey]?.trim();
+      if (v && !this.cfg[list].includes(v)) this.cfg[list].push(v);
+      this.newSearchInput[inputKey] = '';
+    },
+
+    async loadBilling() {
+      try { this.billing = await (await fetch('/api/billing/status')).json(); } catch(_){}
+    },
+
+    async subscribe() {
+      this.subscribing = true;
+      try {
+        const d = await (await fetch('/api/billing/create-checkout', { method: 'POST' })).json();
+        if (d.url) window.location = d.url;
+        else this.flash(d.error || 'Could not start checkout', false);
+      } catch(_) { this.flash('Network error', false); }
+      this.subscribing = false;
+    },
+
+    async manageSubscription() {
+      try {
+        const d = await (await fetch('/api/billing/portal', { method: 'POST' })).json();
+        if (d.url) window.location = d.url;
+        else this.flash(d.error || 'Could not open billing portal', false);
+      } catch(_) { this.flash('Network error', false); }
+    },
+
+    async loadJobs() {
+      this.jobsLoading = true;
+      try {
+        const p = new URLSearchParams();
+        if (this.jSearch) p.set('q', this.jSearch);
+        if (this.jSource) p.set('source', this.jSource);
+        if (this.jStatus) p.set('status', this.jStatus);
+        const jobs = await (await fetch('/api/jobs?'+p)).json();
+        this.filteredJobs = jobs;
+        // Check if there are any jobs at all (no filters)
+        if (!this.jSearch && !this.jSource && !this.jStatus) {
+          this.allJobsEmpty = jobs.length === 0;
+        }
+      } catch(_){}
+      this.jobsLoading = false;
+    },
+
+    async loadApps() {
+      try {
+        const d = await (await fetch('/api/applications')).json();
+        this.applications = Object.entries(d).map(([id,v])=>({job_id:id,...v}));
+      } catch(_){}
+    },
+
+    async loadNotes() {
+      try { this.notes = await (await fetch('/api/cover-notes')).json(); } catch(_){}
+    },
+
+    async loadAnalytics() {
+      try {
+        this.analytics = await (await fetch('/api/analytics')).json();
+        this.$nextTick(() => this.initCharts());
+      } catch(_){}
+    },
+
+    initCharts() {
+      Object.values(this.charts).forEach(c => c.destroy());
+      this.charts = {};
+
+      const a = this.analytics;
+      if (!a.funnel?.total) return;
+
+      const palette = ['#6366F1','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316'];
+
+      // Source doughnut
+      const srcCanvas = document.getElementById('chartSources');
+      if (srcCanvas) {
+        const labels = Object.keys(a.sources || {});
+        const data   = Object.values(a.sources || {});
+        this.charts.sources = new Chart(srcCanvas, {
+          type: 'doughnut',
+          data: { labels, datasets: [{ data, backgroundColor: palette, borderWidth: 0 }] },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{ size:11 } } } } }
+        });
+      }
+
+      // Score bar
+      const scCanvas = document.getElementById('chartScores');
+      if (scCanvas) {
+        this.charts.scores = new Chart(scCanvas, {
+          type: 'bar',
+          data: {
+            labels: a.score_distribution?.labels || [],
+            datasets: [{ data: a.score_distribution?.data || [], backgroundColor: '#6366F1', borderRadius: 4, borderSkipped: false }]
+          },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } }, x:{ grid:{ display:false } } } }
+        });
+      }
+
+      // Weekly trend line
+      const trCanvas = document.getElementById('chartTrend');
+      if (trCanvas) {
+        this.charts.trend = new Chart(trCanvas, {
+          type: 'line',
+          data: {
+            labels: a.weekly_trend?.labels || [],
+            datasets: [{ data: a.weekly_trend?.data || [], borderColor: '#6366F1', backgroundColor: 'rgba(99,102,241,.1)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: '#6366F1' }]
+          },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } }, x:{ grid:{ display:false } } } }
+        });
+      }
+
+      // Top companies horizontal bar
+      const coCanvas = document.getElementById('chartCompanies');
+      if (coCanvas) {
+        this.charts.companies = new Chart(coCanvas, {
+          type: 'bar',
+          data: {
+            labels: a.top_companies?.labels || [],
+            datasets: [{ data: a.top_companies?.data || [], backgroundColor: '#10B981', borderRadius: 4, borderSkipped: false }]
+          },
+          options: { indexAxis: 'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ beginAtZero:true, grid:{ color:'#F1F5F9' } }, y:{ grid:{ display:false }, ticks:{ font:{ size:11 } } } } }
+        });
+      }
+    },
+
+    async loadProfile() {
+      try {
+        const d = await (await fetch('/api/profile')).json();
+        this.profile = {
+          name: d.name || '',
+          email: d.email || '',
+          phone: d.phone || '',
+          education: d.education || '',
+          certifications: d.certifications || [],
+          technical_skills: d.technical_skills || [],
+          soft_skills: d.soft_skills || [],
+          experience_summary: d.experience_summary || '',
+          work_history: d.work_history || [],
+          projects: d.projects || [],
+        };
+        this.techSkillsText = (d.technical_skills || []).join(', ');
+        this.softSkillsText = (d.soft_skills || []).join(', ');
+        this.certsText      = (d.certifications || []).join(', ');
+      } catch(_){}
+    },
+
+    handleResumeFile(event) {
+      this.resumeFile = event.target.files[0] || null;
+      this.resumeParseMsg = '';
+    },
+
+    handleResumeDrop(event) {
+      const file = event.dataTransfer.files[0];
+      if (file) { this.resumeFile = file; this.resumeParseMsg = ''; }
+    },
+
+    async parseResume() {
+      if (!this.resumeFile || this.resumeParsing) return;
+      this.resumeParsing = true;
+      this.resumeParseMsg = '';
+      try {
+        const fd = new FormData();
+        fd.append('resume', this.resumeFile);
+        const r = await fetch('/api/profile/parse-resume', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) {
+          this.resumeParseMsg = d.error || 'Parse failed';
+          this.resumeParseOk = false;
+        } else {
+          this._applyParsedProfile(d);
+          this.resumeParseMsg = 'Profile filled in — review and save';
+          this.resumeParseOk = true;
+        }
+      } catch(_) {
+        this.resumeParseMsg = 'Network error';
+        this.resumeParseOk = false;
+      }
+      this.resumeParsing = false;
+    },
+
+    _applyParsedProfile(d) {
+      const strFields = ['name','email','phone','education','experience_summary'];
+      strFields.forEach(k => { if (d[k]) this.profile[k] = d[k]; });
+      if (d.technical_skills?.length) this.techSkillsText = d.technical_skills.join(', ');
+      if (d.soft_skills?.length)      this.softSkillsText = d.soft_skills.join(', ');
+      if (d.certifications?.length)   this.certsText      = d.certifications.join(', ');
+      if (d.work_history?.length)     this.profile.work_history = d.work_history;
+      if (d.projects?.length)         this.profile.projects     = d.projects;
+      // highlight touched fields briefly
+      this.resumeHighlighted = new Set(['name','email','phone','education','experience_summary','skills','work_history','projects']);
+      setTimeout(() => { this.resumeHighlighted = new Set(); }, 3000);
+    },
+
+    async saveProfile() {
+      this.profileSaving = true;
+      try {
+        this.profile.technical_skills = this.techSkillsText.split(',').map(s=>s.trim()).filter(Boolean);
+        this.profile.soft_skills      = this.softSkillsText.split(',').map(s=>s.trim()).filter(Boolean);
+        this.profile.certifications   = this.certsText.split(',').map(s=>s.trim()).filter(Boolean);
+        const d = await (await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(this.profile)})).json();
+        this.flash(d.ok?'Profile saved!':'Save failed', d.ok);
+      } catch(_){ this.flash('Network error', false); }
+      this.profileSaving = false;
+    },
+
+    async loadSchedule() {
+      try { this.schedule = await (await fetch('/api/schedule')).json(); } catch(_){}
+    },
+
+    async saveSchedule() {
+      try {
+        const d = await (await fetch('/api/schedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(this.schedule)})).json();
+        this.flash(d.ok ? 'Schedule saved!' : ('Schedule error: '+(d.error||'unknown')), d.ok);
+      } catch(_){ this.flash('Network error', false); }
+    },
+
+    async openNote(n) {
+      this.selNote = n;
+      try {
+        const d = await (await fetch('/api/cover-notes/'+encodeURIComponent(n.filename))).json();
+        const lines = (d.content||'').split('\n');
+        const sep = lines.findIndex(l=>l.startsWith('==='));
+        this.noteBody = sep>=0 ? lines.slice(sep+2).join('\n').trim() : d.content;
+      } catch(_){}
+    },
+
+    async copyNote() {
+      try { await navigator.clipboard.writeText(this.noteBody); this.flash('Copied!', true); }
+      catch(_) { this.flash('Copy failed — select manually', false); }
+    },
+
+    async genMode() {
+      if (!this.newMode.trim()||this.genning) return;
+      this.genning = true;
+      try {
+        const r = await fetch('/api/modes/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:this.newMode.trim().toLowerCase()})});
+        const d = await r.json();
+        if (d.ok) {
+          await this.loadModes();
+          this.selMode = this.newMode.trim().toLowerCase();
+          this.flash('Mode "'+this.selMode+'" created!', true);
+          this.newMode = '';
+        } else { this.flash(d.error||'Failed', false); }
+      } catch(_){ this.flash('Network error', false); }
+      this.genning = false;
+    },
+
+    async startScan() {
+      if (this.scanning) return;
+      this.scanning = true; this.logs = []; this.scanDone = false; this.zeroNewJobs = false;
+      try {
+        const r = await fetch('/api/scan/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:this.selMode,notify:this.notify})});
+        if (r.status === 403) {
+          const d = await r.json();
+          if (d.error === 'trial_expired') {
+            await this.loadBilling();
+            this.flash('Your trial has ended — subscribe to scan.', false);
+          } else {
+            this.flash('Access denied', false);
+          }
+          this.scanning = false;
+          return;
+        }
+        if (!r.ok) { this.flash('Could not start scan', false); this.scanning=false; return; }
+      } catch(_){ this.flash('Network error',false); this.scanning=false; return; }
+
+      const es = new EventSource('/api/scan/stream');
+      es.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type==='done') {
+          es.close(); this.scanning=false; this.scanDone=true;
+          // Check if any log line signals zero results
+          this.zeroNewJobs = this.logs.some(l =>
+            l.includes('0 new') || l.toLowerCase().includes('no new jobs') || l.includes('0 listings')
+          );
+          this.loadStats();
+        } else if (msg.type==='log') {
+          this.logs.push(msg.text);
+          this.$nextTick(()=>{ const t=document.getElementById('terminal'); if(t) t.scrollTop=t.scrollHeight; });
+        }
+      };
+      es.onerror = ()=>{ es.close(); this.scanning=false; };
+    },
+
+    async quickStatus(job, status) {
+      const ns = job.app_status===status ? 'clear' : status;
+      await fetch('/api/applications/'+job.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:ns})});
+      job.app_status = ns==='clear' ? '' : ns;
+      await this.loadStats();
+    },
+
+    async setStatus(job, status) {
+      const ns = job.app_status===status ? 'clear' : status;
+      await fetch('/api/applications/'+job.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:ns})});
+      job.app_status = ns==='clear' ? '' : ns;
+    },
+
+    async clearApp(jobId) {
+      await fetch('/api/applications/'+jobId,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'clear'})});
+      await this.loadApps();
+    },
+
+    async openEditModal(app) {
+      this.editApp = { ...app };
+      this.editNotes = app.notes || '';
+      this.editInterviewDate = app.interview_date || '';
+      this.editInterviewTime = app.interview_time || '';
+    },
+
+    async saveEditModal() {
+      if (!this.editApp) return;
+      await fetch('/api/applications/'+this.editApp.job_id,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          status: this.editApp.status,
+          notes: this.editNotes,
+          interview_date: this.editInterviewDate,
+          interview_time: this.editInterviewTime,
+        })
+      });
+      this.editApp = null;
+      await this.loadApps();
+      this.flash('Saved!', true);
+    },
+
+
+    async testEmail() {
+      this.emailTesting = true;
+      try {
+        await this.saveCfg();
+        const d = await (await fetch('/api/email/test',{method:'POST'})).json();
+        this.flash(d.ok?'Test email sent! Check your inbox.':'Failed — check your email settings.', d.ok);
+      } catch(_){ this.flash('Network error',false); }
+      this.emailTesting = false;
+    },
+
+    async saveCfg() {
+      try {
+        const d = await (await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          min_salary:                this.cfg.min_salary,
+          max_salary:                this.cfg.max_salary,
+          min_score_threshold:       this.cfg.min_score_threshold,
+          max_jobs_per_notification: this.cfg.max_jobs_per_notification,
+          email_enabled:             this.cfg.email_enabled,
+          email_to:                  this.cfg.email_to,
+          target_titles:             this.cfg.target_titles,
+          preferred_keywords:        this.cfg.preferred_keywords,
+          negative_keywords:         this.cfg.negative_keywords,
+        })})).json();
+        this.flash(d.ok?'Settings saved!':'Save failed', d.ok);
+      } catch(_){ this.flash('Network error',false); }
+    },
+
+    async doReset() {
+      if (!confirm('Clear seen jobs history? The next scan treats all jobs as new.')) return;
+      const d = await (await fetch('/api/reset',{method:'POST'})).json();
+      this.flash(d.ok?'History cleared!':'Failed', d.ok);
+    },
+
+    // ── Helpers ────────────────────────────────────────────────
+    chipClass(src) {
+      return { MyCareersFuture:'chip-mcf', JobStreet:'chip-jobstreet', Indeed:'chip-indeed', LinkedIn:'chip-linkedin', Glints:'chip-glints' }[src] || 'chip-other';
+    },
+
+    flash(msg, ok=true) {
+      this.toast = { show:true, msg, ok };
+      setTimeout(()=>{ this.toast.show=false; }, 3000);
+    },
+  };
+}
+</script>
+</body>
+</html>

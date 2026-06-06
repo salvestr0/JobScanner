@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Scanner — Find Singapore Jobs on Autopilot</title>
+  <meta name="description" content="AI-powered job scanner for Singapore. Monitors MyCareersFuture daily, scores matches against your profile, and emails you the best fits.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
+    .gradient-text {
+      background: linear-gradient(135deg, #818CF8 0%, #6366F1 50%, #A78BFA 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-glow {
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99,102,241,0.18) 0%, transparent 70%);
+    }
+    .feature-card {
+      background: rgba(15,23,42,0.6);
+      border: 1px solid rgba(51,65,85,0.8);
+      backdrop-filter: blur(8px);
+    }
+    .pricing-card {
+      background: linear-gradient(145deg, rgba(49,46,129,0.25) 0%, rgba(15,23,42,0.8) 100%);
+      border: 1px solid rgba(99,102,241,0.35);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-white antialiased">
+
+  <!-- ── Nav ── -->
+  <nav class="fixed top-0 left-0 right-0 z-50 border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-md">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+          </svg>
+        </div>
+        <span class="font-semibold text-white">Job Scanner</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/login" class="text-slate-400 hover:text-white text-sm font-medium transition-colors px-3 py-1.5">
+          Sign in
+        </a>
+        <a href="/register" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
+          Start free trial
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Hero ── -->
+  <section class="hero-glow pt-32 pb-24 px-6 text-center relative overflow-hidden">
+    <!-- Background grid -->
+    <div class="absolute inset-0 opacity-[0.03]"
+      style="background-image: linear-gradient(rgba(148,163,184,1) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,1) 1px, transparent 1px); background-size: 40px 40px;">
+    </div>
+
+    <div class="relative max-w-4xl mx-auto">
+      <div class="inline-flex items-center gap-2 bg-indigo-950/60 border border-indigo-800/50 rounded-full px-4 py-1.5 mb-8">
+        <span class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse"></span>
+        <span class="text-indigo-300 text-xs font-semibold tracking-wide">Built for Singapore's job market</span>
+      </div>
+
+      <h1 class="text-5xl sm:text-6xl font-bold leading-tight mb-6 tracking-tight">
+        Find your next job<br>
+        <span class="gradient-text">on autopilot.</span>
+      </h1>
+
+      <p class="text-slate-400 text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+        Job Scanner monitors MyCareersFuture every day, scores every listing against your skills and preferences, and sends you only the matches worth applying to.
+      </p>
+
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <a href="/register"
+          class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-7 py-3.5 rounded-xl transition-colors text-base shadow-lg shadow-indigo-900/30">
+          Start free — 3 days on us
+        </a>
+        <a href="/login"
+          class="w-full sm:w-auto border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white font-medium px-7 py-3.5 rounded-xl transition-colors text-base">
+          Sign in →
+        </a>
+      </div>
+      <p class="text-slate-600 text-sm mt-4">No credit card required to start.</p>
+    </div>
+
+    <!-- Stats row -->
+    <div class="relative max-w-2xl mx-auto mt-20 grid grid-cols-3 gap-px bg-slate-800/50 rounded-2xl overflow-hidden border border-slate-800/50">
+      <div class="bg-slate-900/70 px-6 py-5 text-center">
+        <div class="text-2xl font-bold text-white mb-0.5">MCF</div>
+        <div class="text-slate-500 text-xs">Official source</div>
+      </div>
+      <div class="bg-slate-900/70 px-6 py-5 text-center">
+        <div class="text-2xl font-bold text-white mb-0.5">Daily</div>
+        <div class="text-slate-500 text-xs">Auto-scans</div>
+      </div>
+      <div class="bg-slate-900/70 px-6 py-5 text-center">
+        <div class="text-2xl font-bold text-white mb-0.5">100%</div>
+        <div class="text-slate-500 text-xs">Legal &amp; public API</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── How it works ── -->
+  <section class="py-24 px-6">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16">
+        <p class="text-indigo-400 text-sm font-semibold uppercase tracking-widest mb-3">How it works</p>
+        <h2 class="text-3xl sm:text-4xl font-bold">Three steps to your next role</h2>
+      </div>
+      <div class="grid sm:grid-cols-3 gap-8">
+        <div class="text-center">
+          <div class="w-12 h-12 bg-indigo-950 border border-indigo-800/60 rounded-2xl flex items-center justify-center mx-auto mb-5">
+            <span class="text-indigo-400 font-bold text-lg">1</span>
+          </div>
+          <h3 class="font-semibold text-white mb-2">Set your preferences</h3>
+          <p class="text-slate-500 text-sm leading-relaxed">
+            Tell us your target job titles, salary range, preferred locations, and keywords. Takes under two minutes.
+          </p>
+        </div>
+        <div class="text-center">
+          <div class="w-12 h-12 bg-indigo-950 border border-indigo-800/60 rounded-2xl flex items-center justify-center mx-auto mb-5">
+            <span class="text-indigo-400 font-bold text-lg">2</span>
+          </div>
+          <h3 class="font-semibold text-white mb-2">We scan automatically</h3>
+          <p class="text-slate-500 text-sm leading-relaxed">
+            Job Scanner pulls fresh listings from MyCareersFuture daily and scores each one against your profile.
+          </p>
+        </div>
+        <div class="text-center">
+          <div class="w-12 h-12 bg-indigo-950 border border-indigo-800/60 rounded-2xl flex items-center justify-center mx-auto mb-5">
+            <span class="text-indigo-400 font-bold text-lg">3</span>
+          </div>
+          <h3 class="font-semibold text-white mb-2">Get your top matches</h3>
+          <p class="text-slate-500 text-sm leading-relaxed">
+            Your best matches arrive in your inbox. Apply directly, or use the dashboard to track your pipeline.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Features ── -->
+  <section class="py-24 px-6 bg-gradient-to-b from-transparent to-slate-900/30">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16">
+        <p class="text-indigo-400 text-sm font-semibold uppercase tracking-widest mb-3">Features</p>
+        <h2 class="text-3xl sm:text-4xl font-bold">Everything you need to land the job</h2>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+
+        <!-- Smart Matching -->
+        <div class="feature-card rounded-2xl p-6">
+          <div class="w-10 h-10 bg-indigo-950 rounded-xl flex items-center justify-center mb-4 border border-indigo-800/40">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-white mb-2">Smart Match Scoring</h3>
+          <p class="text-slate-500 text-sm leading-relaxed">Every listing is scored 0–100 against your skills, salary expectations, location, and keywords. Only relevant matches reach you.</p>
+        </div>
+
+        <!-- Email Digest -->
+        <div class="feature-card rounded-2xl p-6">
+          <div class="w-10 h-10 bg-indigo-950 rounded-xl flex items-center justify-center mb-4 border border-indigo-800/40">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-white mb-2">Daily Email Digest</h3>
+          <p class="text-slate-500 text-sm leading-relaxed">Your top matches delivered to your inbox each morning — clean, scannable, with one-click links to apply. No app to open.</p>
+        </div>
+
+        <!-- AI Cover Notes -->
+        <div class="feature-card rounded-2xl p-6">
+          <div class="w-10 h-10 bg-indigo-950 rounded-xl flex items-center justify-center mb-4 border border-indigo-800/40">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-white mb-2">AI Cover Notes</h3>
+          <p class="text-slate-500 text-sm leading-relaxed">Gemini AI generates a tailored cover note for each top match based on your resume and the job description. One click, ready to send.</p>
+        </div>
+
+        <!-- Application Tracker -->
+        <div class="feature-card rounded-2xl p-6">
+          <div class="w-10 h-10 bg-indigo-950 rounded-xl flex items-center justify-center mb-4 border border-indigo-800/40">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-white mb-2">Application Tracker</h3>
+          <p class="text-slate-500 text-sm leading-relaxed">Mark jobs as Applied, Interview, or Skip. Add notes, schedule interview dates, and track your whole pipeline in one place.</p>
+        </div>
+
+        <!-- Analytics -->
+        <div class="feature-card rounded-2xl p-6">
+          <div class="w-10 h-10 bg-indigo-950 rounded-xl flex items-center justify-center mb-4 border border-indigo-800/40">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-white mb-2">Analytics Dashboard</h3>
+          <p class="text-slate-500 text-sm leading-relaxed">See score distributions, top hiring companies, weekly job volume trends, and your personal application funnel at a glance.</p>
+        </div>
+
+        <!-- Multiple Modes -->
+        <div class="feature-card rounded-2xl p-6">
+          <div class="w-10 h-10 bg-indigo-950 rounded-xl flex items-center justify-center mb-4 border border-indigo-800/40">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-white mb-2">AI Scan Modes</h3>
+          <p class="text-slate-500 text-sm leading-relaxed">Exploring a career switch? Switch modes — logistics, healthcare, F&B — and Gemini AI generates a fresh search profile for that field.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Pricing ── -->
+  <section class="py-24 px-6">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16">
+        <p class="text-indigo-400 text-sm font-semibold uppercase tracking-widest mb-3">Pricing</p>
+        <h2 class="text-3xl sm:text-4xl font-bold">One plan, everything included</h2>
+        <p class="text-slate-500 mt-3 text-base">Start free. No credit card required.</p>
+      </div>
+
+      <div class="max-w-sm mx-auto">
+        <div class="pricing-card rounded-2xl p-8 shadow-xl shadow-indigo-950/30">
+          <!-- Badge -->
+          <div class="inline-flex items-center gap-1.5 bg-indigo-600/20 text-indigo-300 text-xs font-semibold px-3 py-1 rounded-full mb-6 border border-indigo-600/30">
+            <span class="w-1.5 h-1.5 bg-indigo-400 rounded-full"></span>
+            3-day free trial
+          </div>
+
+          <div class="mb-6">
+            <span class="text-5xl font-bold text-white">S$8</span>
+            <span class="text-slate-400 ml-2">/ month</span>
+          </div>
+
+          <ul class="space-y-3 mb-8">
+            <li class="flex items-center gap-3 text-sm text-slate-300">
+              <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Unlimited daily scans
+            </li>
+            <li class="flex items-center gap-3 text-sm text-slate-300">
+              <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Email digest of top matches
+            </li>
+            <li class="flex items-center gap-3 text-sm text-slate-300">
+              <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              AI-generated cover notes
+            </li>
+            <li class="flex items-center gap-3 text-sm text-slate-300">
+              <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Application tracker &amp; analytics
+            </li>
+            <li class="flex items-center gap-3 text-sm text-slate-300">
+              <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Multiple AI scan modes
+            </li>
+            <li class="flex items-center gap-3 text-sm text-slate-300">
+              <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Cancel anytime
+            </li>
+          </ul>
+
+          <a href="/register"
+            class="block w-full text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3.5 rounded-xl transition-colors shadow-lg shadow-indigo-900/30">
+            Start your free trial
+          </a>
+          <p class="text-slate-600 text-xs text-center mt-3">No credit card required</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section class="py-24 px-6">
+    <div class="max-w-3xl mx-auto text-center">
+      <div class="bg-gradient-to-br from-indigo-950/60 to-slate-900/60 border border-indigo-800/30 rounded-3xl p-12 shadow-xl">
+        <h2 class="text-3xl sm:text-4xl font-bold mb-4">Stop scrolling job boards.</h2>
+        <p class="text-slate-400 text-lg mb-8">Let Job Scanner do the work. Start your 3-day free trial — no card needed, cancel anytime.</p>
+        <a href="/register"
+          class="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-xl transition-colors text-base shadow-lg shadow-indigo-900/40">
+          Get started for free
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <footer class="border-t border-slate-800/60 py-10 px-6">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
+          <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+          </svg>
+        </div>
+        <span class="text-slate-400 text-sm">Job Scanner</span>
+      </div>
+      <div class="flex items-center gap-6 text-slate-600 text-sm">
+        <a href="/login" class="hover:text-slate-400 transition-colors">Sign in</a>
+        <a href="/register" class="hover:text-slate-400 transition-colors">Register</a>
+      </div>
+      <p class="text-slate-700 text-sm">© 2025 Job Scanner. Built for Singapore.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
