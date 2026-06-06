@@ -104,6 +104,9 @@ def fetch_mcf(max_pages: int = 3) -> list:
             print(f"  [MCF] Too many failures, stopping. Got {len(jobs)} jobs so far.")
             break
 
+        print(f"  → Searching: {title}")
+        title_count = 0
+
         for page in range(max_pages):
             try:
                 resp = requests.get(url, params=param_fn(title, page), headers=_MCF_HEADERS, timeout=8)
@@ -171,7 +174,9 @@ def fetch_mcf(max_pages: int = 3) -> list:
                         "source": "MyCareersFuture",
                         "experience_required": r.get("minimumYearsExperience"),
                     })
+                    title_count += 1
 
+                print(f"     page {page + 1}: {len(results)} listings")
                 time.sleep(1.5)
 
             except requests.exceptions.Timeout:
@@ -210,6 +215,7 @@ def fetch_adzuna(max_pages: int = 2) -> list:
     seen_ids: set = set()
 
     for title in SEARCH_CONFIG["target_titles"]:
+        print(f"  → Searching: {title}")
         for page in range(1, max_pages + 1):
             try:
                 resp = requests.get(
@@ -228,6 +234,7 @@ def fetch_adzuna(max_pages: int = 2) -> list:
                 if not results:
                     break
 
+                print(f"     page {page}: {len(results)} listings")
                 for r in results:
                     job_id = f"adzuna_{r.get('id', '')}"
                     if job_id in seen_ids:
@@ -280,6 +287,7 @@ def fetch_indeed_rss() -> list:
     }
 
     for title in SEARCH_CONFIG["target_titles"]:
+        print(f"  → Searching: {title}")
         try:
             resp = requests.get(
                 "https://sg.indeed.com/rss",
@@ -294,7 +302,9 @@ def fetch_indeed_rss() -> list:
             if channel is None:
                 continue
 
-            for item in channel.findall("item"):
+            items = channel.findall("item")
+            print(f"     {len(items)} listings")
+            for item in items:
                 link = item.findtext("link", "").strip()
                 if not link or link in seen_urls:
                     continue
@@ -349,6 +359,7 @@ def fetch_remoteok() -> list:
     Filters by titles/tags matching our target roles. All jobs are remote-friendly.
     """
     try:
+        print("  → Fetching all remote listings...")
         resp = requests.get(
             "https://remoteok.com/api",
             headers={"User-Agent": _BROWSER_UA, "Accept": "application/json"},
