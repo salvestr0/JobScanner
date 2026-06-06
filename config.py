@@ -82,7 +82,7 @@ SEARCH_CONFIG = {
         "changi business park", "one-north", "mapletree",
         "paya lebar", "tai seng", "ubi", "macpherson",
     ],
-    "min_score_threshold":        40,
+    "min_score_threshold":        30,
     "max_jobs_per_notification":  20,
 }
 

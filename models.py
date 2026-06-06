@@ -86,7 +86,7 @@ class UserSettings(db.Model):
     user_id                   = db.Column(db.String(36), db.ForeignKey("users.id"), primary_key=True)
     min_salary                = db.Column(db.Integer, default=2200)
     max_salary                = db.Column(db.Integer, default=4000)
-    min_score_threshold       = db.Column(db.Integer, default=40)
+    min_score_threshold       = db.Column(db.Integer, default=30)
     max_jobs_per_notification = db.Column(db.Integer, default=20)
     email_enabled             = db.Column(db.Boolean, default=False)
     email_to                  = db.Column(db.String(255), default="")

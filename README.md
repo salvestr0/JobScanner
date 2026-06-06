@@ -1,165 +1,134 @@
-# 🔍 Job Scanner - Automated Job Matching Tool
+# Job Scanner — Singapore Job Matching SaaS
 
-Scrapes MyCareersFuture, Indeed, and LinkedIn for analyst roles that match your profile, scores them, generates tailored cover notes, and sends the best matches straight to your Telegram.
+AI-powered job scanner for Singapore. Pulls listings from multiple sources daily, scores them against your profile, and surfaces only the matches worth applying to.
+
+**Live app:** [jobscanner-m7pb.onrender.com](https://jobscanner-m7pb.onrender.com)
 
 ---
 
-## ⚡ Quick Start (5 minutes)
+## Features
 
-### 1. Install Python dependencies
+| Feature | Free | Pro ($8/mo) |
+|---------|------|-------------|
+| Daily job scanning | ✅ (top 10 results) | ✅ Unlimited |
+| Job matching & scoring | ✅ | ✅ |
+| Application tracker | ✅ | ✅ |
+| Score breakdown | ✅ | ✅ |
+| Cover note generator | — | ✅ |
+| Resume builder (AI polish + PDF) | — | ✅ |
+| Interview prep questions | — | ✅ |
+| Analytics dashboard | — | ✅ |
+| Email digest | ✅ | ✅ |
+
+---
+
+## Job Sources
+
+| Source | Type | Notes |
+|--------|------|-------|
+| **MyCareersFuture** | Singapore govt API | Official, most comprehensive |
+| **Indeed** | Public RSS feed | Singapore listings, sorted by date |
+| **Adzuna** | REST API | Requires free API key at [developer.adzuna.com](https://developer.adzuna.com) |
+| **RemoteOK** | Public JSON API | Remote-friendly roles worldwide |
+
+All sources use official APIs or public syndication endpoints. No HTML scraping.
+
+---
+
+## Stack
+
+| Layer | Tech |
+|-------|------|
+| Backend | Flask + SQLAlchemy + Flask-Migrate + Flask-Login + Flask-Limiter |
+| Frontend | Alpine.js + Tailwind CSS SPA |
+| Database | SQLite (local dev) / Supabase PostgreSQL (prod) |
+| Hosting | Render (web service + cron) |
+| Email | Resend |
+| Billing | Stripe |
+| AI | Gemini 2.5 Flash |
+| Auth | Email/password + Google OAuth |
+
+---
+
+## Local Development
+
 ```bash
-cd job_scanner
-pip install -r requirements.txt
+# 1. Clone and install
+git clone https://github.com/salvestr0/JobScanner.git
+cd JobScanner
+python -m pip install -r requirements.txt
+
+# 2. Set up environment
+cp .env.example .env
+# Edit .env — at minimum set SECRET_KEY and GEMINI_API_KEY
+
+# 3. Create local DB and run migrations
+python -m flask db upgrade
+
+# 4. Start the server
+python run.py
+# → http://localhost:5000
 ```
 
-### 2. Test your Telegram bot
+---
+
+## Environment Variables
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `SECRET_KEY` | ✅ | Flask session secret |
+| `DATABASE_URL` | ✅ prod | Supabase connection URI (defaults to SQLite locally) |
+| `GEMINI_API_KEY` | ✅ | Gemini API key for AI features |
+| `ENCRYPTION_KEY` | ✅ prod | Fernet key for encrypting stored API keys |
+| `GOOGLE_CLIENT_ID` | OAuth | Google Sign-In client ID |
+| `GOOGLE_CLIENT_SECRET` | OAuth | Google Sign-In client secret |
+| `STRIPE_SECRET_KEY` | Billing | Stripe API key |
+| `STRIPE_PRICE_ID` | Billing | Stripe price ID for Pro plan |
+| `STRIPE_WEBHOOK_SECRET` | Billing | Stripe webhook signing secret |
+| `RESEND_API_KEY` | Email | Resend API key |
+| `RESEND_FROM` | Email | Sender address (verified domain) |
+| `CRON_SECRET` | Cron | Protects `/api/cron/scan` endpoint |
+| `ADZUNA_APP_ID` | Optional | Adzuna API app ID |
+| `ADZUNA_APP_KEY` | Optional | Adzuna API app key |
+| `SENTRY_DSN` | Optional | Sentry error monitoring |
+| `REDIS_URL` | Optional | Redis for rate limiter (falls back to in-memory) |
+
+Generate secrets:
 ```bash
-python main.py --test
-```
-You should get a message in Telegram confirming the connection.
-
-### 3. Run your first scan
-```bash
-python main.py
-```
-
-That's it! Check your Telegram for matched jobs and look in `data/cover_notes/` for generated cover notes.
-
----
-
-## 📁 Project Structure
-
-```
-job_scanner/
-├── main.py           # Run this - orchestrates everything
-├── config.py         # YOUR settings - profile, search criteria, API keys
-├── scrapers.py       # Scrapes MyCareersFuture, Indeed, LinkedIn
-├── scorer.py         # Scores each job against your profile (0-100)
-├── cover_notes.py    # Generates tailored cover notes per job
-├── notifier.py       # Sends results to Telegram
-├── requirements.txt  # Python dependencies
-├── setup_cron.sh     # Auto-scheduling script (Mac/Linux)
-└── data/             # Created on first run
-    ├── matched_jobs.csv    # All matched jobs (grows over time)
-    ├── seen_jobs.json      # Tracks which jobs you've already seen
-    └── cover_notes/        # One .txt file per matched job
+python -c "import secrets; print(secrets.token_hex(32))"          # SECRET_KEY
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"  # ENCRYPTION_KEY
 ```
 
 ---
 
-## 🔧 Commands
+## How Scoring Works
 
-| Command | What it does |
-|---------|-------------|
-| `python main.py` | Full scan → score → cover notes → Telegram (analyst mode) |
-| `python main.py --mode=it` | Scan for IT Support / Helpdesk roles |
-| `python main.py --mode=admin` | Scan for Admin / Operations Executive roles |
-| `python main.py --test` | Test Telegram bot connection |
-| `python main.py --no-notify` | Scan and save results, skip Telegram |
-| `python main.py --reset` | Clear history so all jobs appear as "new" |
-| `python main.py --track` | Sync Telegram button taps → `data/application_status.json` |
-| `python main.py --status` | View your application summary (Applied / Interview / Skipped) |
-
----
-
-## ⏰ Auto-Schedule (Run Daily)
-
-### Mac / Linux (cron)
-```bash
-# Run the setup script
-chmod +x setup_cron.sh
-./setup_cron.sh
-
-# Or manually add to crontab:
-crontab -e
-# Add this line (runs daily at 9 AM):
-0 9 * * * cd /full/path/to/job_scanner && /usr/bin/python3 main.py >> data/scan.log 2>&1
-```
-
-### Windows (Task Scheduler)
-1. Open Task Scheduler
-2. Create Basic Task → "Job Scanner"
-3. Trigger: Daily at 9:00 AM
-4. Action: Start a program
-   - Program: `python` (or full path like `C:\Python312\python.exe`)
-   - Arguments: `main.py`
-   - Start in: `C:\path\to\job_scanner`
-
----
-
-## 🤖 Enable AI Cover Notes (Optional but Recommended)
-
-The tool generates decent template-based cover notes by default. To get **AI-powered personalized cover notes** using Gemini Flash (free):
-
-1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-2. Sign in with your Google account
-3. Click **Create API key**
-4. Open `config.py` and paste your key:
-   ```python
-   GEMINI_API_KEY = "AIza..."
-   ```
-
-Free tier gives you **1,500 requests/day** — far more than you'll ever need for daily scans. AI-generated notes are significantly better as they reference specific details from each job description.
-
----
-
-## 🎛️ Customize Your Search
-
-Edit `config.py` to change:
-
-- **`target_titles`** — Add or remove job titles to search for
-- **`preferred_keywords`** — Skills/terms that boost a job's score
-- **`negative_keywords`** — Red flags that lower a job's score
-- **`min_salary` / `max_salary`** — Your salary range (SGD monthly)
-- **`location_keywords`** — Areas you prefer
-- **`min_score_threshold`** — Minimum score to notify you (default: 40)
-
----
-
-## 📊 How Scoring Works
-
-Each job gets scored 0-100 based on:
+Each job is scored 0–100:
 
 | Factor | Points | What it checks |
 |--------|--------|----------------|
-| Title match | 0-30 | Does the job title match your target roles? |
-| Skills match | 0-30 | How many of your skills appear in the JD? |
-| Experience level | -10 to 15 | Is it junior/entry-level friendly? |
-| Salary | -5 to 10 | Within your range? |
-| Location | 0-10 | Near Sengkang or remote? |
-| Education | -3 to 5 | Accepts diploma? |
-| Red flags | -20 to 0 | Contains negative keywords? |
+| Title match | 0–30 | Does the job title match your target roles? |
+| Skills match | 0–30 | How many preferred keywords appear in the JD? |
+| Experience level | −10 to +15 | Is it junior/entry-level friendly? |
+| Salary | −5 to +10 | Within your range? |
+| Location | 0–10 | Near preferred area or remote? |
+| Education | −40 to +5 | Accepts diploma? Strict degree required? |
+| Red flags | −20 to 0 | Commission-only, MLM, 5+ years exp, etc. |
+
+Default threshold: **30/100** — jobs below this are filtered out.
 
 ---
 
-## 🛠️ Troubleshooting
+## Deployment
 
-**"No jobs found from any source"**
-- Check your internet connection
-- MyCareersFuture API may be temporarily down — try again later
-- Indeed may block requests — the tool uses polite delays but this can happen
+- **Render web service** — `gunicorn app:app`, auto-deploys from `master`
+- **Render cron job** — calls `/api/cron/scan` with `X-Cron-Secret` header daily
+- **Supabase** — Session Pooler (IPv4), port 5432
+- **Stripe webhook** — endpoint: `/api/stripe/webhook`
 
-**"Telegram send failed"**
-- Verify your bot token and chat ID in `config.py`
-- Make sure you've sent at least one message TO your bot first
-- Visit `https://api.telegram.org/bot<TOKEN>/getUpdates` to verify your chat ID
+Run migrations before deploying schema changes:
+```bash
+python -m flask db upgrade
+```
 
-**"All jobs filtered out"**
-- Lower `min_score_threshold` in config.py (try 30)
-- Add more `target_titles`
-- Check if `negative_keywords` is too aggressive
-
-**Indeed returns no results**
-- Indeed actively blocks scrapers — this is normal
-- MyCareersFuture is the most reliable source for SG jobs
-- LinkedIn public search has limited results but is stable
-
----
-
-## 💡 Pro Tips
-
-1. **Run it daily** — new jobs get posted every morning
-2. **Check the CSV** — `data/matched_jobs.csv` is your running log, open it in Excel to track what you've applied to
-3. **Edit cover notes** — The generated notes are a starting point, personalize them before submitting
-4. **Add a column to the CSV** — Track application status (Applied / Interview / Rejected) manually
-5. **Lower threshold gradually** — Start at 40, if too few results try 30. If too many, raise to 50
+Migration chain: `f7ef5236638b` → `b3c1e9f02a4d` → `c4a2d8f91b3e` → `e1a7c4d92f5b` → `a3f9c1e82b0d` → `b7d3f2e91a4c`
