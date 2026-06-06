@@ -237,7 +237,9 @@
           class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-r-lg text-slate-500 text-sm cursor-pointer"
           :class="{ 'active': page === n.id }">
           <span class="w-4 h-4 flex-shrink-0" x-html="n.icon"></span>
-          <span x-text="n.label"></span>
+          <span x-text="n.label" class="flex-1"></span>
+          <span x-show="n.pro && billing.is_free"
+            class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 leading-none">PRO</span>
         </button>
       </template>
     </nav>
@@ -618,10 +620,33 @@
       <div class="space-y-2">
         <template x-for="job in filteredJobs" :key="job.id">
           <div class="job-card bg-white rounded-2xl shadow-sm border border-slate-100 px-5 py-4 flex gap-4">
-            <!-- Score -->
-            <div class="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-sm"
-              :class="job.score>=70?'score-hi':job.score>=50?'score-mid':'score-lo'"
-              x-text="job.score"></div>
+            <!-- Score + breakdown popover -->
+            <div class="relative flex-shrink-0" @click.outside="scorePopoverJob=null">
+              <button
+                class="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm cursor-pointer focus:outline-none"
+                :class="job.score>=70?'score-hi':job.score>=50?'score-mid':'score-lo'"
+                @click.stop="scorePopoverJob = scorePopoverJob===job.id ? null : job.id"
+                x-text="job.score">
+              </button>
+              <div x-show="scorePopoverJob===job.id" x-cloak @click.stop
+                class="absolute left-0 top-14 z-30 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 fade-in">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Score Breakdown</span>
+                  <span class="font-bold text-lg"
+                    :class="job.score>=70?'text-emerald-600':job.score>=50?'text-amber-600':'text-red-600'"
+                    x-text="job.score+'/100'"></span>
+                </div>
+                <ul class="space-y-1.5">
+                  <template x-for="reason in (job.match_reasons||'').split('|').map(r=>r.trim()).filter(r=>r)" :key="reason">
+                    <li class="flex items-start gap-2 text-xs text-slate-600">
+                      <span x-text="reason"></span>
+                    </li>
+                  </template>
+                  <li x-show="!(job.match_reasons||'').trim()" class="text-xs text-slate-400 italic">No breakdown available</li>
+                </ul>
+                <p class="text-slate-400 text-xs mt-3 pt-3 border-t border-slate-100">Click score to close</p>
+              </div>
+            </div>
 
             <!-- Info -->
             <div class="flex-1 min-w-0">
@@ -775,6 +800,44 @@
         <p class="text-slate-500 text-sm mt-1" x-text="notes.length+' generated'"></p>
       </div>
 
+      <!-- Pro gate -->
+      <template x-if="billing.is_free">
+        <div class="relative rounded-2xl overflow-hidden">
+          <!-- Blurred preview -->
+          <div class="blur-sm pointer-events-none select-none space-y-3">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center justify-between">
+              <div><div class="h-4 w-48 bg-slate-200 rounded mb-2"></div><div class="h-3 w-32 bg-slate-100 rounded"></div></div>
+              <div class="h-8 w-20 bg-slate-100 rounded-xl"></div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center justify-between">
+              <div><div class="h-4 w-40 bg-slate-200 rounded mb-2"></div><div class="h-3 w-28 bg-slate-100 rounded"></div></div>
+              <div class="h-8 w-20 bg-slate-100 rounded-xl"></div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center justify-between">
+              <div><div class="h-4 w-44 bg-slate-200 rounded mb-2"></div><div class="h-3 w-24 bg-slate-100 rounded"></div></div>
+              <div class="h-8 w-20 bg-slate-100 rounded-xl"></div>
+            </div>
+          </div>
+          <!-- Overlay -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm rounded-2xl">
+            <div class="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+            </div>
+            <p class="font-bold text-slate-800 text-lg mb-1">Pro Plan Only</p>
+            <p class="text-slate-500 text-sm mb-5 text-center max-w-xs">AI-generated cover notes are available on the Pro plan.</p>
+            <button @click="subscribe()" :disabled="subscribing"
+              class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-indigo-600/20">
+              <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Actual content (Pro users only) -->
+      <template x-if="!billing.is_free">
+
       <!-- List -->
       <div x-show="!selNote">
         <div x-show="!notes.length" class="text-center py-16">
@@ -830,6 +893,7 @@
           <pre class="p-6 text-slate-700 text-sm leading-relaxed whitespace-pre-wrap font-sans" x-text="noteBody"></pre>
         </div>
       </div>
+      </template>
     </div>
 
     <!-- ████ ANALYTICS ████ -->
@@ -1097,7 +1161,23 @@
         </button>
 
         <!-- ── Resume Builder ── -->
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
+        <div class="relative rounded-2xl overflow-hidden">
+        <!-- Lock overlay for free users -->
+        <div x-show="billing.is_free" class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/75 backdrop-blur-sm rounded-2xl">
+          <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </div>
+          <p class="font-bold text-slate-800 mb-1">Pro Plan Only</p>
+          <p class="text-slate-500 text-xs mb-4 text-center max-w-[220px]">Upgrade to build and download AI-polished resumes.</p>
+          <button @click="subscribe()" :disabled="subscribing"
+            class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors">
+            <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
+          </button>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4"
+          :class="billing.is_free ? 'blur-sm pointer-events-none select-none' : ''">
           <div>
             <h3 class="font-bold text-slate-800 text-sm">Resume Builder</h3>
             <p class="text-slate-400 text-xs mt-1">AI polishes your profile into a professional resume, then generates a downloadable PDF.</p>
@@ -1165,7 +1245,106 @@
             </div>
           </div>
         </div>
+        </div><!-- /resume-builder wrapper -->
 
+      </div>
+    </div>
+
+    <!-- INTERVIEW PREP PAGE -->
+    <div x-show="page==='interview'" class="page-in p-8 max-w-3xl mx-auto">
+      <div class="mb-8">
+        <h1 class="text-2xl font-semibold text-slate-900">Interview Prep</h1>
+        <p class="text-slate-500 text-sm mt-1">Pick a job and Gemini generates tailored interview questions</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-4">
+        <label class="block text-sm font-semibold text-slate-700 mb-2">Select a Job</label>
+        <select x-model="prepJobId"
+          class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+          <option value="">-- Choose a job from your list --</option>
+          <template x-for="j in prepJobs" :key="j.id">
+            <option :value="j.id" x-text="j.title + ' @ ' + j.company + ' (' + j.score + '/100)'"></option>
+          </template>
+        </select>
+        <p x-show="!prepJobs.length" class="text-slate-400 text-xs mt-2">No jobs yet — run a scan first.</p>
+        <button @click="generatePrep()" :disabled="!prepJobId || prepLoading"
+          class="mt-4 flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
+          <svg x-show="prepLoading" class="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          <svg x-show="!prepLoading" class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <span x-text="prepLoading ? 'Generating…' : 'Generate Questions'"></span>
+        </button>
+        <p x-show="prepError" x-text="prepError" class="text-red-500 text-xs mt-2"></p>
+      </div>
+
+      <div x-show="prepResult" x-cloak class="space-y-4 fade-in">
+        <div class="flex items-center gap-3 px-1 mb-2">
+          <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          </div>
+          <div>
+            <div class="font-bold text-slate-800 text-sm" x-text="prepResult.job.title"></div>
+            <div class="text-slate-400 text-xs" x-text="prepResult.job.company"></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+            <div class="w-6 h-6 bg-indigo-50 rounded-lg flex items-center justify-center"><svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg></div>
+            <h3 class="font-bold text-slate-800 text-sm">Technical Questions</h3>
+          </div>
+          <div class="divide-y divide-slate-50">
+            <template x-for="(q, i) in (prepResult.prep.technical || [])" :key="i">
+              <div class="px-6 py-4">
+                <p class="text-sm font-semibold text-slate-800 mb-1.5" x-text="(i+1) + '. ' + q.question"></p>
+                <p class="text-xs text-indigo-600 bg-indigo-50 rounded-lg px-3 py-2" x-text="'💡 ' + q.tip"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+            <div class="w-6 h-6 bg-violet-50 rounded-lg flex items-center justify-center"><svg class="w-3.5 h-3.5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg></div>
+            <h3 class="font-bold text-slate-800 text-sm">Behavioral Questions <span class="text-xs font-normal text-slate-400 ml-1">(STAR format)</span></h3>
+          </div>
+          <div class="divide-y divide-slate-50">
+            <template x-for="(q, i) in (prepResult.prep.behavioral || [])" :key="i">
+              <div class="px-6 py-4">
+                <p class="text-sm font-semibold text-slate-800 mb-1.5" x-text="(i+1) + '. ' + q.question"></p>
+                <p class="text-xs text-violet-600 bg-violet-50 rounded-lg px-3 py-2" x-text="'💡 ' + q.tip"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+            <div class="w-6 h-6 bg-emerald-50 rounded-lg flex items-center justify-center"><svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></div>
+            <h3 class="font-bold text-slate-800 text-sm">Company &amp; Culture Fit</h3>
+          </div>
+          <div class="divide-y divide-slate-50">
+            <template x-for="(q, i) in (prepResult.prep.company_fit || [])" :key="i">
+              <div class="px-6 py-4">
+                <p class="text-sm font-semibold text-slate-800 mb-1.5" x-text="(i+1) + '. ' + q.question"></p>
+                <p class="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2" x-text="'💡 ' + q.tip"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+            <div class="w-6 h-6 bg-amber-50 rounded-lg flex items-center justify-center"><svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+            <h3 class="font-bold text-slate-800 text-sm">Questions to Ask Them</h3>
+          </div>
+          <div class="divide-y divide-slate-50">
+            <template x-for="(q, i) in (prepResult.prep.ask_them || [])" :key="i">
+              <div class="px-6 py-4">
+                <p class="text-sm text-slate-700" x-text="'→ ' + q"></p>
+              </div>
+            </template>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1502,6 +1681,16 @@ function app() {
     // Email testing
     emailTesting: false,
 
+    // Interview Prep
+    prepJobs: [],
+    prepJobId: '',
+    prepLoading: false,
+    prepResult: null,
+    prepError: '',
+
+    // Score breakdown popover
+    scorePopoverJob: null,
+
     // Nav
     nav: [
       { id:'dashboard',    label:'Dashboard',    icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>' },
@@ -1509,8 +1698,9 @@ function app() {
       { id:'jobs',         label:'Jobs',         icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>' },
       { id:'applications', label:'Applications', icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>' },
       { id:'analytics',    label:'Analytics',    icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>' },
-      { id:'coverNotes',   label:'Cover Notes',  icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>' },
+      { id:'coverNotes',   label:'Cover Notes',  icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>', pro: true },
       { id:'profile',      label:'Profile',      icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>' },
+      { id:'interview',    label:'Interview Prep', icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>' },
       { id:'settings',     label:'Settings',     icon:'<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>' },
     ],
 
@@ -1542,6 +1732,7 @@ function app() {
         this.loadBilling(),
         this.loadSchedule(),
         this.loadProfile(),
+        this.loadPrepJobs(),
       ]);
     },
 
@@ -2000,6 +2191,31 @@ function app() {
       if (!confirm('Clear seen jobs history? The next scan treats all jobs as new.')) return;
       const d = await (await fetch('/api/reset',{method:'POST'})).json();
       this.flash(d.ok?'History cleared!':'Failed', d.ok);
+    },
+
+    async loadPrepJobs() {
+      try {
+        const jobs = await (await fetch('/api/jobs')).json();
+        this.prepJobs = jobs.sort((a,b) => b.score - a.score);
+      } catch(_){}
+    },
+
+    async generatePrep() {
+      if (!this.prepJobId || this.prepLoading) return;
+      this.prepLoading = true;
+      this.prepResult  = null;
+      this.prepError   = '';
+      try {
+        const r = await fetch('/api/interview-prep', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({job_id: this.prepJobId}),
+        });
+        const d = await r.json();
+        if (d.ok) { this.prepResult = d; }
+        else { this.prepError = d.error || 'Generation failed'; }
+      } catch(_) { this.prepError = 'Network error'; }
+      this.prepLoading = false;
     },
 
     // ── Helpers ────────────────────────────────────────────────

@@ -1220,6 +1220,107 @@ def billing_webhook():
     return "", 200
 
 
+# ── Interview Prep ────────────────────────────────────────────────────────────
+
+@app.route("/api/interview-prep", methods=["POST"])
+@login_required
+@limiter.limit("10/minute;30/hour")
+def interview_prep():
+    import config as cfg
+    import requests as _req
+
+    data   = request.json or {}
+    job_id = (data.get("job_id") or "").strip()
+    if not job_id:
+        return jsonify({"error": "job_id required"}), 400
+
+    job = Job.query.filter_by(user_id=current_user.id, source_job_id=job_id).first()
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+
+    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    if not api_key:
+        return jsonify({"error": "Gemini API key not configured — add it in Settings"}), 400
+
+    p = current_user.profile
+    profile_text = ""
+    if p:
+        skills = ", ".join((p.technical_skills or [])[:12])
+        history = "\n".join(
+            f"  - {j.get('title','')} at {j.get('company','')} ({j.get('period','')})"
+            for j in (p.work_history or [])[:3]
+        )
+        profile_text = (
+            f"Education: {p.education or 'Not specified'}\n"
+            f"Skills: {skills or 'Not specified'}\n"
+            f"Summary: {(p.experience_summary or '')[:300]}\n"
+            f"Work history:\n{history or '  (none)'}"
+        )
+
+    reasons = [r.strip() for r in (job.match_reasons or "").split("|") if r.strip()]
+    sal = f"${job.salary_min:,}–${job.salary_max:,}/mo" if job.salary_min and job.salary_max else "not specified"
+
+    prompt = f"""You are an interview coach preparing a candidate for a job interview in Singapore.
+
+Role: {job.title}
+Company: {job.company}
+Location: {job.location or 'Singapore'}
+Salary: {sal}
+Why they matched: {', '.join(reasons[:6]) or 'Not available'}
+
+Candidate profile:
+{profile_text}
+
+Generate interview prep in JSON — no markdown, no explanation, just the object:
+{{
+  "technical": [
+    {{"question": "...", "tip": "short actionable tip tailored to their background"}}
+  ],
+  "behavioral": [
+    {{"question": "...", "tip": "brief STAR-format hint"}}
+  ],
+  "company_fit": [
+    {{"question": "...", "tip": "..."}}
+  ],
+  "ask_them": ["smart question to ask interviewer", "..."]
+}}
+
+Rules:
+- 5 technical questions specific to this role's skills
+- 4 behavioral questions (STAR format)
+- 3 company/culture fit questions
+- 3 smart questions the candidate should ask the interviewer
+- Tips must reference the candidate's actual background where possible"""
+
+    try:
+        resp = _req.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            params={"key": api_key},
+            headers={"Content-Type": "application/json"},
+            json={"contents": [{"parts": [{"text": prompt}]}]},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        return jsonify({"error": f"Gemini request failed: {e}"}), 502
+
+    match = re.search(r'\{[\s\S]*\}', raw)
+    if not match:
+        return jsonify({"error": "Gemini returned unexpected format"}), 502
+
+    try:
+        result = json.loads(match.group())
+    except Exception:
+        return jsonify({"error": "Could not parse Gemini response"}), 502
+
+    return jsonify({
+        "ok":  True,
+        "job": {"title": job.title, "company": job.company},
+        "prep": result,
+    })
+
+
 # ── Cron endpoint (Railway scheduled job) ─────────────────────────────────────
 
 @app.route("/api/cron/scan", methods=["POST"])
