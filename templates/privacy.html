@@ -43,6 +43,7 @@
           <li><strong class="text-slate-300">Profile data</strong> — job titles, skills, salary expectations, location preferences, and any resume you upload.</li>
           <li><strong class="text-slate-300">Usage data</strong> — scans run, jobs viewed, applications tracked, and feature interactions.</li>
           <li><strong class="text-slate-300">Billing data</strong> — handled entirely by Stripe. We never store your card details.</li>
+          <li><strong class="text-slate-300">AI API keys</strong> — if you provide your own AI API key, it is stored encrypted using AES-256 (Fernet).</li>
         </ul>
       </section>
 
@@ -64,7 +65,7 @@
           <p><strong class="text-slate-300">Supabase (PostgreSQL)</strong> — stores your account and profile data. Data is hosted on servers in the US and/or Singapore.</p>
           <p><strong class="text-slate-300">Stripe</strong> — processes payments. Subject to Stripe's own privacy policy.</p>
           <p><strong class="text-slate-300">Resend</strong> — delivers transactional emails (verification, digests). Only your email address is shared.</p>
-          <p><strong class="text-slate-300">AI engine</strong> — processes job descriptions and your profile to generate scores, cover notes, and interview questions. No identifying personal data (name, contact info) is sent to our AI provider.</p>
+          <p><strong class="text-slate-300">Google (AI services)</strong> — processes job descriptions and your profile to generate scores, cover notes, and interview questions. No identifying personal data (name, contact info) is sent to Google.</p>
           <p><strong class="text-slate-300">Google OAuth</strong> — if you sign in with Google, we receive your email and display name from Google. We do not request access to any other Google data.</p>
         </div>
       </section>

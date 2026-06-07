@@ -1032,7 +1032,7 @@ def parse_resume():
     import config as cfg
     api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
     if not api_key:
-        return jsonify({"error": "GEMINI_API_KEY not configured"}), 400
+        return jsonify({"error": "AI service not configured"}), 400
 
     from resume_parser import extract_text, parse_with_gemini
     try:
@@ -1046,7 +1046,7 @@ def parse_resume():
     try:
         profile = parse_with_gemini(text, api_key)
     except Exception:
-        return jsonify({"error": "AI parsing failed. Check your Gemini API key and try again."}), 500
+        return jsonify({"error": "AI parsing failed. Please try again later."}), 500
 
     return jsonify(profile)
 
@@ -1089,7 +1089,7 @@ def resume_polish():
 
     api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
     if not api_key:
-        return jsonify({"error": "Gemini API key not configured"}), 400
+        return jsonify({"error": "AI service not configured"}), 400
 
     data    = request.json or {}
     profile = data.get("profile", {})
@@ -1137,17 +1137,17 @@ Work history:
         resp.raise_for_status()
         raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        return jsonify({"error": f"Gemini request failed: {e}"}), 502
+        return jsonify({"error": "AI request failed. Please try again later."}), 502
 
     import re as _re, json as _json
     match = _re.search(r'\{[\s\S]*\}', raw)
     if not match:
-        return jsonify({"error": "Gemini returned unexpected format"}), 502
+        return jsonify({"error": "AI returned unexpected format"}), 502
 
     try:
         polished = _json.loads(match.group())
     except Exception:
-        return jsonify({"error": "Could not parse Gemini response"}), 502
+        return jsonify({"error": "Could not parse AI response"}), 502
 
     # Merge polished fields back onto the full profile
     merged = dict(profile)
@@ -1164,7 +1164,7 @@ def resume_tailor():
 
     api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
     if not api_key:
-        return jsonify({"error": "Gemini API key not configured"}), 400
+        return jsonify({"error": "AI service not configured"}), 400
 
     data   = request.json or {}
     job_id = (data.get("job_id") or "").strip()
@@ -1226,17 +1226,17 @@ Return ONLY a valid JSON object with exactly this structure:
         resp.raise_for_status()
         raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        return jsonify({"error": f"Gemini request failed: {e}"}), 502
+        return jsonify({"error": "AI request failed. Please try again later."}), 502
 
     import re as _re, json as _json
     match = _re.search(r'\{[\s\S]*\}', raw)
     if not match:
-        return jsonify({"error": "Gemini returned unexpected format"}), 502
+        return jsonify({"error": "AI returned unexpected format"}), 502
 
     try:
         tailored = _json.loads(match.group())
     except Exception:
-        return jsonify({"error": "Could not parse Gemini response"}), 502
+        return jsonify({"error": "Could not parse AI response"}), 502
 
     return jsonify({
         "ok": True,
@@ -1706,7 +1706,7 @@ def interview_prep():
 
     api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
     if not api_key:
-        return jsonify({"error": "Gemini API key not configured — add it in Settings"}), 400
+        return jsonify({"error": "AI service not configured"}), 400
 
     p = current_user.profile
     profile_text = ""
@@ -1769,16 +1769,16 @@ Rules:
         resp.raise_for_status()
         raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        return jsonify({"error": f"Gemini request failed: {e}"}), 502
+        return jsonify({"error": "AI request failed. Please try again later."}), 502
 
     match = re.search(r'\{[\s\S]*\}', raw)
     if not match:
-        return jsonify({"error": "Gemini returned unexpected format"}), 502
+        return jsonify({"error": "AI returned unexpected format"}), 502
 
     try:
         result = json.loads(match.group())
     except Exception:
-        return jsonify({"error": "Could not parse Gemini response"}), 502
+        return jsonify({"error": "Could not parse AI response"}), 502
 
     return jsonify({
         "ok":  True,
