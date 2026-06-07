@@ -28,6 +28,10 @@ class User(UserMixin, db.Model):
     # Per-user API credentials (optional — fall back to env vars if blank)
     gemini_api_key = db.Column(db.String(255))
 
+    # Email verification
+    email_verified       = db.Column(db.Boolean, default=False)
+    email_verify_token   = db.Column(db.String(64), nullable=True)
+
     # Password reset
     reset_token         = db.Column(db.String(64), nullable=True)
     reset_token_expires = db.Column(db.DateTime(timezone=True), nullable=True)

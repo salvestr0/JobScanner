@@ -224,6 +224,17 @@
       </div>
     </div>
 
+    <!-- Email verification banner -->
+    <div x-show="!billing.email_verified" x-cloak
+      class="mx-4 mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+      <p class="text-amber-700 text-xs font-medium">Check your inbox — verify your email to secure your account.
+        <button @click="resendVerification()" :disabled="verifyResending"
+          class="underline font-semibold ml-1 hover:text-amber-900 disabled:opacity-50"
+          x-text="verifyResending ? 'Sending…' : 'Resend email'"></button>
+      </p>
+      <p x-show="verifyResendMsg" x-text="verifyResendMsg" class="text-amber-600 text-xs mt-0.5"></p>
+    </div>
+
     <!-- Active scan banner -->
     <div x-show="scanning" x-cloak class="mx-4 mb-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-3 py-2 flex items-center gap-2.5">
       <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full pulsing"></div>
@@ -1851,6 +1862,10 @@ function app() {
     cfg: { min_salary:2200, max_salary:4000, min_score_threshold:40, max_jobs_per_notification:20,
            email_enabled:false, email_configured:false, email_to:'' },
 
+    // Email verification
+    verifyResending: false,
+    verifyResendMsg: '',
+
     // Scan
     scanning: false,
     logs: [],
@@ -1992,11 +2007,30 @@ function app() {
         this.loadProfile(),
         this.loadPrepJobs(),
       ]);
+
+      // Show success toast if redirected back after email verification
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('verified') === '1') {
+        this.flash('Email verified successfully!', true);
+        history.replaceState({}, '', '/app');
+      }
     },
 
     async logout() {
       await fetch('/api/auth/logout', { method: 'POST' });
       window.location = '/login';
+    },
+
+    async resendVerification() {
+      this.verifyResending = true;
+      this.verifyResendMsg = '';
+      try {
+        await fetch('/api/auth/resend-verification', { method: 'POST' });
+        this.verifyResendMsg = 'Verification email sent!';
+      } catch(_) {
+        this.verifyResendMsg = 'Failed to send — try again later.';
+      }
+      this.verifyResending = false;
     },
 
     async go(target) {

@@ -124,6 +124,45 @@ def _decrypt_api_key(ciphertext: str) -> str:
         return ciphertext
 
 
+def _send_email(to: str, subject: str, html: str) -> bool:
+    api_key   = os.getenv("RESEND_API_KEY", "").strip()
+    from_addr = os.getenv("RESEND_FROM", "Job Scanner <noreply@jobscanner.app>").strip()
+    if not api_key:
+        return False
+    try:
+        import requests as _req
+        _req.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"from": from_addr, "to": [to], "subject": subject, "html": html},
+            timeout=10,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _verification_email_html(verify_url: str) -> str:
+    return f"""<!DOCTYPE html>
+<html><body style="margin:0;padding:0;background:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif">
+  <div style="max-width:480px;margin:40px auto;background:white;border-radius:12px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <div style="margin-bottom:20px">
+      <span style="display:inline-block;background:#EEF2FF;color:#4F46E5;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.05em">JOB SCANNER</span>
+    </div>
+    <h2 style="margin:0 0 8px;font-size:20px;color:#1e293b;font-weight:700">Verify your email</h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.6">
+      Thanks for signing up! Click the button below to verify your email address and get the most out of Job Scanner.
+    </p>
+    <a href="{verify_url}" style="display:inline-block;background:#4F46E5;color:white;font-size:14px;font-weight:600;padding:12px 24px;border-radius:10px;text-decoration:none">
+      Verify email address
+    </a>
+    <p style="margin:24px 0 0;color:#94a3b8;font-size:12px">
+      If you didn't create a Job Scanner account, you can safely ignore this email.
+    </p>
+  </div>
+</body></html>"""
+
+
 @login_manager.user_loader
 def load_user(user_id: str):
     return db.session.get(User, user_id)
@@ -404,13 +443,23 @@ def auth_register():
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "Registration failed — try signing in instead"}), 409
 
+    import hashlib, secrets
+    verify_token      = secrets.token_urlsafe(32)
+    verify_token_hash = hashlib.sha256(verify_token.encode()).hexdigest()
+
     user = User(
         email=email,
         subscription_status="free",
+        email_verified=False,
+        email_verify_token=verify_token_hash,
     )
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
+
+    verify_url = request.host_url.rstrip("/") + f"/verify-email?token={verify_token}"
+    _send_email(email, "Verify your Job Scanner email", _verification_email_html(verify_url))
+
     login_user(user, remember=True)
     return jsonify({"ok": True, "email": user.email, "onboarding": True})
 
@@ -457,11 +506,7 @@ def auth_forgot_password():
 
         base      = request.host_url.rstrip("/")
         reset_url = f"{base}/reset-password?token={token}"
-        api_key   = os.getenv("RESEND_API_KEY", "").strip()
-        from_addr = os.getenv("RESEND_FROM", "Job Scanner <noreply@jobscanner.app>").strip()
-
-        if api_key:
-            html = f"""<!DOCTYPE html>
+        reset_html = f"""<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif">
   <div style="max-width:480px;margin:40px auto;background:white;border-radius:12px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
     <div style="margin-bottom:20px">
@@ -480,15 +525,7 @@ def auth_forgot_password():
     </p>
   </div>
 </body></html>"""
-            try:
-                _req.post(
-                    "https://api.resend.com/emails",
-                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                    json={"from": from_addr, "to": [email], "subject": "Reset your Job Scanner password", "html": html},
-                    timeout=10,
-                )
-            except Exception:
-                pass  # fail silently — don't reveal errors to caller
+        _send_email(email, "Reset your Job Scanner password", reset_html)
 
     return jsonify({"ok": True})
 
@@ -535,6 +572,44 @@ def reset_password_page():
     return render_template("reset_password.html", token=request.args.get("token", ""))
 
 
+@app.route("/verify-email")
+def verify_email_page():
+    import hashlib
+    token      = (request.args.get("token") or "").strip()
+    token_hash = hashlib.sha256(token.encode()).hexdigest() if token else ""
+    user = User.query.filter_by(email_verify_token=token_hash).first() if token_hash else None
+
+    if user and not user.email_verified:
+        user.email_verified     = True
+        user.email_verify_token = None
+        db.session.commit()
+        if current_user.is_authenticated:
+            return redirect("/app?verified=1")
+        return redirect("/login?verified=1")
+
+    if current_user.is_authenticated:
+        return redirect("/app")
+    return redirect("/login")
+
+
+@app.route("/api/auth/resend-verification", methods=["POST"])
+@login_required
+@limiter.limit("3/hour")
+def resend_verification():
+    import hashlib, secrets
+    if current_user.email_verified:
+        return jsonify({"ok": True})
+
+    verify_token      = secrets.token_urlsafe(32)
+    verify_token_hash = hashlib.sha256(verify_token.encode()).hexdigest()
+    current_user.email_verify_token = verify_token_hash
+    db.session.commit()
+
+    verify_url = request.host_url.rstrip("/") + f"/verify-email?token={verify_token}"
+    _send_email(current_user.email, "Verify your Job Scanner email", _verification_email_html(verify_url))
+    return jsonify({"ok": True})
+
+
 @app.route("/api/auth/google")
 def auth_google():
     redirect_uri = url_for("auth_google_callback", _external=True)
@@ -565,13 +640,16 @@ def auth_google_callback():
         user = User.query.filter_by(email=email).first()
         if user:
             user.google_id = google_id
+            if not user.email_verified:
+                user.email_verified = True
             db.session.commit()
         else:
-            # Brand-new user via Google
+            # Brand-new user via Google — email already verified by Google
             user = User(
                 email=email,
                 google_id=google_id,
                 subscription_status="free",
+                email_verified=True,
             )
             db.session.add(user)
             db.session.commit()
@@ -1388,6 +1466,7 @@ def _billing_status(user) -> dict:
         "scan_limit":      10 if (is_free and status not in ("expired", "cancelled", "past_due")) else None,
         "trial_ends_at":   user.trial_ends_at.isoformat() if user.trial_ends_at else None,
         "trial_days_left": trial_days_left,
+        "email_verified":  bool(user.email_verified),
     }
 
 
