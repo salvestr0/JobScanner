@@ -680,6 +680,16 @@ def home_page():
     return render_template("home.html")
 
 
+@app.route("/privacy")
+def privacy_page():
+    return render_template("privacy.html")
+
+
+@app.route("/terms")
+def terms_page():
+    return render_template("terms.html")
+
+
 @app.route("/app")
 @login_required
 def app_page():
