@@ -105,7 +105,12 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
     print(f"\n📂 Previously seen jobs: {len(seen_jobs)}")
 
     # 2. Scrape all sources
-    all_jobs = scrape_all_sources()
+    max_jobs = int(os.environ.get("JOBSCANNER_MAX_JOBS", 0))
+    # Free plan: fetch only enough candidates to find the job limit (6× buffer for scoring losses)
+    max_fetch = max_jobs * 6 if max_jobs > 0 else 0
+    if max_fetch:
+        print(f"\n⚡ Free plan — fetching up to {max_fetch} candidates (showing top {max_jobs} matches)")
+    all_jobs = scrape_all_sources(max_total=max_fetch)
 
     if not all_jobs:
         print("\n❌ No jobs found from any source. Check your internet connection.")
@@ -128,9 +133,8 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
     matched_jobs = filter_jobs(scored_jobs, threshold)
     print(f"✅ Jobs above score threshold ({threshold}): {len(matched_jobs)}")
 
-    max_jobs = int(os.environ.get("JOBSCANNER_MAX_JOBS", 0))
     if max_jobs > 0 and len(matched_jobs) > max_jobs:
-        print(f"⚠️  Free plan: showing top {max_jobs} of {len(matched_jobs)} matches")
+        print(f"⚠️  Free plan: capping at {max_jobs} matches")
         matched_jobs = matched_jobs[:max_jobs]
 
     # Show top results

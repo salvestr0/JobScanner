@@ -419,7 +419,7 @@ def fetch_remoteok() -> list:
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
-def scrape_all_sources() -> list:
+def scrape_all_sources(max_total: int = 0) -> list:
     sources = [
         ("MyCareersFuture", fetch_mcf),
         ("Adzuna",          fetch_adzuna),
@@ -428,18 +428,25 @@ def scrape_all_sources() -> list:
     ]
 
     all_jobs: list[dict] = []
+    seen: set = set()
+
     for name, fn in sources:
+        if max_total > 0 and len(all_jobs) >= max_total:
+            print(f"\n[Scan] Reached {max_total} candidate limit — skipping remaining sources")
+            break
+
         print(f"\nScanning {name}...\n")
         try:
             jobs = fn()
             if len(jobs) > 200:
                 print(f"  [{name}] Capping at 200 results to conserve memory")
                 jobs = jobs[:200]
-            all_jobs.extend(jobs)
+            for j in jobs:
+                if j["id"] not in seen:
+                    seen.add(j["id"])
+                    all_jobs.append(j)
         except Exception as e:
             print(f"  {name} failed: {e}")
 
-    seen: set = set()
-    unique = [j for j in all_jobs if j["id"] not in seen and not seen.add(j["id"])]  # type: ignore[func-returns-value]
-    print(f"\nTotal: {len(unique)} unique jobs across {len(sources)} sources")
-    return unique
+    print(f"\nTotal: {len(all_jobs)} unique jobs across {len(sources)} sources")
+    return all_jobs
