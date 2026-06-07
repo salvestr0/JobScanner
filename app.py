@@ -857,7 +857,17 @@ def update_application(job_id):
 @app.route("/api/modes")
 @login_required
 def get_modes():
-    modes = [{"name": "analyst", "titles": ["Data Analyst", "Business Analyst", "Operations Analyst"]}]
+    modes = [
+        {"name": "analyst",       "titles": ["Data Analyst", "Business Analyst", "Operations Analyst"]},
+        {"name": "tech",          "titles": ["Software Engineer", "Developer", "IT Support"]},
+        {"name": "finance",       "titles": ["Finance Analyst", "Accountant", "Auditor"]},
+        {"name": "logistics",     "titles": ["Operations Executive", "Supply Chain", "Procurement"]},
+        {"name": "healthcare",    "titles": ["Staff Nurse", "Allied Health", "Healthcare Admin"]},
+        {"name": "marketing",     "titles": ["Digital Marketing", "Content Creator", "Social Media"]},
+        {"name": "customer service", "titles": ["Customer Service", "Service Executive", "Relationship Manager"]},
+        {"name": "hr",            "titles": ["HR Executive", "Recruiter", "Admin Executive"]},
+        {"name": "engineering",   "titles": ["Mechanical Engineer", "Electrical Engineer", "Civil Engineer"]},
+    ]
     rows = SearchMode.query.filter_by(user_id=current_user.id).all()
     for row in rows:
         cfg = row.config or {}
