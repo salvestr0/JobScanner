@@ -683,6 +683,7 @@ def auth_me():
         "email":        current_user.email,
         "id":           current_user.id,
         "has_password": bool(current_user.password_hash),
+        "is_admin":     _is_admin(current_user),
     })
 
 
