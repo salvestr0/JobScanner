@@ -28,6 +28,10 @@ class User(UserMixin, db.Model):
     # Per-user API credentials (optional — fall back to env vars if blank)
     gemini_api_key = db.Column(db.String(255))
 
+    # Password reset
+    reset_token         = db.Column(db.String(64), nullable=True)
+    reset_token_expires = db.Column(db.DateTime(timezone=True), nullable=True)
+
     # Billing
     stripe_customer_id  = db.Column(db.String(255))
     subscription_status = db.Column(db.String(32), default="trialing")  # trialing | active | past_due | cancelled

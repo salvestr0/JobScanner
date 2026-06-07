@@ -437,6 +437,104 @@ def auth_logout():
     return jsonify({"ok": True})
 
 
+@app.route("/api/auth/forgot-password", methods=["POST"])
+@limiter.limit("3/minute;10/hour")
+def auth_forgot_password():
+    import hashlib, secrets, requests as _req
+
+    email = (request.json or {}).get("email", "").strip().lower()
+    # Always return success — don't reveal if email exists
+    if not email:
+        return jsonify({"ok": True})
+
+    user = User.query.filter_by(email=email).first()
+    if user and user.password_hash:  # only email/password accounts need reset
+        token     = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        user.reset_token         = token_hash
+        user.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
+        db.session.commit()
+
+        base      = request.host_url.rstrip("/")
+        reset_url = f"{base}/reset-password?token={token}"
+        api_key   = os.getenv("RESEND_API_KEY", "").strip()
+        from_addr = os.getenv("RESEND_FROM", "Job Scanner <noreply@jobscanner.app>").strip()
+
+        if api_key:
+            html = f"""<!DOCTYPE html>
+<html><body style="margin:0;padding:0;background:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif">
+  <div style="max-width:480px;margin:40px auto;background:white;border-radius:12px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <div style="margin-bottom:20px">
+      <span style="display:inline-block;background:#EEF2FF;color:#4F46E5;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.05em">JOB SCANNER</span>
+    </div>
+    <h2 style="margin:0 0 8px;font-size:20px;color:#1e293b;font-weight:700">Reset your password</h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.6">
+      We received a request to reset the password for your Job Scanner account.<br>
+      Click the button below to choose a new password. This link expires in 1 hour.
+    </p>
+    <a href="{reset_url}" style="display:inline-block;background:#4F46E5;color:white;font-size:14px;font-weight:600;padding:12px 24px;border-radius:10px;text-decoration:none">
+      Reset password
+    </a>
+    <p style="margin:24px 0 0;color:#94a3b8;font-size:12px">
+      If you didn't request this, you can safely ignore this email. Your password won't change.
+    </p>
+  </div>
+</body></html>"""
+            try:
+                _req.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={"from": from_addr, "to": [email], "subject": "Reset your Job Scanner password", "html": html},
+                    timeout=10,
+                )
+            except Exception:
+                pass  # fail silently — don't reveal errors to caller
+
+    return jsonify({"ok": True})
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+@limiter.limit("5/minute;20/hour")
+def auth_reset_password():
+    import hashlib
+
+    data     = request.json or {}
+    token    = (data.get("token") or "").strip()
+    password = data.get("password") or ""
+
+    if not token or len(password) < 8:
+        return jsonify({"error": "Invalid request"}), 400
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    user = User.query.filter_by(reset_token=token_hash).first()
+
+    if not user or not user.reset_token_expires:
+        return jsonify({"error": "Invalid or expired reset link"}), 400
+    if datetime.now(timezone.utc) > user.reset_token_expires:
+        return jsonify({"error": "This reset link has expired — request a new one"}), 400
+
+    user.set_password(password)
+    user.reset_token         = None
+    user.reset_token_expires = None
+    db.session.commit()
+
+    return jsonify({"ok": True})
+
+
+@app.route("/forgot-password")
+def forgot_password_page():
+    if current_user.is_authenticated:
+        return redirect(url_for("app_page"))
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset-password")
+def reset_password_page():
+    if current_user.is_authenticated:
+        return redirect(url_for("app_page"))
+    return render_template("reset_password.html", token=request.args.get("token", ""))
+
+
 @app.route("/api/auth/google")
 def auth_google():
     redirect_uri = url_for("auth_google_callback", _external=True)

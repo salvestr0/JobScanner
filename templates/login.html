@@ -44,6 +44,9 @@
         <div class="flex-1 h-px bg-slate-700"></div>
       </div>
 
+      <div id="success-msg" class="hidden mb-4 px-3 py-2.5 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-300 text-sm">
+        Password updated — sign in with your new password.
+      </div>
       <div id="error-msg" class="hidden mb-4 px-3 py-2 rounded-lg bg-red-950 border border-red-800 text-red-300 text-sm"></div>
 
       <form id="login-form" class="space-y-4">
@@ -57,7 +60,10 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-sm font-medium text-slate-300">Password</label>
+            <a href="/forgot-password" class="text-xs text-indigo-400 hover:text-indigo-300 font-medium">Forgot password?</a>
+          </div>
           <input id="password" type="password" required autocomplete="current-password"
                  class="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700
                         text-white placeholder-slate-500 text-sm
@@ -81,11 +87,14 @@
   </div>
 
   <script>
-    // Show error if redirected back from Google OAuth
-    if (new URLSearchParams(location.search).get('error') === 'google_failed') {
+    const params = new URLSearchParams(location.search);
+    if (params.get('error') === 'google_failed') {
       const e = document.getElementById('error-msg');
       e.textContent = 'Google sign-in failed — please try again or use email/password.';
       e.classList.remove('hidden');
+    }
+    if (params.get('reset') === '1') {
+      document.getElementById('success-msg').classList.remove('hidden');
     }
 
     const form   = document.getElementById('login-form');
