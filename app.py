@@ -39,7 +39,7 @@ from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import (
-    ApplicationStatus, Job, SearchMode, SeenJob, User,
+    ApplicationStatus, Job, ScanHistory, SearchMode, SeenJob, User,
     UserProfile, UserSettings, db,
 )
 
@@ -213,7 +213,10 @@ def _run_subprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, extra
     })
     env.update(extra_env)
 
-    scan = _get_scan(user_id)
+    scan       = _get_scan(user_id)
+    failed     = False
+    job_count  = 0
+    history_id = scan.get("history_id")
     try:
         proc = subprocess.Popen(
             args,
@@ -232,12 +235,22 @@ def _run_subprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, extra
                 q.put(line)
 
         proc.wait()
+        if proc.returncode != 0:
+            failed = True
     except Exception as exc:
         q.put(f"ERROR: {exc}")
+        failed = True
     finally:
         # Sync CSV/seen_jobs written by the subprocess back into the DB
         with app.app_context():
-            _sync_scan_results(user_id, extra_env.get("JOBSCANNER_DATA_DIR", f"data/users/{user_id}"))
+            job_count = _sync_scan_results(user_id, extra_env.get("JOBSCANNER_DATA_DIR", f"data/users/{user_id}"))
+            if history_id:
+                row = db.session.get(ScanHistory, history_id)
+                if row:
+                    row.finished_at = datetime.now(timezone.utc)
+                    row.job_count   = job_count
+                    row.status      = "failed" if failed else "done"
+                    db.session.commit()
         q.put(None)
         scan["running"] = False
         scan["proc"]    = None
@@ -309,6 +322,8 @@ def _sync_scan_results(user_id: str, data_dir: str):
             db.session.add(SeenJob(user_id=user_id, job_source_id=job_id))
         if new_seen:
             db.session.commit()
+
+    return new_count
 
 
 def _build_user_env(user: User) -> dict:
@@ -1404,6 +1419,11 @@ def start_scan():
         scan["running"] = True
         scan["q"]       = queue.Queue()
 
+    history_row = ScanHistory(user_id=current_user.id, mode=mode, status="running")
+    db.session.add(history_row)
+    db.session.commit()
+    scan["history_id"] = history_row.id
+
     extra_env = _build_user_env(current_user)
     t = threading.Thread(
         target=_run_subprocess,
@@ -1436,6 +1456,51 @@ def stream_scan():
 
     return Response(generate(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/api/scan/history")
+@login_required
+def scan_history():
+    rows = (ScanHistory.query
+            .filter_by(user_id=current_user.id)
+            .order_by(ScanHistory.started_at.desc())
+            .limit(30)
+            .all())
+    return jsonify([r.to_dict() for r in rows])
+
+
+@app.route("/api/jobs/export")
+@login_required
+def export_jobs():
+    import csv as _csv
+    import io
+
+    jobs = (Job.query
+            .filter_by(user_id=current_user.id)
+            .order_by(Job.score.desc())
+            .all())
+
+    statuses = _statuses_for_user(current_user.id)
+
+    output = io.StringIO()
+    writer = _csv.writer(output)
+    writer.writerow(["title", "company", "location", "score", "salary_min", "salary_max",
+                     "source", "posted_date", "closing_date", "status", "url"])
+    for j in jobs:
+        st = statuses.get(j.source_job_id, {}).get("status", "")
+        writer.writerow([
+            j.title, j.company, j.location, j.score,
+            j.salary_min or "", j.salary_max or "",
+            j.source, j.posted_date or "", j.closing_date or "",
+            st, j.url or "",
+        ])
+
+    csv_bytes = output.getvalue().encode("utf-8-sig")
+    return Response(
+        csv_bytes,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=jobs.csv"},
+    )
 
 
 @app.route("/api/reset", methods=["POST"])
