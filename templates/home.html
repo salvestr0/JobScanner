@@ -4,7 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Job Scanner — Find Singapore Jobs on Autopilot</title>
-  <meta name="description" content="AI-powered job scanner for Singapore. Monitors MyCareersFuture daily, scores matches against your profile, and emails you the best fits.">
+  <meta name="description" content="AI-powered job scanner for Singapore. Monitors MyCareersFuture, Indeed, Adzuna, and RemoteOK daily, scores every listing, and emails you only the matches worth applying to.">
+
+  <!-- Social / OG -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Job Scanner — Find Singapore Jobs on Autopilot">
+  <meta property="og:description" content="AI-powered job scanner for Singapore. Monitors MyCareersFuture, Indeed, Adzuna, and RemoteOK daily, scores every listing, and emails you only the matches worth applying to.">
+  <meta property="og:site_name" content="Job Scanner">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Job Scanner — Find Singapore Jobs on Autopilot">
+  <meta name="twitter:description" content="AI-powered job scanner for Singapore. Monitors MyCareersFuture, Indeed, Adzuna, and RemoteOK daily, scores every listing, and emails you only the matches worth applying to.">
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Crect width='24' height='24' rx='5' fill='%234F46E5'/%3E%3Cpath d='M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0zM21 21l-4-4' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
@@ -107,6 +118,127 @@
       <div class="bg-slate-900/70 px-4 py-5 text-center">
         <div class="text-lg font-bold text-white mb-0.5">Remote</div>
         <div class="text-slate-500 text-xs">RemoteOK</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Product mockup ── -->
+  <section class="py-16 px-6 overflow-hidden">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-12">
+        <p class="text-indigo-400 text-sm font-semibold uppercase tracking-widest mb-3">The dashboard</p>
+        <h2 class="text-3xl sm:text-4xl font-bold">Your job pipeline, at a glance</h2>
+        <p class="text-slate-500 mt-3 text-base">Every match scored, explained, and ready to act on.</p>
+      </div>
+
+      <div class="relative mx-auto max-w-5xl">
+        <div class="absolute -inset-6 bg-indigo-600/8 rounded-3xl blur-3xl pointer-events-none"></div>
+
+        <!-- Browser frame -->
+        <div class="relative rounded-2xl overflow-hidden border border-slate-700/60 shadow-2xl shadow-slate-950">
+          <!-- Chrome bar -->
+          <div class="bg-slate-800/90 px-4 py-3 flex items-center gap-3 border-b border-slate-700/60">
+            <div class="flex gap-1.5 flex-shrink-0">
+              <div class="w-3 h-3 rounded-full bg-slate-600/80"></div>
+              <div class="w-3 h-3 rounded-full bg-slate-600/80"></div>
+              <div class="w-3 h-3 rounded-full bg-slate-600/80"></div>
+            </div>
+            <div class="flex-1 bg-slate-700/50 rounded-md px-3 py-1 text-slate-500 text-xs font-mono truncate">
+              jobscanner.app · 24 matches today
+            </div>
+          </div>
+
+          <!-- App content -->
+          <div class="bg-slate-900 flex" style="height:400px; overflow:hidden">
+
+            <!-- Sidebar -->
+            <div class="w-48 border-r border-slate-800/70 p-4 flex-shrink-0 hidden sm:block">
+              <div class="text-[10px] text-slate-600 uppercase font-semibold tracking-wider mb-2">View</div>
+              <div class="space-y-0.5 mb-5">
+                <div class="bg-indigo-600/20 text-indigo-300 text-xs px-3 py-2 rounded-lg flex items-center gap-2 font-medium">
+                  <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full flex-shrink-0"></div>All matches
+                  <span class="ml-auto text-indigo-400/70 text-[10px]">24</span>
+                </div>
+                <div class="text-slate-500 text-xs px-3 py-2 rounded-lg hover:text-slate-400">High match (80+)</div>
+                <div class="text-slate-500 text-xs px-3 py-2 rounded-lg hover:text-slate-400">Applied</div>
+                <div class="text-slate-500 text-xs px-3 py-2 rounded-lg hover:text-slate-400">Saved</div>
+              </div>
+              <div class="text-[10px] text-slate-600 uppercase font-semibold tracking-wider mb-2">Sources</div>
+              <div class="space-y-0.5">
+                <div class="text-slate-400 text-xs px-3 py-1.5 flex items-center gap-2">
+                  <svg class="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>MCF
+                </div>
+                <div class="text-slate-400 text-xs px-3 py-1.5 flex items-center gap-2">
+                  <svg class="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>Indeed
+                </div>
+                <div class="text-slate-400 text-xs px-3 py-1.5 flex items-center gap-2">
+                  <svg class="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>Adzuna
+                </div>
+                <div class="text-slate-400 text-xs px-3 py-1.5 flex items-center gap-2">
+                  <svg class="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>RemoteOK
+                </div>
+              </div>
+            </div>
+
+            <!-- Job cards -->
+            <div class="flex-1 p-4 space-y-3 overflow-hidden">
+
+              <!-- Card 1 — high match -->
+              <div class="bg-slate-800/70 border border-slate-700/50 rounded-xl p-4 hover:border-slate-600/50 transition-colors">
+                <div class="flex items-start justify-between gap-3 mb-3">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-white truncate">Software Engineer, AI Platform</div>
+                    <div class="text-xs text-slate-400 mt-0.5">Grab · Singapore · Full-time</div>
+                  </div>
+                  <div class="flex-shrink-0 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-bold px-2.5 py-1 rounded-lg tabular-nums">92</div>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                  <span class="bg-indigo-950/80 text-indigo-300 text-[11px] px-2 py-0.5 rounded-full border border-indigo-800/50">Python</span>
+                  <span class="bg-indigo-950/80 text-indigo-300 text-[11px] px-2 py-0.5 rounded-full border border-indigo-800/50">ML / AI</span>
+                  <span class="bg-indigo-950/80 text-indigo-300 text-[11px] px-2 py-0.5 rounded-full border border-indigo-800/50">Flask</span>
+                  <span class="bg-slate-800 text-slate-500 text-[11px] px-2 py-0.5 rounded-full border border-slate-700">S$8k–12k</span>
+                  <span class="bg-slate-800 text-slate-500 text-[11px] px-2 py-0.5 rounded-full border border-slate-700">MCF</span>
+                </div>
+              </div>
+
+              <!-- Card 2 — high match -->
+              <div class="bg-slate-800/70 border border-slate-700/50 rounded-xl p-4 hover:border-slate-600/50 transition-colors">
+                <div class="flex items-start justify-between gap-3 mb-3">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-white truncate">Backend Engineer (Python)</div>
+                    <div class="text-xs text-slate-400 mt-0.5">Sea Group · Singapore · Hybrid</div>
+                  </div>
+                  <div class="flex-shrink-0 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-bold px-2.5 py-1 rounded-lg tabular-nums">85</div>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                  <span class="bg-indigo-950/80 text-indigo-300 text-[11px] px-2 py-0.5 rounded-full border border-indigo-800/50">FastAPI</span>
+                  <span class="bg-indigo-950/80 text-indigo-300 text-[11px] px-2 py-0.5 rounded-full border border-indigo-800/50">PostgreSQL</span>
+                  <span class="bg-indigo-950/80 text-indigo-300 text-[11px] px-2 py-0.5 rounded-full border border-indigo-800/50">Docker</span>
+                  <span class="bg-slate-800 text-slate-500 text-[11px] px-2 py-0.5 rounded-full border border-slate-700">S$7k–10k</span>
+                  <span class="bg-slate-800 text-slate-500 text-[11px] px-2 py-0.5 rounded-full border border-slate-700">MCF</span>
+                </div>
+              </div>
+
+              <!-- Card 3 — medium match -->
+              <div class="bg-slate-800/70 border border-slate-700/50 rounded-xl p-4 hover:border-slate-600/50 transition-colors opacity-80">
+                <div class="flex items-start justify-between gap-3 mb-3">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-white truncate">Data Analyst – Growth</div>
+                    <div class="text-xs text-slate-400 mt-0.5">Shopee · Singapore · Hybrid</div>
+                  </div>
+                  <div class="flex-shrink-0 bg-amber-500/15 border border-amber-500/30 text-amber-400 text-sm font-bold px-2.5 py-1 rounded-lg tabular-nums">74</div>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                  <span class="bg-indigo-950/80 text-indigo-300 text-[11px] px-2 py-0.5 rounded-full border border-indigo-800/50">SQL</span>
+                  <span class="bg-indigo-950/80 text-indigo-300 text-[11px] px-2 py-0.5 rounded-full border border-indigo-800/50">Tableau</span>
+                  <span class="bg-slate-800 text-slate-500 text-[11px] px-2 py-0.5 rounded-full border border-slate-700">S$5.5k–7.5k</span>
+                  <span class="bg-slate-800 text-slate-500 text-[11px] px-2 py-0.5 rounded-full border border-slate-700">Adzuna</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -276,7 +408,7 @@
           <ul class="space-y-3 mb-8">
             <li class="flex items-center gap-3 text-sm text-slate-300">
               <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-              Up to 10 job matches per scan
+              3 scans per day, up to 10 matches each
             </li>
             <li class="flex items-center gap-3 text-sm text-slate-300">
               <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
@@ -352,6 +484,68 @@
     </div>
   </section>
 
+  <!-- ── FAQ ── -->
+  <section class="py-24 px-6">
+    <div class="max-w-3xl mx-auto">
+      <div class="text-center mb-14">
+        <p class="text-indigo-400 text-sm font-semibold uppercase tracking-widest mb-3">FAQ</p>
+        <h2 class="text-3xl sm:text-4xl font-bold">Common questions</h2>
+      </div>
+
+      <div class="space-y-3">
+        <details class="group bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden">
+          <summary class="flex items-center justify-between px-6 py-5 cursor-pointer list-none select-none">
+            <span class="font-medium text-white text-sm">What is MyCareersFuture?</span>
+            <svg class="w-4 h-4 text-slate-500 flex-shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-6 pb-5 text-slate-400 text-sm leading-relaxed border-t border-slate-800/60 pt-4">
+            MyCareersFuture (MCF) is Singapore's national jobs portal, run by Workforce Singapore (WSG). Employers must post their Singapore-based roles there first before listing elsewhere. All listings are verified employer postings — no ghost jobs or recruitment spam.
+          </div>
+        </details>
+
+        <details class="group bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden">
+          <summary class="flex items-center justify-between px-6 py-5 cursor-pointer list-none select-none">
+            <span class="font-medium text-white text-sm">Do I need a Gemini API key?</span>
+            <svg class="w-4 h-4 text-slate-500 flex-shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-6 pb-5 text-slate-400 text-sm leading-relaxed border-t border-slate-800/60 pt-4">
+            No. Pro subscribers use Job Scanner's shared Gemini key — cover notes, resume tailoring, and interview prep all work out of the box. If you prefer to bring your own key for higher personal quota, you can add it in Settings.
+          </div>
+        </details>
+
+        <details class="group bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden">
+          <summary class="flex items-center justify-between px-6 py-5 cursor-pointer list-none select-none">
+            <span class="font-medium text-white text-sm">How does the AI match scoring work?</span>
+            <svg class="w-4 h-4 text-slate-500 flex-shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-6 pb-5 text-slate-400 text-sm leading-relaxed border-t border-slate-800/60 pt-4">
+            Gemini reads each job description and compares it against your profile — skills, experience level, salary expectations, preferred locations, and keywords. Every listing gets a 0–100 score. You also see the reasons: which skills matched, what was missing, and why the salary was in or out of range.
+          </div>
+        </details>
+
+        <details class="group bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden">
+          <summary class="flex items-center justify-between px-6 py-5 cursor-pointer list-none select-none">
+            <span class="font-medium text-white text-sm">Is my resume and profile data safe?</span>
+            <svg class="w-4 h-4 text-slate-500 flex-shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-6 pb-5 text-slate-400 text-sm leading-relaxed border-t border-slate-800/60 pt-4">
+            Yes. Your profile and resume are stored encrypted at rest. We never share or sell your data to employers, recruiters, or any third parties. You can delete your account and all associated data at any time from Settings.
+          </div>
+        </details>
+
+        <details class="group bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden">
+          <summary class="flex items-center justify-between px-6 py-5 cursor-pointer list-none select-none">
+            <span class="font-medium text-white text-sm">Can I cancel my subscription anytime?</span>
+            <svg class="w-4 h-4 text-slate-500 flex-shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-6 pb-5 text-slate-400 text-sm leading-relaxed border-t border-slate-800/60 pt-4">
+            Yes, cancel anytime from your account settings with one click. You keep Pro access until the end of your current billing period. No penalties, no questions asked.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
   <!-- ── CTA ── -->
   <section class="py-24 px-6">
     <div class="max-w-3xl mx-auto text-center">
@@ -377,7 +571,11 @@
         </div>
         <span class="text-slate-400 text-sm">Job Scanner</span>
       </div>
-      <p class="text-slate-700 text-sm">© 2026 Job Scanner. Built for Singapore.</p>
+      <div class="flex items-center gap-4">
+        <a href="/privacy" class="text-slate-700 hover:text-slate-500 text-sm transition-colors">Privacy</a>
+        <a href="/terms" class="text-slate-700 hover:text-slate-500 text-sm transition-colors">Terms</a>
+        <p class="text-slate-700 text-sm">© 2026 Job Scanner. Built for Singapore.</p>
+      </div>
     </div>
   </footer>
 

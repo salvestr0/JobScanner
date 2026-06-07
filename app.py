@@ -664,7 +664,11 @@ def auth_google_callback():
 def auth_me():
     if not current_user.is_authenticated:
         return jsonify({"error": "Unauthorized"}), 401
-    return jsonify({"email": current_user.email, "id": current_user.id})
+    return jsonify({
+        "email":        current_user.email,
+        "id":           current_user.id,
+        "has_password": bool(current_user.password_hash),
+    })
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
@@ -1429,6 +1433,54 @@ def stream_scan():
 def reset_seen():
     SeenJob.query.filter_by(user_id=current_user.id).delete()
     db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/auth/delete-account", methods=["POST"])
+@login_required
+@limiter.limit("3/hour")
+def delete_account():
+    import shutil
+    data = request.json or {}
+
+    # Email/password users must confirm with their password
+    if current_user.password_hash:
+        password = data.get("password", "")
+        if not password or not current_user.check_password(password):
+            return jsonify({"error": "Incorrect password"}), 403
+    else:
+        # Google-only users confirm with the word DELETE
+        if data.get("confirm") != "DELETE":
+            return jsonify({"error": "Type DELETE to confirm"}), 403
+
+    user_id = current_user.id
+
+    # Cancel Stripe subscription if active
+    if current_user.stripe_customer_id and current_user.subscription_status == "active":
+        try:
+            import stripe as _stripe
+            _stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+            subs = _stripe.Subscription.list(customer=current_user.stripe_customer_id, limit=1)
+            for sub in subs.auto_paging_iter():
+                _stripe.Subscription.cancel(sub.id)
+                break
+        except Exception:
+            pass  # don't block deletion if Stripe call fails
+
+    # Log out before deleting
+    logout_user()
+
+    # Delete DB record — cascades to all related tables
+    user = db.session.get(User, user_id)
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+
+    # Delete user's data directory
+    data_dir = Path(f"data/users/{user_id}")
+    if data_dir.exists():
+        shutil.rmtree(data_dir, ignore_errors=True)
+
     return jsonify({"ok": True})
 
 
