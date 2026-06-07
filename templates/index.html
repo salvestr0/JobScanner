@@ -2557,6 +2557,7 @@ function app() {
           );
           this.loadStats();
           this.loadScanHistory();
+          this.loadJobs();
         } else if (msg.type==='log') {
           this.logs.push(msg.text);
           this.$nextTick(()=>{ const t=document.getElementById('terminal'); if(t) t.scrollTop=t.scrollHeight; });

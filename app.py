@@ -267,6 +267,7 @@ def _sync_scan_results(user_id: str, data_dir: str):
     seen_file  = os.path.join(data_dir, "seen_jobs.json")
 
     # ── Import new jobs from CSV ───────────────────────────────────────────────
+    new_count = 0
     if os.path.exists(jobs_csv):
         def _int(v):
             try:
@@ -274,7 +275,6 @@ def _sync_scan_results(user_id: str, data_dir: str):
             except ValueError:
                 return None
 
-        new_count = 0
         with open(jobs_csv, newline="", encoding="utf-8") as f:
             for row in _csv.DictReader(f):
                 job_id = (row.get("id") or "").strip()
