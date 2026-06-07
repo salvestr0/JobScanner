@@ -1837,6 +1837,70 @@ def cron_scan():
     return jsonify({"triggered": triggered})
 
 
+@app.route("/api/cron/weekly-digest", methods=["POST"])
+def cron_weekly_digest():
+    """
+    Send a weekly top-matches digest to all users with email digests enabled.
+    Called by Render cron every Monday at 08:00 SGT (00:00 UTC).
+    """
+    secret   = os.getenv("CRON_SECRET", "")
+    incoming = request.headers.get("X-Cron-Secret", "")
+    if not secret or not hmac.compare_digest(incoming, secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    from notifier import send_weekly_digest
+
+    cutoff   = datetime.now(timezone.utc) - timedelta(days=7)
+    base_url = request.host_url.rstrip("/")
+    sent_to  = []
+
+    settings_list = UserSettings.query.filter_by(email_enabled=True).all()
+    for s in settings_list:
+        user = db.session.get(User, s.user_id)
+        if not user:
+            continue
+        # Require verified email (Google OAuth users are implicitly verified)
+        if not user.email_verified and not user.google_id:
+            continue
+
+        to_email = (s.email_to or "").strip() or user.email
+        if not to_email:
+            continue
+
+        # Top jobs from the last 7 days, excluding hidden
+        recent = (
+            Job.query
+            .filter_by(user_id=s.user_id, hidden=False)
+            .filter(Job.scan_date >= cutoff)
+            .order_by(Job.score.desc())
+            .limit(30)
+            .all()
+        )
+        if not recent:
+            continue
+
+        # Exclude jobs the user explicitly skipped
+        skipped_ids = {
+            r.job_source_id
+            for r in ApplicationStatus.query.filter_by(
+                user_id=s.user_id, status="skipped"
+            ).all()
+        }
+        top_jobs = [j.to_dict() for j in recent if j.source_job_id not in skipped_ids][:8]
+        if not top_jobs:
+            continue
+
+        week_total = Job.query.filter_by(user_id=s.user_id).filter(
+            Job.scan_date >= cutoff
+        ).count()
+
+        ok = send_weekly_digest(to_email, top_jobs, base_url=base_url, week_total=week_total)
+        if ok:
+            sent_to.append(to_email)
+
+    return jsonify({"sent": len(sent_to), "recipients": sent_to})
+
+
 # ── Admin ─────────────────────────────────────────────────────────────────────
 
 def _is_admin(user) -> bool:
