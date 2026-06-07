@@ -1505,4 +1505,108 @@ def cron_scan():
     return jsonify({"triggered": triggered})
 
 
+# ── Admin ─────────────────────────────────────────────────────────────────────
+
+def _is_admin(user) -> bool:
+    admin_email = os.getenv("ADMIN_EMAIL", "").strip().lower()
+    return bool(admin_email and user.email.lower() == admin_email)
+
+
+@app.route("/admin")
+@login_required
+def admin_page():
+    if not _is_admin(current_user):
+        return redirect(url_for("app_page"))
+    return render_template("admin.html")
+
+
+@app.route("/api/admin/stats")
+@login_required
+def admin_stats():
+    if not _is_admin(current_user):
+        return jsonify({"error": "Forbidden"}), 403
+
+    from sqlalchemy import func
+
+    total_users  = User.query.count()
+    active_users = User.query.filter_by(subscription_status="active").count()
+    free_users   = User.query.filter(
+        User.subscription_status.notin_(["active"])
+    ).count()
+    total_jobs   = Job.query.count()
+
+    # New signups in last 7 days
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    new_users_7d = User.query.filter(User.created_at >= week_ago).count()
+
+    # Estimated MRR (active subscriptions × $8)
+    mrr = active_users * 8
+
+    # Jobs scanned per day over last 14 days (using scan_date)
+    fourteen_ago = datetime.now(timezone.utc) - timedelta(days=14)
+    daily_rows = (
+        db.session.query(
+            func.date(Job.scan_date).label("day"),
+            func.count(Job.id).label("count"),
+        )
+        .filter(Job.scan_date >= fourteen_ago)
+        .group_by(func.date(Job.scan_date))
+        .order_by(func.date(Job.scan_date))
+        .all()
+    )
+    daily_scans = [{"day": str(r.day), "count": r.count} for r in daily_rows]
+
+    return jsonify({
+        "total_users":   total_users,
+        "active_users":  active_users,
+        "free_users":    free_users,
+        "total_jobs":    total_jobs,
+        "new_users_7d":  new_users_7d,
+        "mrr":           mrr,
+        "daily_scans":   daily_scans,
+    })
+
+
+@app.route("/api/admin/users")
+@login_required
+def admin_users():
+    if not _is_admin(current_user):
+        return jsonify({"error": "Forbidden"}), 403
+
+    from sqlalchemy import func
+
+    # Job count + last scan date per user
+    job_stats = dict(
+        db.session.query(
+            Job.user_id,
+            func.count(Job.id),
+        )
+        .group_by(Job.user_id)
+        .all()
+    )
+    last_scan = dict(
+        db.session.query(
+            Job.user_id,
+            func.max(Job.scan_date),
+        )
+        .group_by(Job.user_id)
+        .all()
+    )
+
+    users = User.query.order_by(User.created_at.desc()).all()
+    result = []
+    for u in users:
+        ls = last_scan.get(u.id)
+        result.append({
+            "id":          u.id,
+            "email":       u.email,
+            "status":      u.subscription_status or "free",
+            "joined":      u.created_at.strftime("%Y-%m-%d") if u.created_at else "",
+            "job_count":   job_stats.get(u.id, 0),
+            "last_scan":   ls.strftime("%Y-%m-%d %H:%M") if ls else "Never",
+            "google_auth": bool(u.google_id),
+        })
+    return jsonify(result)
+
+
 # Entry point is run.py — do not run app.py directly.
