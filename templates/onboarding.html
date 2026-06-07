@@ -55,7 +55,7 @@
           </template>
         </div>
         <div class="flex gap-2">
-          <input x-model="newTitle" type="text" placeholder="e.g. Data Analyst"
+          <input x-model="newTitle" type="text" placeholder="Type a job title…"
             @keydown.enter.prevent="addTitle()"
             class="flex-1 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white
                    placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
@@ -64,7 +64,18 @@
             Add
           </button>
         </div>
-        <p class="text-slate-500 text-xs mt-1.5">Press Enter or click Add. We'll search each title separately.</p>
+        <div class="mt-2.5">
+          <p class="text-slate-500 text-xs mb-1.5">Suggestions — click to add:</p>
+          <div class="flex flex-wrap gap-1.5">
+            <template x-for="s in titleSuggestions.filter(s => !titles.includes(s))" :key="s">
+              <button @click="titles.push(s)"
+                class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-indigo-900 border border-slate-700 hover:border-indigo-600
+                       text-slate-400 hover:text-indigo-300 text-xs font-medium transition-colors">
+                + <span x-text="s"></span>
+              </button>
+            </template>
+          </div>
+        </div>
       </div>
 
       <!-- Preferred Keywords -->
@@ -79,7 +90,7 @@
           </template>
         </div>
         <div class="flex gap-2">
-          <input x-model="newPrefKw" type="text" placeholder="e.g. SQL, Excel, Python"
+          <input x-model="newPrefKw" type="text" placeholder="Type a keyword…"
             @keydown.enter.prevent="addPrefKw()"
             class="flex-1 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white
                    placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
@@ -88,7 +99,19 @@
             Add
           </button>
         </div>
-        <p class="text-slate-500 text-xs mt-1.5">Jobs mentioning these keywords score higher.</p>
+        <div class="mt-2.5">
+          <p class="text-slate-500 text-xs mb-1.5">Suggestions — click to add:</p>
+          <div class="flex flex-wrap gap-1.5">
+            <template x-for="s in kwSuggestions.filter(s => !prefKws.includes(s))" :key="s">
+              <button @click="prefKws.push(s)"
+                class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-indigo-900 border border-slate-700 hover:border-indigo-600
+                       text-slate-400 hover:text-indigo-300 text-xs font-medium transition-colors">
+                + <span x-text="s"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+        <p class="text-slate-500 text-xs mt-2">Jobs mentioning these keywords score higher.</p>
       </div>
 
       <!-- Error -->
@@ -110,13 +133,21 @@ function wizard() {
   return {
     saving: false,
     err: '',
-    titles: [
-      'Data Analyst', 'Business Analyst', 'Operations Analyst',
-      'Reporting Analyst', 'Junior Analyst', 'Analytics Associate',
-    ],
-    prefKws: ['sql', 'excel', 'python', 'power bi', 'junior', 'entry level'],
+    titles: [],
+    prefKws: [],
     newTitle: '',
     newPrefKw: '',
+    titleSuggestions: [
+      'Data Analyst', 'Business Analyst', 'Operations Analyst', 'Junior Analyst',
+      'IT Analyst', 'Research Analyst', 'Marketing Executive', 'HR Executive',
+      'Finance Executive', 'Admin Executive', 'Customer Service Officer',
+      'Sales Executive', 'Project Coordinator', 'Software Developer',
+    ],
+    kwSuggestions: [
+      'sql', 'excel', 'python', 'power bi', 'tableau', 'entry level', 'junior',
+      'fresh grad', 'hybrid', 'work from home', 'data entry', 'reporting',
+      'microsoft office', 'no experience required',
+    ],
 
     async init() {
       try {
