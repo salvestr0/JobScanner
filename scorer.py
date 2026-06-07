@@ -45,24 +45,32 @@ def score_job(job: dict) -> dict:
                 title_score = 30
                 reasons.append(f"Title match: {target}")
                 break
-        # Partial match - "analyst" appears somewhere in title
-        if title_score == 0 and "analyst" in title:
-            title_score = 20
-            reasons.append("Contains 'analyst' in title")
+        # Partial match — any significant word from the current target titles appears in job title
+        _skip_words = {"and", "or", "of", "the", "a", "an", "in", "for", "at", "to"}
+        if title_score == 0:
+            for target in SEARCH_CONFIG["target_titles"]:
+                for word in target.lower().split():
+                    if word not in _skip_words and len(word) > 3 and word in title:
+                        title_score = 15
+                        reasons.append(f"Partial title match: {word}")
+                        break
+                if title_score != 0:
+                    break
         # Job was returned by a targeted search (helps sources with sparse descriptions)
-        elif title_score == 0 and search_query:
+        if title_score == 0 and search_query:
             for target in SEARCH_CONFIG["target_titles"]:
                 if target.lower() in search_query:
-                    title_score = 20
+                    title_score = 15
                     reasons.append(f"Found via '{target}' search")
                     break
-        # Adjacent roles
+        # Adjacent roles — coordinator/associate/officer/support roles that match mode keywords
         if title_score == 0:
-            adjacent = ["associate", "coordinator", "executive", "support"]
+            adjacent = ["associate", "coordinator", "executive", "support", "officer", "assistant"]
+            mode_keywords = SEARCH_CONFIG.get("preferred_keywords", [])[:10]
             for adj in adjacent:
-                if adj in title and any(k in full_text for k in ["data", "analytics", "reporting"]):
-                    title_score = 15
-                    reasons.append(f"Adjacent role with data focus")
+                if adj in title and any(k in full_text for k in mode_keywords):
+                    title_score = 10
+                    reasons.append("Adjacent role matching search criteria")
                     break
     breakdown["title"] = title_score
     score += title_score

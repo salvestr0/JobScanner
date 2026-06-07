@@ -71,7 +71,10 @@ _MCF_ENDPOINTS = [
 
 
 def _find_working_endpoint() -> tuple | None:
-    probe_term = SEARCH_CONFIG["target_titles"][0]
+    titles = SEARCH_CONFIG.get("target_titles") or []
+    if not titles:
+        return None
+    probe_term = titles[0]
     for url, param_fn in _MCF_ENDPOINTS:
         try:
             resp = requests.get(url, params=param_fn(probe_term, 0), headers=_MCF_HEADERS, timeout=8)
