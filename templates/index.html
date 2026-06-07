@@ -421,7 +421,7 @@
     <div x-show="page==='scan'" class="page-in p-8 max-w-2xl mx-auto">
       <div class="mb-8">
         <h1 class="text-2xl font-semibold text-slate-900">Run Scan</h1>
-        <p class="text-slate-500 text-sm mt-1">Fetch jobs from MyCareersFuture and find new matches</p>
+        <p class="text-slate-500 text-sm mt-1">Fetch jobs from MCF, Indeed, Adzuna and RemoteOK, then score them against your profile</p>
       </div>
 
       <!-- Paywall (shown when trial expired / cancelled) -->
@@ -508,6 +508,18 @@
 
       </div>
 
+      <!-- Profile incomplete warning -->
+      <div x-show="!profile.experience_summary && !(profile.technical_skills && profile.technical_skills.length)" x-cloak
+        class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm text-amber-800">
+        <svg class="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        </svg>
+        <span>
+          Your profile looks empty. The AI scorer needs your skills and experience to rank jobs accurately — without it, most jobs will score below the threshold and won't appear.
+          <button @click="go('profile')" class="underline font-semibold hover:text-amber-900 ml-1">Fill in your Profile first →</button>
+        </span>
+      </div>
+
       <!-- Start button -->
       <button @click="startScan()" :disabled="scanning"
         class="w-full py-3.5 rounded-2xl font-bold text-sm transition-all mb-5 flex items-center justify-center gap-3"
@@ -542,11 +554,19 @@
       <div x-show="scanDone&&!scanning&&zeroNewJobs" x-cloak
         class="mb-4 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex items-start gap-3 fade-in">
         <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-        <div class="text-amber-800 text-sm">
-          <span class="font-semibold">All scrapers returned 0 new jobs.</span>
-          Your history may be stale — try
-          <button @click="go('settings')" class="underline font-semibold hover:text-amber-900">Settings → Clear Seen History</button>,
-          or check your internet connection.
+        <div class="text-amber-800 text-sm space-y-1.5">
+          <p><span class="font-semibold">No new matches found.</span> A few things to check:</p>
+          <ul class="list-disc list-inside space-y-1 text-amber-700">
+            <li>
+              <button @click="go('profile')" class="underline font-semibold hover:text-amber-900">Profile</button>
+              — is it filled in? Without skills and experience, jobs score below the threshold and are filtered out.
+            </li>
+            <li>Your seen history may be stale —
+              <button @click="go('settings')" class="underline font-semibold hover:text-amber-900">Settings → Clear Seen History</button>
+              to rescan old listings.
+            </li>
+            <li>Check your internet connection or try again in a few minutes.</li>
+          </ul>
         </div>
       </div>
 
@@ -613,8 +633,16 @@
       <div x-show="!jobsLoading&&allJobsEmpty&&!jSearch&&!jSource&&!jStatus"
         class="text-center py-16">
         <svg class="w-14 h-14 mx-auto mb-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-        <p class="text-slate-400 text-sm">No scans yet —
-          <button @click="go('scan')" class="text-indigo-500 font-medium hover:underline">go to Run Scan to find your first matches</button>.
+        <p class="text-slate-400 text-sm mb-2">No scans yet.</p>
+        <p class="text-slate-400 text-sm">
+          <strong class="text-slate-500">Step 1:</strong>
+          <button @click="go('profile')" class="text-indigo-500 font-medium hover:underline">Fill in your Profile</button>
+          so the AI can score jobs against your skills.
+        </p>
+        <p class="text-slate-400 text-sm mt-1">
+          <strong class="text-slate-500">Step 2:</strong>
+          <button @click="go('scan')" class="text-indigo-500 font-medium hover:underline">Run a Scan</button>
+          to fetch and match jobs from 4 sources.
         </p>
       </div>
 
