@@ -107,6 +107,9 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
         if max_results > 0 and len(jobs) >= max_results:
             print(f"  [MCF] Collected {len(jobs)} candidates — stopping early")
             break
+        if len(jobs) >= 400:
+            print(f"  [MCF] Hard cap reached (400) — stopping to conserve memory")
+            break
 
         print(f"  → Searching: {title}")
         title_count = 0
