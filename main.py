@@ -37,9 +37,7 @@ if _sentry_dsn:
 
 from config import DATA_DIR, JOBS_CSV, SEEN_JOBS_FILE, COVER_NOTES_DIR, SEARCH_CONFIG, set_mode, list_modes
 from scrapers import scrape_all_sources
-from scorer import score_job, rank_jobs, filter_jobs
-from cover_notes import generate_cover_note, save_cover_note
-from notifier import send_email_digest
+from scorer import rank_jobs, filter_jobs
 
 
 def load_seen_jobs() -> set:
@@ -106,8 +104,8 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
 
     # 2. Scrape all sources
     max_jobs = int(os.environ.get("JOBSCANNER_MAX_JOBS", 0))
-    # Free plan: fetch only enough candidates to find the job limit (6× buffer for scoring losses)
-    max_fetch = max_jobs * 6 if max_jobs > 0 else 0
+    # Free plan: fetch only enough candidates to find the job limit (3× buffer for scoring losses)
+    max_fetch = max_jobs * 3 if max_jobs > 0 else 0
     if max_fetch:
         print(f"\n⚡ Free plan — fetching up to {max_fetch} candidates (showing top {max_jobs} matches)")
     all_jobs = scrape_all_sources(max_total=max_fetch)
@@ -148,17 +146,19 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
             if job.get("match_reasons"):
                 print(f"     → {', '.join(job['match_reasons'][:3])}")
 
-    # 6. Generate cover notes for top matches
-    print(f"\n📝 Generating cover notes...")
+    # 6. Generate cover notes for Pro plan only (free plan skips to save memory)
     cover_notes = {}
-    for job in top_jobs:
-        try:
-            note = generate_cover_note(job)
-            filepath = save_cover_note(job, note)
-            cover_notes[job["id"]] = note
-            print(f"  ✅ Saved: {filepath}")
-        except Exception as e:
-            print(f"  ❌ Failed for {job['title']}: {e}")
+    if not max_jobs:
+        from cover_notes import generate_cover_note, save_cover_note
+        print(f"\n📝 Generating cover notes...")
+        for job in top_jobs:
+            try:
+                note = generate_cover_note(job)
+                filepath = save_cover_note(job, note)
+                cover_notes[job["id"]] = note
+                print(f"  ✅ Saved: {filepath}")
+            except Exception as e:
+                print(f"  ❌ Failed for {job['title']}: {e}")
 
     # 7. Save results to CSV
     save_jobs_csv(matched_jobs)
@@ -169,9 +169,10 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
         seen_jobs.add(job["id"])
     save_seen_jobs(seen_jobs)
 
-    # 9. Send email notification (if configured in user settings)
-    if notify:
+    # 9. Send email notification (Pro only — free plan skips)
+    if notify and not max_jobs:
         try:
+            from notifier import send_email_digest
             _email_to      = SEARCH_CONFIG.get("email_to", "")
             _email_enabled = SEARCH_CONFIG.get("email_enabled", False)
             if _email_enabled and _email_to and top_jobs:

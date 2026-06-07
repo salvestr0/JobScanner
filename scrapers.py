@@ -11,8 +11,9 @@ import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus
 
+import re
+
 import requests
-from bs4 import BeautifulSoup
 
 from config import ADZUNA_APP_ID, ADZUNA_APP_KEY, SEARCH_CONFIG
 
@@ -39,7 +40,7 @@ def _clean_html(html: str) -> str:
         return ""
     if "<" not in html:
         return html
-    return BeautifulSoup(html, "html.parser").get_text(separator=" ")
+    return re.sub(r'<[^>]+>', ' ', html).strip()
 
 
 def _parse_salary(val) -> int | None:
