@@ -498,7 +498,7 @@
             class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
             <template x-for="m in modes" :key="m.name">
               <option :value="m.name"
-                x-text="m.name.charAt(0).toUpperCase()+m.name.slice(1)+' — '+(m.titles||[]).slice(0,2).join(', ')+'...'"></option>
+                x-text="m.name.split(' ').map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ')"></option>
             </template>
           </select>
         </div>
