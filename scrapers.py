@@ -9,7 +9,7 @@ import hashlib
 import time
 import defusedxml.ElementTree as ET
 from email.utils import parsedate_to_datetime
-from urllib.parse import quote_plus
+
 
 import re
 
@@ -182,7 +182,6 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
                         "posted_date": posted,
                         "closing_date": closing_date,
                         "source": "MyCareersFuture",
-                        "experience_required": r.get("minimumYearsExperience"),
                     })
                     title_count += 1
 
@@ -265,7 +264,6 @@ def fetch_adzuna(max_pages: int = 1) -> list:
                         "url": r.get("redirect_url", ""),
                         "posted_date": (r.get("created") or "")[:10],
                         "source": "Adzuna",
-                        "experience_required": None,
                     })
 
                 time.sleep(1)
@@ -345,7 +343,6 @@ def fetch_indeed_rss() -> list:
                     "url": link,
                     "posted_date": date_str,
                     "source": "Indeed",
-                    "experience_required": None,
                 })
 
             time.sleep(1.5)
@@ -420,7 +417,6 @@ def fetch_remoteok() -> list:
             "url": job_url,
             "posted_date": (r.get("date") or "")[:10],
             "source": "RemoteOK",
-            "experience_required": None,
         })
 
     print(f"[RemoteOK] {len(jobs)} matching jobs")

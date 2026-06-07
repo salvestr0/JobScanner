@@ -26,10 +26,7 @@
 
     /* ── Source chips ── */
     .chip-mcf       { background:#EEF2FF; color:#4338CA; }
-    .chip-jobstreet { background:#F0FDF4; color:#166534; }
     .chip-indeed    { background:#FFF7ED; color:#C2410C; }
-    .chip-linkedin  { background:#EFF6FF; color:#1D4ED8; }
-    .chip-glints    { background:#FFF0F6; color:#BE185D; }
     .chip-other     { background:#F1F5F9; color:#475569; }
 
     /* ── Terminal ── */
@@ -671,10 +668,9 @@
           class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
           <option value="">All Sources</option>
           <option value="MyCareersFuture">MyCareersFuture</option>
-          <option value="JobStreet">JobStreet</option>
           <option value="Indeed">Indeed</option>
-          <option value="LinkedIn">LinkedIn</option>
-          <option value="Glints">Glints</option>
+          <option value="Adzuna">Adzuna</option>
+          <option value="RemoteOK">RemoteOK</option>
         </select>
         <select x-model="jStatus" @change="loadJobs()"
           class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
@@ -2024,9 +2020,6 @@ function app() {
     billing: { status: null, trial_days_left: null, has_access: true, is_free: true, scan_limit: 10 },
     subscribing: false,
 
-    // Credentials (Gemini)
-    creds: { gemini_api_key: '' },
-
     // New tag inputs for search config
     newSearchInput: { title: '', preferred: '', negative: '' },
 
@@ -2116,7 +2109,6 @@ function app() {
         this.loadStats(),
         this.loadModes(),
         this.loadCfg(),
-        this.loadCreds(),
         this.loadBilling(),
         this.loadScanHistory(),
         this.loadSchedule(),
@@ -2179,26 +2171,6 @@ function app() {
         if (!this.cfg.preferred_keywords) this.cfg.preferred_keywords = [];
         if (!this.cfg.negative_keywords)  this.cfg.negative_keywords  = [];
       } catch(_){}
-    },
-
-    async loadCreds() {
-      try {
-        const d = await (await fetch('/api/credentials')).json();
-        this.creds.gemini_api_key = d.gemini_api_key || '';
-      } catch(_){}
-    },
-
-    async saveCreds() {
-      try {
-        const r = await fetch('/api/credentials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.creds),
-        });
-        const d = await r.json();
-        this.flash(d.ok ? 'Credentials saved!' : 'Save failed', d.ok);
-        if (d.ok) await this.loadCfg();
-      } catch(_) { this.flash('Network error', false); }
     },
 
     addSearchTag(list, inputKey) {
@@ -2725,7 +2697,7 @@ function app() {
 
     // ── Helpers ────────────────────────────────────────────────
     chipClass(src) {
-      return { MyCareersFuture:'chip-mcf', JobStreet:'chip-jobstreet', Indeed:'chip-indeed', LinkedIn:'chip-linkedin', Glints:'chip-glints' }[src] || 'chip-other';
+      return { MyCareersFuture:'chip-mcf', Indeed:'chip-indeed', Adzuna:'chip-other', RemoteOK:'chip-other' }[src] || 'chip-other';
     },
 
     flash(msg, ok=true) {

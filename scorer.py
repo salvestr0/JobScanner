@@ -5,7 +5,7 @@ Returns a score from 0-100 indicating how well the job matches.
 """
 
 import re
-from config import PROFILE, SEARCH_CONFIG
+from config import SEARCH_CONFIG
 
 
 def score_job(job: dict) -> dict:

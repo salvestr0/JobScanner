@@ -154,7 +154,7 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
         for job in top_jobs:
             try:
                 note = generate_cover_note(job)
-                filepath = save_cover_note(job, note)
+                filepath = save_cover_note(job, note, output_dir=COVER_NOTES_DIR)
                 cover_notes[job["id"]] = note
                 print(f"  ✅ Saved: {filepath}")
             except Exception as e:

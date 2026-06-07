@@ -98,21 +98,13 @@ COVER_NOTES_DIR = f"{DATA_DIR}/cover_notes"
 # DYNAMIC SEARCH MODES
 # ============================================================
 
-_LOCATION_KEYWORDS = [
-    "sengkang", "punggol", "hougang", "serangoon",
-    "ang mo kio", "bishan", "toa payoh",
-    "remote", "work from home", "wfh", "hybrid",
-    "changi business park", "one-north", "mapletree",
-    "paya lebar", "tai seng", "ubi", "macpherson",
-]
-
 _MODES_CACHE_FILE = "data/modes_cache.json"
 
 _MODE_DEFAULTS = {
     "min_salary": 2200,
     "max_salary": 4000,
     "preferred_location": "Sengkang",
-    "location_keywords": _LOCATION_KEYWORDS,
+    "location_keywords": SEARCH_CONFIG["location_keywords"],
     "min_score_threshold": 38,
     "max_jobs_per_notification": 20,
 }
