@@ -204,11 +204,22 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
 
 
 def main():
-    # Multi-user hosted mode: override config from env vars set by app.py
-    _user_cfg = os.environ.get("JOBSCANNER_USER_CONFIG")
-    if _user_cfg:
+    # Multi-user hosted mode: load config from tempfile (secure) or env var (legacy local dev)
+    _config_file = os.environ.get("JOBSCANNER_CONFIG_FILE")
+    if _config_file and os.path.exists(_config_file):
+        try:
+            import config as _cfg
+            with open(_config_file, encoding="utf-8") as _f:
+                _cfg_data = _f.read()
+        finally:
+            try:
+                os.unlink(_config_file)  # delete immediately — key is now only in memory
+            except OSError:
+                pass
+        _cfg.load_user_config(_cfg_data)
+    elif os.environ.get("JOBSCANNER_USER_CONFIG"):
         import config as _cfg
-        _cfg.load_user_config(_user_cfg)
+        _cfg.load_user_config(os.environ["JOBSCANNER_USER_CONFIG"])
 
     _data_dir = os.environ.get("JOBSCANNER_DATA_DIR")
     if _data_dir:

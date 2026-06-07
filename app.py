@@ -5,11 +5,13 @@ Open: http://localhost:5000
 """
 import hmac
 import json
+import logging
 import os
 import queue
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import warnings
 from collections import Counter, defaultdict
@@ -36,6 +38,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import (
@@ -51,6 +54,11 @@ if not _secret_key:
         "SECRET_KEY environment variable is not set. "
         "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\" "
         "then add SECRET_KEY=<value> to your .env file or hosting environment."
+    )
+if len(_secret_key) < 32:
+    raise RuntimeError(
+        "SECRET_KEY is too short (must be at least 32 characters). "
+        "Generate a secure key with: python -c \"import secrets; print(secrets.token_hex(32))\""
     )
 
 _in_dev = os.getenv("FLASK_ENV") == "development"
@@ -76,16 +84,24 @@ app.config.update(
     REMEMBER_COOKIE_SECURE=not _in_dev,
     REMEMBER_COOKIE_HTTPONLY=True,
     REMEMBER_COOKIE_SAMESITE="Lax",
+    WTF_CSRF_TIME_LIMIT=None,
 )
 
 db.init_app(app)
 migrate = Migrate(app, db)
+csrf = CSRFProtect(app)
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login_page"
 login_manager.login_message = ""
 
 _redis_url = os.getenv("REDIS_URL", "").strip()
+if not _redis_url:
+    warnings.warn(
+        "REDIS_URL not set — rate limits use in-memory storage and reset on every restart. "
+        "Set REDIS_URL for production to persist rate limit state across restarts.",
+        stacklevel=1,
+    )
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
@@ -102,26 +118,31 @@ google_oauth = oauth.register(
     client_kwargs={"scope": "openid email profile"},
 )
 
-_enc_key = (os.getenv("ENCRYPTION_KEY") or "").strip().encode()
-_fernet  = Fernet(_enc_key) if _enc_key else None
+_enc_key_raw = (os.getenv("ENCRYPTION_KEY") or "").strip()
+if not _enc_key_raw:
+    raise RuntimeError(
+        "ENCRYPTION_KEY is required to safely store user API keys. "
+        "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+    )
+_fernet = Fernet(_enc_key_raw.encode())
 
 
 def _encrypt_api_key(plaintext: str) -> str:
-    if not plaintext or not _fernet:
+    if not plaintext:
         return plaintext
     return _fernet.encrypt(plaintext.encode()).decode()
 
 
 def _decrypt_api_key(ciphertext: str) -> str:
-    if not ciphertext or not _fernet:
+    if not ciphertext:
         return ciphertext
     try:
         return _fernet.decrypt(ciphertext.encode()).decode()
     except InvalidToken:
-        warnings.warn("Fernet decryption failed — ENCRYPTION_KEY mismatch or corrupted value. Returning raw value.")
-        return ciphertext
+        warnings.warn("Fernet decryption failed — ENCRYPTION_KEY mismatch or corrupted value.")
+        return ""
     except Exception:
-        return ciphertext
+        return ""
 
 
 @login_manager.user_loader
@@ -187,15 +208,26 @@ def _run_subprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, extra
         )
         scan["proc"] = proc
 
+        _SENSITIVE_PATTERNS = ("AIza", "gemini_api_key", "JOBSCANNER_CONFIG_FILE", "JOBSCANNER_USER_CONFIG")
+
         for line in proc.stdout:
             line = line.rstrip("\n").strip()
             if line:
+                if any(p in line for p in _SENSITIVE_PATTERNS):
+                    line = "[redacted]"
                 q.put(line)
 
         proc.wait()
     except Exception as exc:
         q.put(f"ERROR: {exc}")
     finally:
+        # Remove config tempfile in case the subprocess crashed before reading it
+        _cfg_file = extra_env.get("JOBSCANNER_CONFIG_FILE")
+        if _cfg_file and os.path.exists(_cfg_file):
+            try:
+                os.unlink(_cfg_file)
+            except OSError:
+                pass
         # Sync CSV/seen_jobs written by the subprocess back into the DB
         with app.app_context():
             _sync_scan_results(user_id, extra_env.get("JOBSCANNER_DATA_DIR", f"data/users/{user_id}"))
@@ -304,8 +336,20 @@ def _build_user_env(user: User) -> dict:
         }
 
     data_dir = f"data/users/{user.id}"
+
+    # Write sensitive config (incl. Gemini key) to a restricted tempfile
+    # so it never appears in /proc/<pid>/environ or exception tracebacks.
+    tf = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", delete=False, encoding="utf-8"
+    )
+    try:
+        json.dump(user_cfg, tf)
+    finally:
+        tf.close()
+    os.chmod(tf.name, 0o600)
+
     env = {
-        "JOBSCANNER_USER_CONFIG": json.dumps(user_cfg),
+        "JOBSCANNER_CONFIG_FILE": tf.name,
         "JOBSCANNER_DATA_DIR":    data_dir,
     }
     if user.subscription_status not in ("active",):
@@ -402,7 +446,7 @@ def auth_register():
     if len(password) < 8:
         return jsonify({"error": "Password must be at least 8 characters"}), 400
     if User.query.filter_by(email=email).first():
-        return jsonify({"error": "Registration failed — try signing in instead"}), 409
+        return jsonify({"error": "Registration failed — please sign in or use a different email"}), 409
 
     user = User(
         email=email,
@@ -488,7 +532,7 @@ def auth_google_callback():
 def auth_me():
     if not current_user.is_authenticated:
         return jsonify({"error": "Unauthorized"}), 401
-    return jsonify({"email": current_user.email, "id": current_user.id})
+    return jsonify({"email": current_user.email})
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
@@ -528,7 +572,7 @@ def stats():
     FREE_DAILY_LIMIT = 3
     scans_today = 0
     scans_remaining = None
-    if not _is_active(current_user):
+    if not _is_paid(current_user):
         s = current_user.settings
         today = _date.today().isoformat()
         if s and s.last_scan_date == today:
@@ -607,6 +651,10 @@ def get_applications():
 def update_application(job_id):
     data       = request.json or {}
     new_status = data.get("status", "")
+
+    _VALID_STATUSES = {"applied", "interview", "skip", "offer", "rejected", "clear"}
+    if new_status not in _VALID_STATUSES:
+        return jsonify({"error": "Invalid status"}), 400
 
     if new_status == "clear":
         row = db.session.get(ApplicationStatus, (current_user.id, job_id))
@@ -1193,9 +1241,9 @@ def start_scan():
     if not re.match(r'^[a-z0-9_-]{1,32}$', mode):
         return jsonify({"error": "Invalid mode name"}), 400
 
-    # Daily scan limit for free plan
+    # Daily scan limit for free (non-paid) users
     FREE_DAILY_LIMIT = 3
-    if not _is_active(current_user):
+    if not _is_paid(current_user):
         from datetime import date as _date
         s = _get_or_create_settings(current_user.id)
         today = _date.today().isoformat()
@@ -1259,7 +1307,7 @@ def reset_seen():
 # ── Billing ───────────────────────────────────────────────────────────────────
 
 def _is_active(user) -> bool:
-    """Return True if user has access (free tier or active subscription)."""
+    """Return True if user has any access (free tier or active subscription)."""
     if user.subscription_status in ("active", "free"):
         return True
     if user.subscription_status in (None, "trialing"):
@@ -1268,6 +1316,11 @@ def _is_active(user) -> bool:
             return True  # legacy users without trial end — treat as free
         return datetime.now(timezone.utc) <= ends
     return False
+
+
+def _is_paid(user) -> bool:
+    """Return True only for users with an active paid subscription."""
+    return user.subscription_status == "active"
 
 
 def _billing_status(user) -> dict:
@@ -1344,6 +1397,7 @@ def billing_portal():
 
 
 @app.route("/api/stripe/webhook", methods=["POST"])
+@csrf.exempt
 def billing_webhook():
     import stripe
     stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
@@ -1486,6 +1540,7 @@ Rules:
 # ── Cron endpoint (Railway scheduled job) ─────────────────────────────────────
 
 @app.route("/api/cron/scan", methods=["POST"])
+@csrf.exempt
 def cron_scan():
     """
     Called by Railway cron every 15 minutes.
@@ -1635,6 +1690,16 @@ def admin_users():
             "google_auth": bool(u.google_id),
         })
     return jsonify(result)
+
+
+@app.after_request
+def inject_csrf_token(response):
+    """Expose CSRF token in a readable cookie so the Alpine.js SPA can include it in POST headers."""
+    response.set_cookie(
+        "csrf_token", generate_csrf(),
+        samesite="Strict", secure=not _in_dev, httponly=False,
+    )
+    return response
 
 
 # Entry point is run.py — do not run app.py directly.

@@ -3,12 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Setup — Job Scanner</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+  <script>
+    (function () {
+      const _orig = window.fetch;
+      window.fetch = function (url, opts) {
+        opts = opts || {};
+        const method = (opts.method || 'GET').toUpperCase();
+        if (method !== 'GET' && method !== 'HEAD') {
+          const tok = document.querySelector('meta[name="csrf-token"]')?.content
+                   || document.cookie.match(/csrf_token=([^;]+)/)?.[1];
+          if (tok) opts.headers = Object.assign({'X-CSRFToken': tok}, opts.headers || {});
+        }
+        return _orig.call(this, url, opts);
+      };
+    })();
+  </script>
   <style>
     body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
     .tag { display:inline-flex; align-items:center; gap:4px; background:#EEF2FF; color:#4338CA;

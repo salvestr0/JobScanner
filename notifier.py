@@ -2,9 +2,12 @@
 Email notification module — sends job matches as HTML digest via Resend.
 """
 import html as _html
+import logging
 import os
 
 import requests
+
+_log = logging.getLogger(__name__)
 
 
 def send_email_digest(jobs: list, settings: dict, subject_override: str = "") -> bool:
@@ -17,10 +20,10 @@ def send_email_digest(jobs: list, settings: dict, subject_override: str = "") ->
     to_email  = settings.get("email_to", "").strip()
 
     if not api_key:
-        print("  [Email] RESEND_API_KEY not set — add it to your .env file")
+        _log.warning("[Email] RESEND_API_KEY not set — add it to your .env file")
         return False
     if not to_email:
-        print("  [Email] No recipient email configured — set one in Settings")
+        _log.warning("[Email] No recipient email configured — set one in Settings")
         return False
 
     subject = subject_override or (
@@ -120,8 +123,8 @@ def send_email_digest(jobs: list, settings: dict, subject_override: str = "") ->
             print(f"  [Email] Digest sent to {to_email}")
             return True
         else:
-            print(f"  [Email] Resend error {resp.status_code}: {resp.text[:200]}")
+            _log.error("[Email] Resend error %s (check Resend dashboard for details)", resp.status_code)
             return False
     except Exception as e:
-        print(f"  [Email] Failed: {e}")
+        _log.error("[Email] Failed: %s", e)
         return False

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Admin — Job Scanner</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10,6 +11,21 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      const _orig = window.fetch;
+      window.fetch = function (url, opts) {
+        opts = opts || {};
+        const method = (opts.method || 'GET').toUpperCase();
+        if (method !== 'GET' && method !== 'HEAD') {
+          const tok = document.querySelector('meta[name="csrf-token"]')?.content
+                   || document.cookie.match(/csrf_token=([^;]+)/)?.[1];
+          if (tok) opts.headers = Object.assign({'X-CSRFToken': tok}, opts.headers || {});
+        }
+        return _orig.call(this, url, opts);
+      };
+    })();
+  </script>
   <style>
     *, body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
     .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }

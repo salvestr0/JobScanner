@@ -14,6 +14,14 @@ import requests
 
 from config import GEMINI_API_KEY, PROFILE
 
+
+def _sanitize(value, max_len: int = 500) -> str:
+    """Strip control characters and truncate before injecting into Gemini prompts."""
+    if not value:
+        return ""
+    s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', str(value))
+    return s[:max_len]
+
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 
@@ -51,14 +59,14 @@ def _generate_ai_cover_note(job: dict) -> str:
     prompt = f"""Write a short, personalized cover note (3-4 paragraphs, under 200 words) for a job application.
 
 APPLICANT PROFILE:
-- Name: {PROFILE.get('name', 'Applicant')}
-- Education: {PROFILE.get('education', '')}
-- Certifications: {', '.join(certs) if certs else 'None listed'}
-- Technical Skills: {', '.join(PROFILE.get('technical_skills', []))}
+- Name: {_sanitize(PROFILE.get('name', 'Applicant'), 100)}
+- Education: {_sanitize(PROFILE.get('education', ''), 200)}
+- Certifications: {_sanitize(', '.join(certs), 300) if certs else 'None listed'}
+- Technical Skills: {_sanitize(', '.join(PROFILE.get('technical_skills', [])), 300)}
 - Work History:
-{work_lines}
-- Experience Summary: {PROFILE.get('experience_summary', '')}
-{project_line}
+{_sanitize(work_lines, 1000)}
+- Experience Summary: {_sanitize(PROFILE.get('experience_summary', ''), 400)}
+{_sanitize(project_line, 300)}
 
 JOB DETAILS:
 - Title: {job['title']}
