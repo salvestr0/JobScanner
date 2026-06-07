@@ -284,7 +284,8 @@ def _build_user_env(user: User) -> dict:
 
     if profile:
         user_cfg["profile"] = profile.to_dict()
-        user_cfg["profile"]["email"] = user.email
+        if not user_cfg["profile"].get("email"):
+            user_cfg["profile"]["email"] = user.email
 
     if settings:
         sc = settings.to_dict()
@@ -838,7 +839,8 @@ def parse_resume():
 def get_profile():
     p = _get_or_create_profile(current_user.id)
     d = p.to_dict()
-    d["email"] = current_user.email
+    if not d["email"]:
+        d["email"] = current_user.email
     return jsonify(d)
 
 
@@ -848,7 +850,7 @@ def save_profile():
     data = request.json or {}
     p    = _get_or_create_profile(current_user.id)
 
-    for field in ("name", "phone", "education", "experience_summary"):
+    for field in ("name", "email", "phone", "education", "experience_summary"):
         if field in data:
             setattr(p, field, data[field])
     for field in ("technical_skills", "soft_skills", "work_history", "certifications", "projects"):

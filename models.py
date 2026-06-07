@@ -55,6 +55,7 @@ class UserProfile(db.Model):
 
     user_id            = db.Column(db.String(36), db.ForeignKey("users.id"), primary_key=True)
     name               = db.Column(db.String(255))
+    email              = db.Column(db.String(255))
     phone              = db.Column(db.String(64))
     education          = db.Column(db.Text)
     experience_summary = db.Column(db.Text)
@@ -69,6 +70,7 @@ class UserProfile(db.Model):
     def to_dict(self) -> dict:
         return {
             "name":               self.name or "",
+            "email":              self.email or "",
             "phone":              self.phone or "",
             "education":          self.education or "",
             "experience_summary": self.experience_summary or "",
