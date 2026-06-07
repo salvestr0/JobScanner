@@ -25,9 +25,6 @@ class User(UserMixin, db.Model):
     google_id      = db.Column(db.String(255), unique=True, nullable=True)
     created_at     = db.Column(db.DateTime(timezone=True), default=_now)
 
-    # Per-user API credentials (optional — fall back to env vars if blank)
-    gemini_api_key = db.Column(db.String(255))
-
     # Billing
     stripe_customer_id  = db.Column(db.String(255))
     subscription_status = db.Column(db.String(32), default="trialing")  # trialing | active | past_due | cancelled

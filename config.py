@@ -233,11 +233,6 @@ def load_user_config(json_str: str):
     except Exception:
         return
 
-    global GEMINI_API_KEY
-
-    if "gemini_api_key" in data:
-        GEMINI_API_KEY = data["gemini_api_key"]
-
     if "profile" in data:
         PROFILE.update(data["profile"])
 

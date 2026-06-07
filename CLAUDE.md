@@ -26,7 +26,7 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | `app.py` | All Flask routes and API endpoints |
 | `models.py` | User, UserProfile, UserSettings, Job, ApplicationStatus, SeenJob, SearchMode |
 | `templates/index.html` | Main SPA (Alpine.js) — all pages except login/register/onboarding |
-| `templates/onboarding.html` | 2-step onboarding wizard (job prefs → Gemini key) |
+| `templates/onboarding.html` | 2-step onboarding wizard (job prefs → done) |
 | `config.py` | Loads env vars, SEARCH_CONFIG defaults, Gemini mode generation |
 | `main.py` | Scan subprocess runner — called by `app.py` via `subprocess.Popen` |
 | `scrapers.py` | MCF API only (no scrapers — all previous ones removed) |
@@ -73,8 +73,7 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
 | `RESEND_API_KEY` | Resend API key |
 | `RESEND_FROM` | Sender address (must be verified domain) |
-| `GEMINI_API_KEY` | Fallback Gemini key (users can set their own) |
-| `ENCRYPTION_KEY` | Fernet key for encrypting user Gemini keys in DB |
+| `GEMINI_API_KEY` | Server-side Gemini key (used for all AI features) |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `SENTRY_DSN` | Sentry DSN for error monitoring (optional) |
@@ -82,9 +81,8 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 
 Generate secrets locally:
 ```bash
-python -c "import secrets; print(secrets.token_hex(32))"          # SECRET_KEY
-python -c "import secrets; print(secrets.token_hex(24))"          # CRON_SECRET
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"  # ENCRYPTION_KEY
+python -c "import secrets; print(secrets.token_hex(32))"  # SECRET_KEY
+python -c "import secrets; print(secrets.token_hex(24))"  # CRON_SECRET
 ```
 
 ---
@@ -100,7 +98,7 @@ python -m flask db migrate -m "description"
 python -m flask db upgrade
 ```
 
-Migration chain: `f7ef5236638b` → `b3c1e9f02a4d` → `c4a2d8f91b3e` (current head)
+Migration chain: `f7ef5236638b` → ... → `f76103287e11` → `74a286e65b49` (current head)
 
 ---
 
@@ -119,7 +117,7 @@ python run.py                # starts Flask on http://localhost:5000
 
 - **MCF API only** — no scrapers. LinkedIn/JobStreet/Indeed scraping violates ToS. Do not add them back.
 - **No Telegram** — fully removed. Email only via Resend.
-- **Gemini API keys are encrypted** — stored with Fernet encryption using `ENCRYPTION_KEY`. If `ENCRYPTION_KEY` is not set, keys are stored plaintext (warn the user).
+- **Gemini API key is server-side only** — `GEMINI_API_KEY` env var, no per-user keys. `ENCRYPTION_KEY` is no longer needed.
 - **Stripe webhook route** — `/api/stripe/webhook` (the function is named `billing_webhook` internally but the route must stay `/api/stripe/webhook`).
 - **Subscription model** — `free` gets 10 job results per scan. `active` gets unlimited.
 - **Rate limiting** — in-memory (resets on restart). Login: 10/min. Register: 5/min. For production scale, switch to Redis.

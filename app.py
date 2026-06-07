@@ -31,7 +31,6 @@ if _sentry_dsn:
     )
 
 from authlib.integrations.flask_client import OAuth
-from cryptography.fernet import Fernet, InvalidToken
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, redirect, render_template, request, session, stream_with_context, url_for
 from flask_limiter import Limiter
@@ -118,32 +117,6 @@ google_oauth = oauth.register(
     client_kwargs={"scope": "openid email profile"},
 )
 
-_enc_key_raw = (os.getenv("ENCRYPTION_KEY") or "").strip()
-if not _enc_key_raw:
-    raise RuntimeError(
-        "ENCRYPTION_KEY is required to safely store user API keys. "
-        "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
-    )
-_fernet = Fernet(_enc_key_raw.encode())
-
-
-def _encrypt_api_key(plaintext: str) -> str:
-    if not plaintext:
-        return plaintext
-    return _fernet.encrypt(plaintext.encode()).decode()
-
-
-def _decrypt_api_key(ciphertext: str) -> str:
-    if not ciphertext:
-        return ciphertext
-    try:
-        return _fernet.decrypt(ciphertext.encode()).decode()
-    except InvalidToken:
-        warnings.warn("Fernet decryption failed — ENCRYPTION_KEY mismatch or corrupted value.")
-        return ""
-    except Exception:
-        return ""
-
 
 @login_manager.user_loader
 def load_user(user_id: str):
@@ -208,7 +181,7 @@ def _run_subprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, extra
         )
         scan["proc"] = proc
 
-        _SENSITIVE_PATTERNS = ("AIza", "gemini_api_key", "JOBSCANNER_CONFIG_FILE", "JOBSCANNER_USER_CONFIG")
+        _SENSITIVE_PATTERNS = ("AIza", "JOBSCANNER_CONFIG_FILE", "JOBSCANNER_USER_CONFIG")
 
         for line in proc.stdout:
             line = line.rstrip("\n").strip()
@@ -310,9 +283,6 @@ def _build_user_env(user: User) -> dict:
     profile  = user.profile
 
     user_cfg: dict = {}
-
-    if user.gemini_api_key:
-        user_cfg["gemini_api_key"] = _decrypt_api_key(user.gemini_api_key)
 
     if profile:
         user_cfg["profile"] = profile.to_dict()
@@ -783,25 +753,6 @@ def get_cover_note(filename):
 
 # ── Config / settings ──────────────────────────────────────────────────────────
 
-@app.route("/api/credentials", methods=["GET"])
-@login_required
-def get_credentials():
-    return jsonify({
-        "gemini_api_key":   "***" if current_user.gemini_api_key else "",
-        "gemini_configured": bool(current_user.gemini_api_key),
-    })
-
-
-@app.route("/api/credentials", methods=["POST"])
-@login_required
-def save_credentials():
-    data = request.json or {}
-    key = (data.get("gemini_api_key") or "").strip()
-    if key and key != "***":
-        current_user.gemini_api_key = _encrypt_api_key(key)
-    db.session.commit()
-    return jsonify({"ok": True})
-
 
 @app.route("/api/config", methods=["GET"])
 @login_required
@@ -809,7 +760,7 @@ def get_config():
     import config as cfg
     s = _get_or_create_settings(current_user.id)
     return jsonify({
-        "gemini_api_key":            bool(current_user.gemini_api_key or cfg.GEMINI_API_KEY),
+        "gemini_configured":         bool(cfg.GEMINI_API_KEY),
         "email_configured":          bool(os.getenv("RESEND_API_KEY")),
         "min_salary":                s.min_salary,
         "max_salary":                s.max_salary,
@@ -873,9 +824,9 @@ def parse_resume():
         return jsonify({"error": "No file uploaded"}), 400
 
     import config as cfg
-    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    api_key = cfg.GEMINI_API_KEY
     if not api_key:
-        return jsonify({"error": "GEMINI_API_KEY not configured"}), 400
+        return jsonify({"error": "GEMINI_API_KEY not configured on server"}), 400
 
     from resume_parser import extract_text, parse_with_gemini
     try:
@@ -930,9 +881,9 @@ def resume_polish():
     import config as cfg
     import requests as _req
 
-    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    api_key = cfg.GEMINI_API_KEY
     if not api_key:
-        return jsonify({"error": "Gemini API key not configured"}), 400
+        return jsonify({"error": "Gemini API key not configured on server"}), 400
 
     data    = request.json or {}
     profile = data.get("profile", {})
@@ -1005,9 +956,9 @@ def resume_tailor():
     import config as cfg
     import requests as _req
 
-    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    api_key = cfg.GEMINI_API_KEY
     if not api_key:
-        return jsonify({"error": "Gemini API key not configured"}), 400
+        return jsonify({"error": "Gemini API key not configured on server"}), 400
 
     data   = request.json or {}
     job_id = (data.get("job_id") or "").strip()
@@ -1454,9 +1405,9 @@ def interview_prep():
     if not job:
         return jsonify({"error": "Job not found"}), 404
 
-    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    api_key = cfg.GEMINI_API_KEY
     if not api_key:
-        return jsonify({"error": "Gemini API key not configured — add it in Settings"}), 400
+        return jsonify({"error": "Gemini API key not configured on server"}), 400
 
     p = current_user.profile
     profile_text = ""
