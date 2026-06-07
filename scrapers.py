@@ -88,7 +88,7 @@ def _find_working_endpoint() -> tuple | None:
     return None
 
 
-def fetch_mcf(max_pages: int = 2) -> list:
+def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
     """Fetch jobs from MyCareersFuture API for all target titles."""
     endpoint = _find_working_endpoint()
     if not endpoint:
@@ -102,6 +102,9 @@ def fetch_mcf(max_pages: int = 2) -> list:
     for title in SEARCH_CONFIG["target_titles"]:
         if consecutive_failures >= 3:
             print(f"  [MCF] Too many failures, stopping. Got {len(jobs)} jobs so far.")
+            break
+        if max_results > 0 and len(jobs) >= max_results:
+            print(f"  [MCF] Collected {len(jobs)} candidates — stopping early")
             break
 
         print(f"  → Searching: {title}")
@@ -435,9 +438,13 @@ def scrape_all_sources(max_total: int = 0) -> list:
             print(f"\n[Scan] Reached {max_total} candidate limit — skipping remaining sources")
             break
 
+        remaining = (max_total - len(all_jobs)) if max_total > 0 else 0
         print(f"\nScanning {name}...\n")
         try:
-            jobs = fn()
+            if name == "MyCareersFuture":
+                jobs = fetch_mcf(max_results=remaining)
+            else:
+                jobs = fn()
             if len(jobs) > 200:
                 print(f"  [{name}] Capping at 200 results to conserve memory")
                 jobs = jobs[:200]
