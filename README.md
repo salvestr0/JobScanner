@@ -131,4 +131,4 @@ Run migrations before deploying schema changes:
 python -m flask db upgrade
 ```
 
-Migration chain: `f7ef5236638b` → `b3c1e9f02a4d` → `c4a2d8f91b3e` → `e1a7c4d92f5b` → `a3f9c1e82b0d` → `b7d3f2e91a4c`
+Migration chain: `f7ef5236638b` → `b3c1e9f02a4d` → `c4a2d8f91b3e` → `e1a7c4d92f5b` → `a3f9c1e82b0d` → `b7d3f2e91a4c` → `f4a1d8c62e3b` → `bbb12c5f8de4`
