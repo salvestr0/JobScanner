@@ -88,7 +88,7 @@ def _find_working_endpoint() -> tuple | None:
     return None
 
 
-def fetch_mcf(max_pages: int = 3) -> list:
+def fetch_mcf(max_pages: int = 2) -> list:
     """Fetch jobs from MyCareersFuture API for all target titles."""
     endpoint = _find_working_endpoint()
     if not endpoint:
@@ -164,7 +164,7 @@ def fetch_mcf(max_pages: int = 3) -> list:
                             if isinstance(r.get("postedCompany"), dict)
                             else "Unknown"
                         ),
-                        "description": _clean_html(r.get("description", ""))[:2000],
+                        "description": _clean_html(r.get("description", ""))[:800],
                         "salary_min": sal_min,
                         "salary_max": sal_max,
                         "location": location,
@@ -201,7 +201,7 @@ def fetch_mcf(max_pages: int = 3) -> list:
 
 # ── Adzuna ────────────────────────────────────────────────────────────────────
 
-def fetch_adzuna(max_pages: int = 2) -> list:
+def fetch_adzuna(max_pages: int = 1) -> list:
     """
     Fetch Singapore jobs from Adzuna (https://developer.adzuna.com).
     Requires ADZUNA_APP_ID and ADZUNA_APP_KEY env vars (free at developer.adzuna.com).
@@ -223,7 +223,7 @@ def fetch_adzuna(max_pages: int = 2) -> list:
                     params={
                         "app_id": ADZUNA_APP_ID,
                         "app_key": ADZUNA_APP_KEY,
-                        "results_per_page": 50,
+                        "results_per_page": 20,
                         "what": title,
                         "sort_by": "date",
                     },
@@ -248,7 +248,7 @@ def fetch_adzuna(max_pages: int = 2) -> list:
                         "id": job_id,
                         "title": r.get("title", "Unknown"),
                         "company": company.get("display_name", "Unknown") if isinstance(company, dict) else "Unknown",
-                        "description": _clean_html(r.get("description", ""))[:2000],
+                        "description": _clean_html(r.get("description", ""))[:800],
                         "salary_min": _parse_salary(r.get("salary_min")),
                         "salary_max": _parse_salary(r.get("salary_max")),
                         "location": location.get("display_name", "Singapore") if isinstance(location, dict) else "Singapore",
@@ -385,6 +385,8 @@ def fetch_remoteok() -> list:
 
     jobs: list[dict] = []
     for r in data:
+        if len(jobs) >= 150:
+            break
         if not isinstance(r, dict):
             continue
 
@@ -401,7 +403,7 @@ def fetch_remoteok() -> list:
             "id": f"remoteok_{r.get('id', '')}",
             "title": r.get("position", "Unknown"),
             "company": r.get("company", "Unknown"),
-            "description": _clean_html(r.get("description", ""))[:2000],
+            "description": _clean_html(r.get("description", ""))[:800],
             "salary_min": _parse_salary(r.get("salary_min")),
             "salary_max": _parse_salary(r.get("salary_max")),
             "location": r.get("location") or "Remote",
@@ -430,6 +432,9 @@ def scrape_all_sources() -> list:
         print(f"\nScanning {name}...\n")
         try:
             jobs = fn()
+            if len(jobs) > 200:
+                print(f"  [{name}] Capping at 200 results to conserve memory")
+                jobs = jobs[:200]
             all_jobs.extend(jobs)
         except Exception as e:
             print(f"  {name} failed: {e}")
