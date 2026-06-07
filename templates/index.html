@@ -454,9 +454,21 @@
         <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        <span>Free plan — each scan returns up to <strong>10 matches</strong>.
+        <span>Free plan — up to <strong>10 matches</strong> per scan,
+          <strong x-text="stats.scans_remaining !== null ? stats.scans_remaining + ' scan' + (stats.scans_remaining === 1 ? '' : 's') + ' left today' : '3 scans/day'"></strong>.
           <button @click="subscribe()" class="underline font-semibold hover:text-indigo-900 ml-1">Upgrade to Pro</button>
-          for unlimited results.</span>
+          for unlimited.</span>
+      </div>
+
+      <!-- Daily limit reached -->
+      <div x-show="billing.is_free && stats.scans_remaining === 0" x-cloak
+        class="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-sm text-red-700">
+        <svg class="w-5 h-5 flex-shrink-0 mt-0.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        </svg>
+        <span>You've used all 3 free scans for today. Resets at midnight, or
+          <button @click="subscribe()" class="underline font-semibold hover:text-red-900">upgrade to Pro</button>
+          for unlimited scans.</span>
       </div>
 
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-4 space-y-6">
@@ -521,9 +533,9 @@
       </div>
 
       <!-- Start button -->
-      <button @click="startScan()" :disabled="scanning"
+      <button @click="startScan()" :disabled="scanning || (billing.is_free && stats.scans_remaining === 0)"
         class="w-full py-3.5 rounded-2xl font-bold text-sm transition-all mb-5 flex items-center justify-center gap-3"
-        :class="scanning?'bg-indigo-100 text-indigo-400 cursor-not-allowed':'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 hover:shadow-lg hover:shadow-indigo-600/25'">
+        :class="scanning||(billing.is_free&&stats.scans_remaining===0)?'bg-indigo-100 text-indigo-400 cursor-not-allowed':'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 hover:shadow-lg hover:shadow-indigo-600/25'">
         <svg x-show="scanning" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -2394,6 +2406,17 @@ function app() {
             this.flash('Your trial has ended — subscribe to scan.', false);
           } else {
             this.flash('Access denied', false);
+          }
+          this.scanning = false;
+          return;
+        }
+        if (r.status === 429) {
+          const d = await r.json();
+          if (d.error === 'daily_limit_reached') {
+            await this.loadStats();
+            this.flash('Daily scan limit reached (3/day). Resets at midnight.', false);
+          } else {
+            this.flash('Too many requests — please wait a moment.', false);
           }
           this.scanning = false;
           return;

@@ -99,6 +99,8 @@ class UserSettings(db.Model):
     location_keywords         = db.Column(db.JSON, default=list)
     schedule_enabled          = db.Column(db.Boolean, default=False)
     schedule_time             = db.Column(db.String(8), default="09:00")
+    daily_scan_count          = db.Column(db.Integer, default=0)
+    last_scan_date            = db.Column(db.String(10), default="")
 
     user = db.relationship("User", back_populates="settings")
 

@@ -524,13 +524,25 @@ def stats():
     for j in unique:
         j["app_status"] = status.get(j["id"], {}).get("status", "")
 
+    from datetime import date as _date
+    FREE_DAILY_LIMIT = 3
+    scans_today = 0
+    scans_remaining = None
+    if not _is_active(current_user):
+        s = current_user.settings
+        today = _date.today().isoformat()
+        if s and s.last_scan_date == today:
+            scans_today = s.daily_scan_count or 0
+        scans_remaining = max(0, FREE_DAILY_LIMIT - scans_today)
+
     return jsonify({
-        "total_jobs":  len(unique),
-        "applied":     sum(1 for v in status.values() if v["status"] == "applied"),
-        "interviews":  sum(1 for v in status.values() if v["status"] == "interview"),
-        "skipped":     sum(1 for v in status.values() if v["status"] == "skip"),
-        "last_scan":   jobs[0].get("scan_date", "Never") if jobs else "Never",
-        "recent_jobs": unique[:5],
+        "total_jobs":       len(unique),
+        "applied":          sum(1 for v in status.values() if v["status"] == "applied"),
+        "interviews":       sum(1 for v in status.values() if v["status"] == "interview"),
+        "skipped":          sum(1 for v in status.values() if v["status"] == "skip"),
+        "last_scan":        jobs[0].get("scan_date", "Never") if jobs else "Never",
+        "recent_jobs":      unique[:5],
+        "scans_remaining":  scans_remaining,
     })
 
 
@@ -1180,6 +1192,20 @@ def start_scan():
 
     if not re.match(r'^[a-z0-9_-]{1,32}$', mode):
         return jsonify({"error": "Invalid mode name"}), 400
+
+    # Daily scan limit for free plan
+    FREE_DAILY_LIMIT = 3
+    if not _is_active(current_user):
+        from datetime import date as _date
+        s = _get_or_create_settings(current_user.id)
+        today = _date.today().isoformat()
+        if s.last_scan_date != today:
+            s.daily_scan_count = 0
+            s.last_scan_date   = today
+        if s.daily_scan_count >= FREE_DAILY_LIMIT:
+            return jsonify({"error": "daily_limit_reached", "remaining": 0}), 429
+        s.daily_scan_count += 1
+        db.session.commit()
 
     with _get_scan_lock(current_user.id):
         scan = _get_scan(current_user.id)
