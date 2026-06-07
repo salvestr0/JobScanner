@@ -362,7 +362,7 @@ def _build_user_env(user: User) -> dict:
         "JOBSCANNER_USER_CONFIG": json.dumps(user_cfg),
         "JOBSCANNER_DATA_DIR":    data_dir,
     }
-    if user.subscription_status not in ("active",):
+    if user.subscription_status not in ("active",) and not user.is_admin:
         env["JOBSCANNER_MAX_JOBS"] = "10"
     return env
 
@@ -1574,6 +1574,8 @@ def delete_account():
 
 def _is_active(user) -> bool:
     """Return True if user has access (free tier or active subscription)."""
+    if user.is_admin:
+        return True
     if user.subscription_status in ("active", "free"):
         return True
     if user.subscription_status in (None, "trialing"):
@@ -1585,6 +1587,14 @@ def _is_active(user) -> bool:
 
 
 def _billing_status(user) -> dict:
+    if user.is_admin:
+        return {
+            "status":         "active",
+            "has_access":     True,
+            "is_free":        False,
+            "scan_limit":     None,
+            "trial_days_left": None,
+        }
     status  = user.subscription_status or "free"
     is_free = status not in ("active",)
 

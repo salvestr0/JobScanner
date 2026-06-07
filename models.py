@@ -40,6 +40,7 @@ class User(UserMixin, db.Model):
     stripe_customer_id  = db.Column(db.String(255))
     subscription_status = db.Column(db.String(32), default="trialing")  # trialing | active | past_due | cancelled
     trial_ends_at       = db.Column(db.DateTime(timezone=True))
+    is_admin            = db.Column(db.Boolean, default=False)
 
     # Relationships
     profile   = db.relationship("UserProfile",  back_populates="user", uselist=False, cascade="all, delete-orphan")
