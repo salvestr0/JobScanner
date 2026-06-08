@@ -8,17 +8,20 @@ import re
 from config import SEARCH_CONFIG
 
 
-def score_job(job: dict) -> dict:
+def score_job(job: dict, cfg: dict = None) -> dict:
     """
     Score a job listing against the user profile.
 
     Args:
         job: dict with keys like 'title', 'company', 'description',
              'salary_min', 'salary_max', 'location', 'url', 'source'
+        cfg: optional config snapshot; falls back to global SEARCH_CONFIG
 
     Returns:
         dict with original job data + 'score', 'score_breakdown', 'match_reasons'
     """
+    c = cfg if cfg is not None else SEARCH_CONFIG
+
     title = job.get("title", "").lower()
     description = job.get("description", "").lower()
     location = job.get("location", "").lower()
@@ -31,16 +34,16 @@ def score_job(job: dict) -> dict:
 
     # 1. TITLE MATCH (0-30 points)
     title_score = 0
-    
+
     # First check for SENIOR/LEAD in title — instant penalty
     senior_title_words = ["senior", "lead ", "lead,", "principal", "head of", "manager", "director", "vp "]
     is_senior_title = any(word in title for word in senior_title_words)
-    
+
     if is_senior_title:
         title_score = -15
         reasons.append("🚫 Senior/Lead role (not entry-level)")
     else:
-        for target in SEARCH_CONFIG["target_titles"]:
+        for target in c["target_titles"]:
             if target.lower() in title:
                 title_score = 30
                 reasons.append(f"Title match: {target}")
@@ -48,7 +51,7 @@ def score_job(job: dict) -> dict:
         # Partial match — any significant word from the current target titles appears in job title
         _skip_words = {"and", "or", "of", "the", "a", "an", "in", "for", "at", "to"}
         if title_score == 0:
-            for target in SEARCH_CONFIG["target_titles"]:
+            for target in c["target_titles"]:
                 for word in target.lower().split():
                     if word not in _skip_words and len(word) > 3 and word in title:
                         title_score = 15
@@ -58,7 +61,7 @@ def score_job(job: dict) -> dict:
                     break
         # Job was returned by a targeted search (helps sources with sparse descriptions)
         if title_score == 0 and search_query:
-            for target in SEARCH_CONFIG["target_titles"]:
+            for target in c["target_titles"]:
                 if target.lower() in search_query:
                     title_score = 15
                     reasons.append(f"Found via '{target}' search")
@@ -66,7 +69,7 @@ def score_job(job: dict) -> dict:
         # Adjacent roles — coordinator/associate/officer/support roles that match mode keywords
         if title_score == 0:
             adjacent = ["associate", "coordinator", "executive", "support", "officer", "assistant"]
-            mode_keywords = SEARCH_CONFIG.get("preferred_keywords", [])[:10]
+            mode_keywords = c.get("preferred_keywords", [])[:10]
             for adj in adjacent:
                 if adj in title and any(k in full_text for k in mode_keywords):
                     title_score = 10
@@ -78,7 +81,7 @@ def score_job(job: dict) -> dict:
     # 2. SKILLS MATCH (0-30 points)
     skills_score = 0
     matched_skills = []
-    for keyword in SEARCH_CONFIG["preferred_keywords"]:
+    for keyword in c["preferred_keywords"]:
         if keyword in full_text:
             skills_score += 3
             matched_skills.append(keyword)
@@ -125,13 +128,13 @@ def score_job(job: dict) -> dict:
     sal_min = job.get("salary_min")
     sal_max = job.get("salary_max")
     if sal_min is not None and sal_max is not None:
-        if sal_min <= SEARCH_CONFIG["max_salary"] and sal_max >= SEARCH_CONFIG["min_salary"]:
+        if sal_min <= c["max_salary"] and sal_max >= c["min_salary"]:
             salary_score = 10
             reasons.append(f"Salary in range: ${sal_min}-${sal_max}")
-        elif sal_max < SEARCH_CONFIG["min_salary"]:
+        elif sal_max < c["min_salary"]:
             salary_score = -5
             reasons.append(f"Salary below range: ${sal_max}")
-        elif sal_min > SEARCH_CONFIG["max_salary"] + 1000:
+        elif sal_min > c["max_salary"] + 1000:
             salary_score = 3  # Higher salary = probably more senior, but worth a shot
             reasons.append(f"Salary above range (may be senior): ${sal_min}")
     else:
@@ -141,7 +144,7 @@ def score_job(job: dict) -> dict:
 
     # 5. LOCATION MATCH (0-10 points)
     location_score = 0
-    for loc_kw in SEARCH_CONFIG["location_keywords"]:
+    for loc_kw in c["location_keywords"]:
         if loc_kw in full_text:
             if loc_kw in ["remote", "work from home", "wfh", "hybrid"]:
                 location_score = 10
@@ -159,7 +162,7 @@ def score_job(job: dict) -> dict:
     # 6. NEGATIVE KEYWORD PENALTY (-20 to 0)
     neg_score = 0
     neg_matches = []
-    for neg in SEARCH_CONFIG["negative_keywords"]:
+    for neg in c["negative_keywords"]:
         if neg in full_text:
             neg_score -= 5
             neg_matches.append(neg)
@@ -227,9 +230,9 @@ def score_job(job: dict) -> dict:
     return job
 
 
-def rank_jobs(jobs: list) -> list:
+def rank_jobs(jobs: list, cfg: dict = None) -> list:
     """Score and rank a list of jobs, highest score first."""
-    scored = [score_job(job) for job in jobs]
+    scored = [score_job(job, cfg) for job in jobs]
     scored.sort(key=lambda x: x["score"], reverse=True)
     return scored
 

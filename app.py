@@ -8,8 +8,6 @@ import json
 import os
 import queue
 import re
-import subprocess
-import sys
 import threading
 import warnings
 from collections import Counter, defaultdict
@@ -194,56 +192,174 @@ def _get_scan_lock(user_id: str) -> threading.Lock:
     return _scan_locks[user_id]
 
 
-def _run_subprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, extra_env: dict):
-    args = [sys.executable, "-X", "utf8", "-u", "main.py"]
-    if mode != "analyst":
-        args.append(f"--mode={mode}")
-    if not notify:
-        args.append("--no-notify")
-
-    env = os.environ.copy()
-    # Strip Flask/Stripe secrets — subprocess only needs scan-related vars
-    for _k in ("SECRET_KEY", "STRIPE_SECRET_KEY", "STRIPE_PRICE_ID",
-               "STRIPE_WEBHOOK_SECRET", "CRON_SECRET"):
-        env.pop(_k, None)
-    env.update({
-        "PYTHONUNBUFFERED": "1",
-        "PYTHONIOENCODING": "utf-8",
-        "PYTHONUTF8":       "1",
-    })
-    env.update(extra_env)
+def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, extra_env: dict):
+    """Run the scan in the Flask process (background thread) — no subprocess overhead."""
+    import config as _cfg
+    from scrapers import scrape_all_sources
+    from scorer import rank_jobs, filter_jobs
 
     scan       = _get_scan(user_id)
     failed     = False
     job_count  = 0
     history_id = scan.get("history_id")
+    all_jobs: list = []
+    new_jobs: list = []
+    matched_jobs: list = []
+
+    def log(msg: str):
+        q.put(str(msg))
+
+    user_cfg_json = extra_env.get("JOBSCANNER_USER_CONFIG", "{}")
+    max_jobs      = int(extra_env.get("JOBSCANNER_MAX_JOBS", "0"))
+
     try:
-        proc = subprocess.Popen(
-            args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-        )
-        scan["proc"] = proc
+        # ── 1. Configure SEARCH_CONFIG for this user (serialised via _config_lock) ──
+        with _config_lock:
+            _cfg.SEARCH_CONFIG.clear()
+            _cfg.SEARCH_CONFIG.update({
+                "target_titles":             [],
+                "preferred_keywords":        [],
+                "negative_keywords":         [],
+                "min_salary":                2200,
+                "max_salary":                4000,
+                "preferred_location":        "Sengkang",
+                "location_keywords":         [],
+                "min_score_threshold":       30,
+                "max_jobs_per_notification": 20,
+                "email_enabled":             False,
+                "email_to":                  "",
+            })
+            _cfg.load_user_config(user_cfg_json)
+            if mode != "analyst":
+                _cfg.set_mode(mode)
+            cfg_snapshot = dict(_cfg.SEARCH_CONFIG)
 
-        for line in proc.stdout:
-            line = line.rstrip("\n").strip()
-            if line:
-                q.put(line)
+        # ── 2. Log start ────────────────────────────────────────────────────────
+        log("=" * 50)
+        log(f"JOB SCANNER - Starting scan [{mode.upper()} mode]")
+        log(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        log("=" * 50)
 
-        proc.wait()
-        if proc.returncode != 0:
-            failed = True
+        # ── 3. Load seen jobs from DB ────────────────────────────────────────────
+        with app.app_context():
+            seen_ids = {
+                r.job_source_id
+                for r in SeenJob.query.filter_by(user_id=user_id)
+                .with_entities(SeenJob.job_source_id).all()
+            }
+        log(f"Previously seen jobs: {len(seen_ids)}")
+
+        # ── 4. Scrape ────────────────────────────────────────────────────────────
+        max_fetch = max_jobs * 3 if max_jobs > 0 else 0
+        if max_fetch:
+            log(f"Free plan — fetching up to {max_fetch} candidates (showing top {max_jobs} matches)")
+
+        log("\nScanning MyCareersFuture...")
+        all_jobs = scrape_all_sources(max_total=max_fetch)
+
+        if not all_jobs:
+            log("No jobs found from any source. Check your internet connection.")
+        else:
+            # ── 5. Filter seen ───────────────────────────────────────────────────
+            new_jobs = [j for j in all_jobs if j["id"] not in seen_ids]
+            log(f"New jobs (not seen before): {len(new_jobs)}")
+
+            if new_jobs:
+                # ── 6. Score ─────────────────────────────────────────────────────
+                log("Scoring jobs against your profile...")
+                scored_jobs  = rank_jobs(new_jobs, cfg=cfg_snapshot)
+                threshold    = cfg_snapshot.get("min_score_threshold", 30)
+                matched_jobs = filter_jobs(scored_jobs, threshold)
+                log(f"Jobs above score threshold ({threshold}): {len(matched_jobs)}")
+
+                if max_jobs > 0 and len(matched_jobs) > max_jobs:
+                    log(f"Free plan: capping at {max_jobs} matches")
+                    matched_jobs = matched_jobs[:max_jobs]
+
+                max_notify = cfg_snapshot.get("max_jobs_per_notification", 20)
+                top_jobs   = matched_jobs[:max_notify]
+
+                if top_jobs:
+                    log(f"\nTop {len(top_jobs)} matches:")
+                    for i, job in enumerate(top_jobs, 1):
+                        sal = (f" | ${job['salary_min']}-${job['salary_max']}"
+                               if job.get("salary_min") and job.get("salary_max") else "")
+                        log(f"  {i}. [{job['score']}/100] {job['title']} @ {job['company']}{sal}")
+
+                # ── 7. Write matches + seen IDs directly to DB ───────────────────
+                with app.app_context():
+                    now = datetime.now(timezone.utc)
+                    for job in matched_jobs:
+                        if not Job.query.filter_by(user_id=user_id, source_job_id=job["id"]).first():
+                            db.session.add(Job(
+                                user_id       = user_id,
+                                source_job_id = job["id"],
+                                title         = job.get("title", ""),
+                                company       = job.get("company", ""),
+                                location      = job.get("location", ""),
+                                source        = job.get("source", ""),
+                                url           = job.get("url", ""),
+                                posted_date   = job.get("posted_date", ""),
+                                closing_date  = job.get("closing_date") or None,
+                                salary_min    = job.get("salary_min"),
+                                salary_max    = job.get("salary_max"),
+                                score         = job.get("score", 0),
+                                match_reasons = " | ".join(job.get("match_reasons", [])),
+                                scan_date     = now,
+                            ))
+                    # Mark ALL scraped jobs as seen (not just matched ones)
+                    existing_seen = {
+                        r.job_source_id
+                        for r in SeenJob.query.filter_by(user_id=user_id)
+                        .with_entities(SeenJob.job_source_id).all()
+                    }
+                    for job in all_jobs:
+                        if job["id"] not in existing_seen:
+                            db.session.add(SeenJob(user_id=user_id, job_source_id=job["id"]))
+                    db.session.commit()
+                    job_count = len(matched_jobs)
+
+                log(f"\nResults saved: {job_count} new matched jobs")
+
+                # ── 8. Email digest (Pro plan only) ──────────────────────────────
+                if notify and not max_jobs:
+                    _email_to      = cfg_snapshot.get("email_to", "")
+                    _email_enabled = cfg_snapshot.get("email_enabled", False)
+                    if _email_enabled and _email_to and top_jobs:
+                        try:
+                            log("Sending email digest...")
+                            from notifier import send_email_digest
+                            send_email_digest(top_jobs, {"email_to": _email_to, "email_enabled": True})
+                        except Exception as _e:
+                            log(f"Email notification skipped: {_e}")
+            else:
+                # Still mark all scraped jobs as seen even when nothing is new
+                with app.app_context():
+                    existing_seen = {
+                        r.job_source_id
+                        for r in SeenJob.query.filter_by(user_id=user_id)
+                        .with_entities(SeenJob.job_source_id).all()
+                    }
+                    for job in all_jobs:
+                        if job["id"] not in existing_seen:
+                            db.session.add(SeenJob(user_id=user_id, job_source_id=job["id"]))
+                    db.session.commit()
+                log("No new jobs since last scan.")
+
+        # ── 9. Summary ───────────────────────────────────────────────────────────
+        log(f"\n{'=' * 50}")
+        log("SCAN COMPLETE")
+        log(f"   Total scraped: {len(all_jobs)}")
+        log(f"   New listings:  {len(new_jobs)}")
+        log(f"   Matched:       {job_count}")
+        log(f"{'=' * 50}")
+
     except Exception as exc:
-        q.put(f"ERROR: {exc}")
+        log(f"ERROR: {exc}")
+        app.logger.error("Scan error for user %s: %s", user_id, exc, exc_info=True)
         failed = True
     finally:
-        # Sync CSV/seen_jobs written by the subprocess back into the DB
         with app.app_context():
-            job_count = _sync_scan_results(user_id, extra_env.get("JOBSCANNER_DATA_DIR", f"data/users/{user_id}"))
             if history_id:
                 row = db.session.get(ScanHistory, history_id)
                 if row:
@@ -256,78 +372,8 @@ def _run_subprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, extra
         scan["proc"]    = None
 
 
-def _sync_scan_results(user_id: str, data_dir: str):
-    """
-    Import matched_jobs.csv and seen_jobs.json written by the scan subprocess
-    into the database. Called automatically after each scan finishes.
-    """
-    import csv as _csv
-
-    jobs_csv   = os.path.join(data_dir, "matched_jobs.csv")
-    seen_file  = os.path.join(data_dir, "seen_jobs.json")
-
-    # ── Import new jobs from CSV ───────────────────────────────────────────────
-    new_count = 0
-    if os.path.exists(jobs_csv):
-        def _int(v):
-            try:
-                return int(v) if v and str(v).strip() else None
-            except ValueError:
-                return None
-
-        with open(jobs_csv, newline="", encoding="utf-8") as f:
-            for row in _csv.DictReader(f):
-                job_id = (row.get("id") or "").strip()
-                if not job_id:
-                    continue
-                exists = Job.query.filter_by(user_id=user_id, source_job_id=job_id).first()
-                if exists:
-                    continue
-                scan_dt = None
-                for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
-                    try:
-                        scan_dt = datetime.strptime(row.get("scan_date", ""), fmt).replace(tzinfo=timezone.utc)
-                        break
-                    except (ValueError, TypeError):
-                        pass
-                db.session.add(Job(
-                    user_id       = user_id,
-                    source_job_id = job_id,
-                    title         = row.get("title", ""),
-                    company       = row.get("company", ""),
-                    location      = row.get("location", ""),
-                    source        = row.get("source", ""),
-                    url           = row.get("url", ""),
-                    posted_date   = row.get("posted_date", ""),
-                    closing_date  = row.get("closing_date", "") or None,
-                    salary_min    = _int(row.get("salary_min")),
-                    salary_max    = _int(row.get("salary_max")),
-                    score         = _int(row.get("score")) or 0,
-                    match_reasons = row.get("match_reasons", ""),
-                    scan_date     = scan_dt or datetime.now(timezone.utc),
-                ))
-                new_count += 1
-        db.session.commit()
-
-    # ── Sync seen job IDs ──────────────────────────────────────────────────────
-    if os.path.exists(seen_file):
-        with open(seen_file, encoding="utf-8") as f:
-            seen_ids = set(json.load(f))
-        existing_ids = {
-            r.job_source_id
-            for r in SeenJob.query.filter_by(user_id=user_id).with_entities(SeenJob.job_source_id).all()
-        }
-        new_seen = seen_ids - existing_ids
-        for job_id in new_seen:
-            db.session.add(SeenJob(user_id=user_id, job_source_id=job_id))
-        if new_seen:
-            db.session.commit()
-
-    return new_count
-
-
 def _build_user_env(user: User) -> dict:
-    """Serialize user credentials + settings into env vars for the subprocess."""
+    """Build the extra_env dict passed to _run_scan_inprocess."""
     settings = user.settings
     profile  = user.profile
 
@@ -1411,7 +1457,7 @@ def start_scan():
 
     extra_env = _build_user_env(current_user)
     t = threading.Thread(
-        target=_run_subprocess,
+        target=_run_scan_inprocess,
         args=(current_user.id, mode, notify, scan["q"], extra_env),
         daemon=True,
     )
@@ -1821,7 +1867,7 @@ def cron_scan():
                 scan["q"]       = queue.Queue()
                 extra_env = _build_user_env(user)
                 t = threading.Thread(
-                    target=_run_subprocess,
+                    target=_run_scan_inprocess,
                     args=(s.user_id, "analyst", True, scan["q"], extra_env),
                     daemon=True,
                 )
