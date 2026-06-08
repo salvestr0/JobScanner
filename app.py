@@ -995,6 +995,51 @@ def get_cover_note(filename):
     return jsonify({"content": path.read_text(encoding="utf-8")})
 
 
+@app.route("/api/cover-notes/generate", methods=["POST"])
+@login_required
+@limiter.limit("5/minute;30/hour")
+def generate_cover_note_route():
+    if not _is_active(current_user):
+        return jsonify({"error": "pro_required"}), 403
+
+    import config as cfg
+    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+
+    data   = request.json or {}
+    job_id = (data.get("job_id") or "").strip()
+    if not job_id:
+        return jsonify({"error": "job_id required"}), 400
+
+    job_row = Job.query.filter_by(user_id=current_user.id, source_job_id=job_id).first()
+    if not job_row:
+        return jsonify({"error": "Job not found"}), 404
+
+    profile      = _get_or_create_profile(current_user.id)
+    profile_dict = profile.to_dict()
+    if not profile_dict.get("email"):
+        profile_dict["email"] = current_user.email
+
+    job_dict = {
+        "title":        job_row.title or "",
+        "company":      job_row.company or "",
+        "description":  "",
+        "url":          job_row.url or "",
+        "score":        job_row.score or 0,
+        "match_reasons": [r.strip() for r in (job_row.match_reasons or "").split("|") if r.strip()],
+    }
+
+    try:
+        from cover_notes import generate_cover_note, save_cover_note
+        note_text = generate_cover_note(job_dict, api_key=api_key, profile=profile_dict)
+        notes_dir = _cover_notes_dir(current_user.id)
+        notes_dir.mkdir(parents=True, exist_ok=True)
+        save_cover_note(job_dict, note_text, str(notes_dir))
+        return jsonify({"ok": True, "content": note_text})
+    except Exception as e:
+        app.logger.error("Cover note generation failed for user %s: %s", current_user.id, e, exc_info=True)
+        return jsonify({"error": "AI request failed. Please try again later."}), 502
+
+
 # ── Config / settings ──────────────────────────────────────────────────────────
 
 @app.route("/api/config", methods=["GET"])

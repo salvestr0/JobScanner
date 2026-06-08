@@ -17,47 +17,50 @@ from config import GEMINI_API_KEY, PROFILE
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 
-def generate_cover_note(job: dict) -> str:
+def generate_cover_note(job: dict, api_key: str = None, profile: dict = None) -> str:
     """
     Generate a cover note for a job listing.
     Uses Gemini Flash if API key is available, otherwise falls back to template.
+    Pass api_key and profile directly to avoid relying on global config.
     """
-    if GEMINI_API_KEY:
+    _key  = api_key or GEMINI_API_KEY
+    _prof = profile or PROFILE
+    if _key:
         try:
-            return _generate_ai_cover_note(job)
+            return _generate_ai_cover_note(job, _key, _prof)
         except Exception as e:
             print(f"  AI cover note failed ({e}), using template")
-            return _generate_template_cover_note(job)
+            return _generate_template_cover_note(job, _prof)
     else:
-        return _generate_template_cover_note(job)
+        return _generate_template_cover_note(job, _prof)
 
 
-def _generate_ai_cover_note(job: dict) -> str:
+def _generate_ai_cover_note(job: dict, api_key: str, profile: dict) -> str:
     """Generate a cover note using Gemini Flash."""
-    work_history = PROFILE.get("work_history", [])
+    work_history = profile.get("work_history", [])
     work_lines = "\n".join(
         f"  - {w.get('title','')} at {w.get('company','')} ({w.get('period','')}): {w.get('summary','')}"
         for w in work_history[:3]
     ) or "  - No work history provided"
 
-    projects = PROFILE.get("projects", [])
+    projects = profile.get("projects", [])
     project_line = (
         f"- Recent project: {projects[0].get('name', 'Personal Project')} — {projects[0].get('description', '')}"
         if projects else ""
     )
 
-    certs = PROFILE.get("certifications", [])
+    certs = profile.get("certifications", [])
 
     prompt = f"""Write a short, personalized cover note (3-4 paragraphs, under 200 words) for a job application.
 
 APPLICANT PROFILE:
-- Name: {PROFILE.get('name', 'Applicant')}
-- Education: {PROFILE.get('education', '')}
+- Name: {profile.get('name', 'Applicant')}
+- Education: {profile.get('education', '')}
 - Certifications: {', '.join(certs) if certs else 'None listed'}
-- Technical Skills: {', '.join(PROFILE.get('technical_skills', []))}
+- Technical Skills: {', '.join(profile.get('technical_skills', []))}
 - Work History:
 {work_lines}
-- Experience Summary: {PROFILE.get('experience_summary', '')}
+- Experience Summary: {profile.get('experience_summary', '')}
 {project_line}
 
 JOB DETAILS:
@@ -77,7 +80,7 @@ INSTRUCTIONS:
 
     response = requests.post(
         GEMINI_API_URL,
-        params={"key": GEMINI_API_KEY},
+        params={"key": api_key},
         headers={"Content-Type": "application/json"},
         json={"contents": [{"parts": [{"text": prompt}]}]},
         timeout=30,
@@ -87,19 +90,20 @@ INSTRUCTIONS:
     return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def _generate_template_cover_note(job: dict) -> str:
+def _generate_template_cover_note(job: dict, profile: dict = None) -> str:
     """Generate a cover note using keyword-matching templates."""
+    _prof = profile or PROFILE
     title = job.get("title", "this role")
     company = job.get("company", "your company")
     description = job.get("description", "").lower()
 
-    name     = PROFILE.get("name", "Applicant")
-    email    = PROFILE.get("email", "")
-    phone    = PROFILE.get("phone", "")
-    education = PROFILE.get("education", "")
+    name     = _prof.get("name", "Applicant")
+    email    = _prof.get("email", "")
+    phone    = _prof.get("phone", "")
+    education = _prof.get("education", "")
 
     # Detect which skills from the JD match the profile
-    skill_matches = []
+    skill_matches: list = []
     skill_map = {
         "sql": "SQL for database querying and management",
         "excel": "Microsoft Excel for data analysis and reporting",
@@ -116,13 +120,13 @@ def _generate_template_cover_note(job: dict) -> str:
         if kw in description:
             skill_matches.append(label)
     if not skill_matches:
-        skill_matches = list(PROFILE.get("technical_skills", ["SQL", "Excel", "Python"]))[:4]
+        skill_matches = list(_prof.get("technical_skills", ["SQL", "Excel", "Python"]))[:4]
 
     skills_text = ", ".join(skill_matches[:3])
 
     # Build experience line from work history
-    work_history = PROFILE.get("work_history", [])
-    experience_summary = PROFILE.get("experience_summary", "")
+    work_history = _prof.get("work_history", [])
+    experience_summary = _prof.get("experience_summary", "")
 
     if work_history:
         recent = work_history[0]
@@ -148,7 +152,7 @@ def _generate_template_cover_note(job: dict) -> str:
         )
 
     # Build projects line
-    projects = PROFILE.get("projects", [])
+    projects = _prof.get("projects", [])
     project_line = ""
     if projects:
         p = projects[0]
