@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Job Scanner</title>
+  <title>CareerJobScan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -215,7 +215,7 @@
           </svg>
         </div>
         <div>
-          <div class="text-white font-semibold text-sm">Job Scanner</div>
+          <div class="text-white font-semibold text-sm">CareerJobScan</div>
           <div class="text-slate-500 text-xs mt-0.5">Singapore</div>
         </div>
       </div>
@@ -519,7 +519,7 @@
               <span x-text="genning?'Generating…':'AI Generate'"></span>
             </button>
           </div>
-          <p class="text-slate-400 text-xs mt-1.5">JobScanner generates job titles + keywords for any industry</p>
+          <p class="text-slate-400 text-xs mt-1.5">CareerJobScan generates job titles + keywords for any industry</p>
         </div>
 
         <!-- Notify toggle -->
@@ -1144,7 +1144,7 @@
         <!-- Resume Upload -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
           <h3 class="font-bold text-slate-800 text-sm mb-1">Import from Resume</h3>
-          <p class="text-slate-400 text-xs mb-4">Upload a PDF, DOCX, or TXT file — JobScanner will extract and fill in your profile fields.</p>
+          <p class="text-slate-400 text-xs mb-4">Upload a PDF, DOCX, or TXT file — CareerJobScan will extract and fill in your profile fields.</p>
 
           <!-- Drop zone -->
           <label
@@ -1355,7 +1355,7 @@
             <div class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</div>
             <div class="flex-1">
               <p class="text-sm font-semibold text-slate-700 mb-1">Polish with AI</p>
-              <p class="text-xs text-slate-400 mb-3">JobScanner rewrites your summary, experience, and skills to sound more professional and ATS-friendly.</p>
+              <p class="text-xs text-slate-400 mb-3">CareerJobScan rewrites your summary, experience, and skills to sound more professional and ATS-friendly.</p>
               <button @click="polishResume()" :disabled="resumePolishing"
                 class="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
                 <svg x-show="resumePolishing" class="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
@@ -1421,7 +1421,7 @@
     <div x-show="page==='interview'" class="page-in p-8 max-w-3xl mx-auto">
       <div class="mb-8">
         <h1 class="text-2xl font-semibold text-slate-900">Interview Prep</h1>
-        <p class="text-slate-500 text-sm mt-1">Pick a job and JobScanner generates tailored interview questions</p>
+        <p class="text-slate-500 text-sm mt-1">Pick a job and CareerJobScan generates tailored interview questions</p>
       </div>
 
       <!-- Pro gate -->
@@ -1705,7 +1705,7 @@
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-sm font-semibold text-slate-700">Run scan daily</div>
-                <div class="text-xs text-slate-400 mt-0.5">Registers a Windows Task Scheduler job named "JobScanner"</div>
+                <div class="text-xs text-slate-400 mt-0.5">Registers a Windows Task Scheduler job named "CareerJobScan"</div>
               </div>
               <button @click="schedule.enabled=!schedule.enabled"
                 class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
@@ -1884,7 +1884,7 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
           </svg>
-          <p class="text-slate-500 text-sm">JobScanner is tailoring your resume…</p>
+          <p class="text-slate-500 text-sm">CareerJobScan is tailoring your resume…</p>
         </div>
 
         <!-- Error -->

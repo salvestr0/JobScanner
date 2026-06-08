@@ -1,5 +1,5 @@
-"""
-Configuration for Job Scanner Tool.
+﻿"""
+Configuration for CareerJobScan Tool.
 All credentials are loaded from environment variables (set via .env or Railway).
 """
 

@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-Job Scanner Tool - Main Entry Point
+CareerJobScan Tool - Main Entry Point
 ====================================
 Scrapes job boards, scores matches against your profile,
 generates cover notes, and emails results via Resend.

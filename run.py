@@ -1,5 +1,5 @@
-"""
-Job Scanner — single entry point
+﻿"""
+CareerJobScan — single entry point
 Run: python run.py
 """
 import threading
@@ -18,6 +18,6 @@ def _open_browser():
 
 
 if __name__ == "__main__":
-    print(f"Starting Job Scanner at {URL}")
+    print(f"Starting CareerJobScan at {URL}")
     threading.Thread(target=_open_browser, daemon=True).start()
     app.run(debug=False, threaded=True, port=PORT)
