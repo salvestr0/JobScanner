@@ -103,15 +103,18 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
     jobs: list[dict] = []
     consecutive_failures = 0
 
-    for title in SEARCH_CONFIG["target_titles"]:
+    # Limit titles to avoid MCF rate-limiting on low-memory servers
+    titles_to_search = SEARCH_CONFIG["target_titles"][:4]
+
+    for title in titles_to_search:
         if consecutive_failures >= 3:
             print(f"  [MCF] Too many failures, stopping. Got {len(jobs)} jobs so far.")
             break
         if max_results > 0 and len(jobs) >= max_results:
             print(f"  [MCF] Collected {len(jobs)} candidates — stopping early")
             break
-        if len(jobs) >= 400:
-            print(f"  [MCF] Hard cap reached (400) — stopping to conserve memory")
+        if len(jobs) >= 200:
+            print(f"  [MCF] Cap reached — stopping to conserve memory")
             break
 
         print(f"  → Searching: {title}")
@@ -119,7 +122,8 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
 
         for page in range(max_pages):
             try:
-                resp = requests.get(url, params=param_fn(title, page), headers=_MCF_HEADERS, timeout=8)
+                # Separate connect/read timeouts — read timeout cuts stalled responses
+                resp = requests.get(url, params=param_fn(title, page), headers=_MCF_HEADERS, timeout=(5, 12))
                 resp.raise_for_status()
                 data = resp.json()
 
@@ -186,7 +190,7 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
                     title_count += 1
 
                 print(f"     page {page + 1}: {len(results)} listings")
-                time.sleep(1.5)
+                time.sleep(2.5)
 
             except requests.exceptions.Timeout:
                 print(f"  [MCF] Timeout for '{title}' page {page} — skipping")
