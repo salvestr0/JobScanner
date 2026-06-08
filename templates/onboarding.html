@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -11,41 +11,41 @@
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
   <style>
     body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
-    .tag { display:inline-flex; align-items:center; gap:4px; background:#EEF2FF; color:#4338CA;
-           font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px; }
-    .tag button { line-height:1; color:#818CF8; font-size:14px; }
-    .tag button:hover { color:#4338CA; }
+    .tag { display:inline-flex; align-items:center; gap:4px; background:#FEF3C7; color:#92400E;
+           font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px; border:1px solid #FDE68A; }
+    .tag button { line-height:1; color:#D97706; font-size:14px; }
+    .tag button:hover { color:#92400E; }
     [x-cloak] { display:none !important; }
   </style>
 </head>
-<body class="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4"
+<body class="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-4"
   x-data="wizard()" x-init="init()">
 
   <!-- Header -->
   <div class="w-full max-w-lg mb-8">
     <div class="flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center">
+      <a href="/" class="flex items-center gap-2.5">
+        <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center">
           <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
           </svg>
         </div>
-        <span class="text-white font-semibold text-sm">CareerJobScan</span>
-      </div>
-      <a href="/app" class="text-slate-500 hover:text-slate-300 text-xs font-medium transition-colors">Skip setup →</a>
+        <span class="text-stone-900 font-semibold text-sm">CareerJobScan</span>
+      </a>
+      <a href="/app" class="text-stone-400 hover:text-stone-600 text-xs font-medium transition-colors">Skip setup →</a>
     </div>
   </div>
 
   <!-- Card -->
   <div class="w-full max-w-lg">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-7 shadow-xl">
-      <p class="text-indigo-400 text-xs font-semibold uppercase tracking-widest mb-2">Quick Setup</p>
-      <h2 class="text-white text-xl font-semibold mb-1">What jobs are you looking for?</h2>
-      <p class="text-slate-400 text-sm mb-6">Add job titles to search for. You can change these anytime in Settings.</p>
+    <div class="bg-white border border-stone-200 rounded-2xl p-7 shadow-sm">
+      <p class="text-amber-600 text-xs font-semibold uppercase tracking-widest mb-2">Quick Setup</p>
+      <h2 class="text-stone-900 text-xl font-semibold mb-1">What jobs are you looking for?</h2>
+      <p class="text-stone-500 text-sm mb-6">Add job titles to search for. You can change these anytime in Settings.</p>
 
       <!-- Target Titles -->
       <div class="mb-5">
-        <label class="block text-slate-300 text-sm font-medium mb-2">Job Titles</label>
+        <label class="block text-stone-700 text-sm font-medium mb-2">Job Titles</label>
         <div class="flex flex-wrap gap-2 mb-2 min-h-[28px]">
           <template x-for="(t, i) in titles" :key="i">
             <span class="tag">
@@ -57,20 +57,20 @@
         <div class="flex gap-2">
           <input x-model="newTitle" type="text" placeholder="Type a job title…"
             @keydown.enter.prevent="addTitle()"
-            class="flex-1 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white
-                   placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            class="flex-1 px-3 py-2.5 rounded-xl bg-white border border-stone-200 text-stone-900
+                   placeholder-stone-400 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
           <button @click="addTitle()"
-            class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition-colors">
+            class="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-semibold rounded-xl transition-colors">
             Add
           </button>
         </div>
         <div class="mt-2.5">
-          <p class="text-slate-500 text-xs mb-1.5">Suggestions — click to add:</p>
+          <p class="text-stone-400 text-xs mb-1.5">Suggestions — click to add:</p>
           <div class="flex flex-wrap gap-1.5">
             <template x-for="s in titleSuggestions.filter(s => !titles.includes(s))" :key="s">
               <button @click="titles.push(s)"
-                class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-indigo-900 border border-slate-700 hover:border-indigo-600
-                       text-slate-400 hover:text-indigo-300 text-xs font-medium transition-colors">
+                class="px-2.5 py-1 rounded-full bg-stone-50 hover:bg-amber-50 border border-stone-200 hover:border-amber-300
+                       text-stone-500 hover:text-amber-700 text-xs font-medium transition-colors">
                 + <span x-text="s"></span>
               </button>
             </template>
@@ -80,7 +80,7 @@
 
       <!-- Preferred Keywords -->
       <div class="mb-6">
-        <label class="block text-slate-300 text-sm font-medium mb-2">Boost Keywords <span class="text-slate-500 font-normal">(optional)</span></label>
+        <label class="block text-stone-700 text-sm font-medium mb-2">Boost Keywords <span class="text-stone-400 font-normal">(optional)</span></label>
         <div class="flex flex-wrap gap-2 mb-2 min-h-[28px]">
           <template x-for="(k, i) in prefKws" :key="i">
             <span class="tag">
@@ -92,33 +92,33 @@
         <div class="flex gap-2">
           <input x-model="newPrefKw" type="text" placeholder="Type a keyword…"
             @keydown.enter.prevent="addPrefKw()"
-            class="flex-1 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white
-                   placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            class="flex-1 px-3 py-2.5 rounded-xl bg-white border border-stone-200 text-stone-900
+                   placeholder-stone-400 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
           <button @click="addPrefKw()"
-            class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold rounded-xl transition-colors">
+            class="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold rounded-xl transition-colors">
             Add
           </button>
         </div>
         <div class="mt-2.5">
-          <p class="text-slate-500 text-xs mb-1.5">Suggestions — click to add:</p>
+          <p class="text-stone-400 text-xs mb-1.5">Suggestions — click to add:</p>
           <div class="flex flex-wrap gap-1.5">
             <template x-for="s in kwSuggestions.filter(s => !prefKws.includes(s))" :key="s">
               <button @click="prefKws.push(s)"
-                class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-indigo-900 border border-slate-700 hover:border-indigo-600
-                       text-slate-400 hover:text-indigo-300 text-xs font-medium transition-colors">
+                class="px-2.5 py-1 rounded-full bg-stone-50 hover:bg-amber-50 border border-stone-200 hover:border-amber-300
+                       text-stone-500 hover:text-amber-700 text-xs font-medium transition-colors">
                 + <span x-text="s"></span>
               </button>
             </template>
           </div>
         </div>
-        <p class="text-slate-500 text-xs mt-2">Jobs mentioning these keywords score higher.</p>
+        <p class="text-stone-400 text-xs mt-2">Jobs mentioning these keywords score higher.</p>
       </div>
 
       <!-- Error -->
-      <div x-show="err" x-cloak class="mb-4 px-3 py-2 rounded-lg bg-red-950 border border-red-800 text-red-300 text-sm" x-text="err"></div>
+      <div x-show="err" x-cloak class="mb-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm" x-text="err"></div>
 
       <button @click="finish()" :disabled="saving || titles.length === 0"
-        class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+        class="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
         <svg x-show="saving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
