@@ -51,7 +51,12 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 ## Deployment
 
 - **Render web service** — `gunicorn app:app`, auto-deploys from `master`
-- **Render cron job** — calls `/api/cron/scan` with `X-Cron-Secret` header daily
+- **Render cron jobs** — all protected by `X-Cron-Secret` header matching `CRON_SECRET`:
+  - `/api/cron/scan` — every 15 min, triggers scheduled user scans
+  - `/api/cron/weekly-digest` — Mondays 08:00 SGT, sends email digests
+  - `/api/cron/cleanup` — daily, deletes jobs >60 days old (keeps tracked), scan_history >90 days
+  - `/api/cron/expire-trials` — daily, flips expired trialing users to `expired` in DB
+  - `/api/cron/stripe-sync` — daily, syncs Stripe subscription status to fix missed webhooks
 - **Supabase** — Session Pooler connection (IPv4 compatible), port 5432
 - **Stripe webhook** — endpoint: `/api/stripe/webhook` (not `/api/billing/webhook`)
 - **Migrations** — run locally against Supabase before deploying schema changes:
@@ -67,7 +72,7 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 |-----|---------|
 | `SECRET_KEY` | Flask session secret |
 | `DATABASE_URL` | Supabase Session Pooler URI |
-| `CRON_SECRET` | Protects `/api/cron/scan` |
+| `CRON_SECRET` | Protects all `/api/cron/*` endpoints |
 | `STRIPE_SECRET_KEY` | Stripe API key |
 | `STRIPE_PRICE_ID` | Stripe price ID for $8/mo plan |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
@@ -126,7 +131,7 @@ python run.py                # starts Flask on http://localhost:5000
 
 ---
 
-## Feature Status (as of 2026-06-07)
+## Feature Status (as of 2026-06-08)
 
 - [x] MCF API job fetching
 - [x] Gemini job scoring + match reasons
@@ -140,6 +145,15 @@ python run.py                # starts Flask on http://localhost:5000
 - [x] Score breakdown popover on job cards
 - [x] Interview Prep tab (Gemini-generated questions)
 - [x] Render + Supabase deployment
+- [x] Sentry error monitoring + Redis rate limiting
+- [x] Job hiding/dismissal
+- [x] Resume tailoring per job
+- [x] Admin dashboard (/admin)
+- [x] Password reset flow
+- [x] Account deletion (PDPA compliant)
+- [x] Export jobs as CSV
+- [x] Scan history tracking
+- [x] Cron: cleanup, expire-trials, stripe-sync
 
 ---
 

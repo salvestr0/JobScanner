@@ -1922,6 +1922,123 @@ def cron_weekly_digest():
     return jsonify({"sent": len(sent_to), "recipients": sent_to})
 
 
+@app.route("/api/cron/cleanup", methods=["POST"])
+def cron_cleanup():
+    """
+    Delete jobs older than 60 days, keeping any that have an application status.
+    Also removes scan_history rows older than 90 days.
+    Called daily by Render cron.
+    """
+    secret   = os.getenv("CRON_SECRET", "")
+    incoming = request.headers.get("X-Cron-Secret", "")
+    if not secret or not hmac.compare_digest(incoming, secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    cutoff_jobs  = datetime.now(timezone.utc) - timedelta(days=60)
+    cutoff_scans = datetime.now(timezone.utc) - timedelta(days=90)
+
+    # IDs of jobs that have an application status — never delete these
+    tracked_ids = {
+        r.job_source_id
+        for r in ApplicationStatus.query.with_entities(ApplicationStatus.job_source_id).all()
+    }
+
+    stale = Job.query.filter(Job.scan_date < cutoff_jobs).all()
+    deleted_jobs = 0
+    for job in stale:
+        if job.source_job_id not in tracked_ids:
+            db.session.delete(job)
+            deleted_jobs += 1
+
+    deleted_scans = ScanHistory.query.filter(
+        ScanHistory.started_at < cutoff_scans
+    ).delete(synchronize_session=False)
+
+    db.session.commit()
+    return jsonify({"deleted_jobs": deleted_jobs, "deleted_scan_history": deleted_scans})
+
+
+@app.route("/api/cron/expire-trials", methods=["POST"])
+def cron_expire_trials():
+    """
+    Flip trialing users whose trial_ends_at is in the past to 'expired' in the DB.
+    Without this, the admin dashboard shows incorrect subscription counts.
+    Called daily by Render cron.
+    """
+    secret   = os.getenv("CRON_SECRET", "")
+    incoming = request.headers.get("X-Cron-Secret", "")
+    if not secret or not hmac.compare_digest(incoming, secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    now     = datetime.now(timezone.utc)
+    expired = User.query.filter(
+        User.subscription_status == "trialing",
+        User.trial_ends_at != None,  # noqa: E711
+        User.trial_ends_at < now,
+    ).all()
+
+    for user in expired:
+        user.subscription_status = "expired"
+
+    db.session.commit()
+    return jsonify({"expired": len(expired)})
+
+
+@app.route("/api/cron/stripe-sync", methods=["POST"])
+def cron_stripe_sync():
+    """
+    Sync Stripe subscription status for all non-free users.
+    Corrects drift caused by missed or failed webhooks.
+    Called daily by Render cron.
+    """
+    secret   = os.getenv("CRON_SECRET", "")
+    incoming = request.headers.get("X-Cron-Secret", "")
+    if not secret or not hmac.compare_digest(incoming, secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    import stripe as _stripe
+    _stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+    if not _stripe.api_key:
+        return jsonify({"error": "STRIPE_SECRET_KEY not set"}), 500
+
+    STATUS_MAP = {
+        "active":   "active",
+        "trialing": "trialing",
+        "past_due": "past_due",
+        "canceled": "cancelled",
+        "unpaid":   "past_due",
+        "paused":   "past_due",
+    }
+
+    users = User.query.filter(
+        User.stripe_customer_id != None,  # noqa: E711
+        User.subscription_status.in_(["active", "past_due", "cancelled"]),
+    ).all()
+
+    updated = []
+    for user in users:
+        try:
+            subs = _stripe.Subscription.list(
+                customer=user.stripe_customer_id, limit=1, status="all"
+            )
+            if not subs.data:
+                if user.subscription_status != "cancelled":
+                    user.subscription_status = "cancelled"
+                    updated.append(user.email)
+                continue
+
+            sub        = subs.data[0]
+            new_status = STATUS_MAP.get(sub.status, user.subscription_status)
+            if new_status != user.subscription_status:
+                user.subscription_status = new_status
+                updated.append(user.email)
+        except Exception:
+            continue
+
+    db.session.commit()
+    return jsonify({"synced": len(users), "updated": updated})
+
+
 # ── Admin ─────────────────────────────────────────────────────────────────────
 
 def _is_admin(user) -> bool:
