@@ -12,10 +12,14 @@ from email.utils import parsedate_to_datetime
 
 
 import re
+import socket
 
 import requests
 
 from config import ADZUNA_APP_ID, ADZUNA_APP_KEY, SEARCH_CONFIG
+
+# Hard backstop — prevents TCP-stall hangs that bypass requests' timeout
+socket.setdefaulttimeout(10)
 
 # ── Shared headers ────────────────────────────────────────────────────────────
 
@@ -77,7 +81,7 @@ def _find_working_endpoint() -> tuple | None:
     probe_term = titles[0]
     for url, param_fn in _MCF_ENDPOINTS:
         try:
-            resp = requests.get(url, params=param_fn(probe_term, 0), headers=_MCF_HEADERS, timeout=8)
+            resp = requests.get(url, params=param_fn(probe_term, 0), headers=_MCF_HEADERS, timeout=(3, 8))
             if resp.status_code != 200:
                 continue
             data = resp.json()
@@ -103,8 +107,8 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
     jobs: list[dict] = []
     consecutive_failures = 0
 
-    # Limit titles to avoid MCF rate-limiting on low-memory servers
-    titles_to_search = SEARCH_CONFIG["target_titles"][:4]
+    # Cap at 3 titles — probe counts as request #1, so 3 searches = 4 total before MCF blocks
+    titles_to_search = SEARCH_CONFIG["target_titles"][:3]
 
     for title in titles_to_search:
         if consecutive_failures >= 3:
