@@ -146,19 +146,9 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
             if job.get("match_reasons"):
                 print(f"     → {', '.join(job['match_reasons'][:3])}")
 
-    # 6. Generate cover notes for Pro plan only (free plan skips to save memory)
+    # 6. Cover notes — skipped during scan to stay within 512MB server limit.
+    # Generate on-demand from job cards in the app instead.
     cover_notes = {}
-    if not max_jobs:
-        from cover_notes import generate_cover_note, save_cover_note
-        print(f"\n📝 Generating cover notes...")
-        for job in top_jobs:
-            try:
-                note = generate_cover_note(job)
-                filepath = save_cover_note(job, note, output_dir=COVER_NOTES_DIR)
-                cover_notes[job["id"]] = note
-                print(f"  ✅ Saved: {filepath}")
-            except Exception as e:
-                print(f"  ❌ Failed for {job['title']}: {e}")
 
     # 7. Save results to CSV
     save_jobs_csv(matched_jobs)
