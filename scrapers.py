@@ -440,46 +440,27 @@ def fetch_remoteok() -> list:
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
-_GLOBAL_JOB_CAP = 500  # Hard cap regardless of plan — prevents OOM on 512MB servers
+_GLOBAL_JOB_CAP = 200  # Temporary low cap for 512MB Render — raise when infra upgrades
 
 
 def scrape_all_sources(max_total: int = 0) -> list:
-    sources = [
-        ("MyCareersFuture", fetch_mcf),
-        ("Adzuna",          fetch_adzuna),
-        ("Indeed RSS",      fetch_indeed_rss),
-        ("RemoteOK",        fetch_remoteok),
-    ]
-
-    # Apply global cap — even Pro users are bounded to prevent OOM
+    # Temporary: MCF only to stay within 512MB RAM on current Render plan.
+    # Restore Adzuna, Indeed RSS, RemoteOK when infra upgrades (see git commit dd9cbd3).
     effective_cap = min(max_total, _GLOBAL_JOB_CAP) if max_total > 0 else _GLOBAL_JOB_CAP
 
+    print("\nScanning MyCareersFuture...\n")
     all_jobs: list[dict] = []
     seen: set = set()
+    try:
+        jobs = fetch_mcf(max_pages=1, max_results=effective_cap)
+        for j in jobs:
+            if j["id"] not in seen:
+                seen.add(j["id"])
+                all_jobs.append(j)
+                if len(all_jobs) >= effective_cap:
+                    break
+    except Exception as e:
+        print(f"  MyCareersFuture failed: {e}")
 
-    for name, fn in sources:
-        if len(all_jobs) >= effective_cap:
-            print(f"\n[Scan] Reached {effective_cap} candidate limit — skipping remaining sources")
-            break
-
-        remaining = effective_cap - len(all_jobs)
-        print(f"\nScanning {name}...\n")
-        try:
-            if name == "MyCareersFuture":
-                jobs = fetch_mcf(max_results=remaining)
-            else:
-                jobs = fn()
-            if len(jobs) > 200:
-                print(f"  [{name}] Capping at 200 results to conserve memory")
-                jobs = jobs[:200]
-            for j in jobs:
-                if j["id"] not in seen:
-                    seen.add(j["id"])
-                    all_jobs.append(j)
-                    if len(all_jobs) >= effective_cap:
-                        break
-        except Exception as e:
-            print(f"  {name} failed: {e}")
-
-    print(f"\nTotal: {len(all_jobs)} unique jobs across {len(sources)} sources")
+    print(f"\nTotal: {len(all_jobs)} unique jobs")
     return all_jobs
