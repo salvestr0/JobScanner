@@ -58,11 +58,11 @@ def _parse_salary(val) -> int | None:
 
 # ── MyCareersFuture ───────────────────────────────────────────────────────────
 
-_MCF_ENDPOINTS = [
-    (
-        "https://api.mycareersfuture.gov.sg/v2/jobs",
-        lambda term, page: {"search": term, "limit": 20, "page": page, "sortBy": "new_posting_date"},
-    ),
+_MCF_PRIMARY = (
+    "https://api.mycareersfuture.gov.sg/v2/jobs",
+    lambda term, page: {"search": term, "limit": 20, "page": page, "sortBy": "new_posting_date"},
+)
+_MCF_FALLBACKS = [
     (
         "https://api.mycareersfuture.gov.sg/v2/search",
         lambda term, page: {"search": term, "limit": 20, "page": page, "sortBy": "new_posting_date"},
@@ -74,41 +74,20 @@ _MCF_ENDPOINTS = [
 ]
 
 
-def _find_working_endpoint() -> tuple | None:
+def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
+    """Fetch jobs from MyCareersFuture API for up to 2 target titles."""
     titles = SEARCH_CONFIG.get("target_titles") or []
     if not titles:
-        return None
-    probe_term = titles[0]
-    for url, param_fn in _MCF_ENDPOINTS:
-        try:
-            resp = requests.get(url, params=param_fn(probe_term, 0), headers=_MCF_HEADERS, timeout=(3, 8))
-            if resp.status_code != 200:
-                continue
-            data = resp.json()
-            if isinstance(data, dict) and ("results" in data or "jobs" in data):
-                print(f"  [MCF] Using endpoint: {url}")
-                return url, param_fn
-            if isinstance(data, list) and data:
-                print(f"  [MCF] Using endpoint: {url}")
-                return url, param_fn
-        except Exception:
-            continue
-    return None
-
-
-def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
-    """Fetch jobs from MyCareersFuture API for all target titles."""
-    endpoint = _find_working_endpoint()
-    if not endpoint:
-        print("  [MCF] All endpoints unavailable. MCF may be temporarily down.")
+        print("  [MCF] No target titles configured.")
         return []
 
-    url, param_fn = endpoint
+    # No probe request — hardcode primary endpoint to save a rate-limited request
+    url, param_fn = _MCF_PRIMARY
     jobs: list[dict] = []
     consecutive_failures = 0
 
-    # Cap at 3 titles — probe counts as request #1, so 3 searches = 4 total before MCF blocks
-    titles_to_search = SEARCH_CONFIG["target_titles"][:3]
+    # 2 titles max — keeps total MCF requests at 2, well within rate limit
+    titles_to_search = titles[:2]
 
     for title in titles_to_search:
         if consecutive_failures >= 3:
@@ -126,8 +105,17 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
 
         for page in range(max_pages):
             try:
-                # Separate connect/read timeouts — read timeout cuts stalled responses
-                resp = requests.get(url, params=param_fn(title, page), headers=_MCF_HEADERS, timeout=(5, 12))
+                resp = requests.get(url, params=param_fn(title, page), headers=_MCF_HEADERS, timeout=(4, 10))
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    # Try fallback endpoints before giving up
+                    for fb_url, fb_fn in _MCF_FALLBACKS:
+                        try:
+                            resp = requests.get(fb_url, params=fb_fn(title, page), headers=_MCF_HEADERS, timeout=(4, 10))
+                            if resp.status_code == 200:
+                                url, param_fn = fb_url, fb_fn
+                                break
+                        except Exception:
+                            continue
                 resp.raise_for_status()
                 data = resp.json()
 
