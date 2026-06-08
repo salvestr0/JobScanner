@@ -16,8 +16,8 @@
 
     /* ── Sidebar nav ── */
     .nav-item { border-left: 2px solid transparent; transition: all .15s ease; }
-    .nav-item:hover:not(.active) { background: rgba(255,255,255,.04); color: #CBD5E1; }
-    .nav-item.active { background: rgba(99,102,241,.13); color: #A5B4FC; border-left-color: #6366F1; }
+    .nav-item:hover:not(.active) { background: rgba(0,0,0,.04); color: #44403C; }
+    .nav-item.active { background: rgba(245,158,11,.1); color: #B45309; border-left-color: #F59E0B; }
 
     /* ── Score badges ── */
     .score-hi  { background:#D1FAE5; color:#065F46; }
@@ -60,11 +60,11 @@
     ::-webkit-scrollbar-track   { background:transparent; }
     ::-webkit-scrollbar-thumb   { background:#CBD5E1; border-radius:99px; }
 
-    input[type=range] { accent-color:#6366F1; }
+    input[type=range] { accent-color:#F59E0B; }
 
     /* Toggle */
-    .toggle-on  { background:#6366F1; }
-    .toggle-off { background:#E2E8F0; }
+    .toggle-on  { background:#F59E0B; }
+    .toggle-off { background:#E7E5E4; }
 
     /* Toast slide */
     .toast { animation: toastIn .28s cubic-bezier(.34,1.56,.64,1); }
@@ -104,7 +104,7 @@
   </style>
 </head>
 
-<body class="bg-slate-50 antialiased" x-data="app()" x-init="boot()">
+<body class="bg-stone-50 antialiased" x-data="app()" x-init="boot()">
 
 <!-- ── Toast ─────────────────────────────────────────────── -->
 <div x-show="toast.show" x-cloak
@@ -162,12 +162,12 @@
         <div>
           <label class="block text-xs font-semibold text-slate-500 mb-1.5">Interview Date</label>
           <input type="date" x-model="editInterviewDate"
-            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-500 mb-1.5">Time</label>
           <input type="time" x-model="editInterviewTime"
-            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
         </div>
       </div>
 
@@ -176,7 +176,7 @@
         <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Notes</label>
         <textarea x-model="editNotes" rows="5"
           placeholder="Add notes about this application…"
-          class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></textarea>
+          class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"></textarea>
       </div>
 
       <!-- Actions -->
@@ -186,13 +186,13 @@
           Cancel
         </button>
         <button @click="saveEditModal()"
-          class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+          class="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-sm font-semibold transition-colors">
           Save
         </button>
       </div>
 
       <a x-show="editApp?.url" :href="safeUrl(editApp?.url)" target="_blank"
-        class="text-center text-xs text-indigo-500 hover:text-indigo-700 font-semibold -mt-2">
+        class="text-center text-xs text-amber-600 hover:text-amber-700 font-semibold -mt-2">
         View original listing →
       </a>
     </div>
@@ -203,20 +203,20 @@
 <div class="flex h-screen overflow-hidden">
 
   <!-- ══ Sidebar ══════════════════════════════════════════ -->
-  <aside class="w-64 flex-shrink-0 bg-[#0C1220] flex flex-col overflow-y-auto h-screen"
+  <aside class="w-64 flex-shrink-0 bg-white border-r border-stone-200 flex flex-col overflow-y-auto h-screen"
     :class="{ 'sidebar-open': sidebarOpen }">
 
     <!-- Logo -->
     <div class="px-5 pt-6 pb-5">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 bg-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30 flex-shrink-0">
+        <div class="w-9 h-9 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/30 flex-shrink-0">
           <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
           </svg>
         </div>
         <div>
-          <div class="text-white font-semibold text-sm">CareerJobScan</div>
-          <div class="text-slate-500 text-xs mt-0.5">Singapore</div>
+          <div class="text-stone-900 font-semibold text-sm">CareerJobScan</div>
+          <div class="text-stone-400 text-xs mt-0.5">Singapore</div>
         </div>
       </div>
     </div>
@@ -233,39 +233,39 @@
     </div>
 
     <!-- Active scan banner -->
-    <div x-show="scanning" x-cloak class="mx-4 mb-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-3 py-2 flex items-center gap-2.5">
-      <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full pulsing"></div>
-      <span class="text-indigo-400 text-xs font-medium">Scan running…</span>
+    <div x-show="scanning" x-cloak class="mx-4 mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2.5">
+      <div class="w-1.5 h-1.5 bg-amber-500 rounded-full pulsing"></div>
+      <span class="text-amber-700 text-xs font-medium">Scan running…</span>
     </div>
 
     <!-- Nav -->
     <nav class="flex-1 px-3 space-y-0.5 pb-4">
       <template x-for="n in nav" :key="n.id">
         <button @click="go(n.id); sidebarOpen=false"
-          class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-r-lg text-slate-500 text-sm cursor-pointer"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-r-lg text-stone-500 text-sm cursor-pointer"
           :class="{ 'active': page === n.id }">
           <span class="w-4 h-4 flex-shrink-0" x-html="n.icon"></span>
           <span x-text="n.label"></span>
           <span class="flex-1"></span>
           <span x-show="n.pro && billing.is_free"
-            class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 leading-none">PRO</span>
+            class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 leading-none">PRO</span>
         </button>
       </template>
     </nav>
 
     <!-- Footer -->
-    <div class="px-5 pb-5 border-t border-slate-800 pt-4">
-      <div class="text-slate-600 text-xs flex items-center gap-1.5">
+    <div class="px-5 pb-5 border-t border-stone-100 pt-4">
+      <div class="text-stone-600 text-xs flex items-center gap-1.5">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <span>Last scan: <span x-text="stats.last_scan ? stats.last_scan.split(' ')[0] : 'Never'" class="text-slate-500"></span></span>
+        <span>Last scan: <span x-text="stats.last_scan ? stats.last_scan.split(' ')[0] : 'Never'" class="text-stone-500"></span></span>
       </div>
 
       <!-- Account / logout -->
-      <div class="mt-3 pt-3 border-t border-slate-800">
-        <div class="text-xs text-slate-500 truncate px-1 mb-1.5" x-text="userEmail"></div>
+      <div class="mt-3 pt-3 border-t border-stone-100">
+        <div class="text-xs text-stone-500 truncate px-1 mb-1.5" x-text="userEmail"></div>
         <template x-if="isAdmin">
           <a href="/admin"
-            class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950 transition-all mb-0.5">
+            class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-all mb-0.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
@@ -274,7 +274,7 @@
           </a>
         </template>
         <button @click="logout()"
-          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-red-400 hover:bg-red-950 transition-all">
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-stone-400 hover:text-red-500 hover:bg-red-50 transition-all">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/>
@@ -286,15 +286,15 @@
   </aside>
 
   <!-- ══ Main ═════════════════════════════════════════════ -->
-  <main class="flex-1 overflow-y-auto bg-slate-50">
+  <main class="flex-1 overflow-y-auto bg-stone-50">
 
     <!-- ── Billing banner ── -->
     <!-- Free plan: subtle info strip -->
     <div x-show="billing.is_free" x-cloak
-      class="sticky top-0 z-20 flex items-center justify-between px-6 py-2 bg-indigo-50 border-b border-indigo-100 text-indigo-700 text-sm font-medium">
+      class="sticky top-0 z-20 flex items-center justify-between px-6 py-2 bg-amber-50 border-b border-amber-100 text-amber-800 text-sm font-medium">
       <span>Free plan — scans show up to 10 job matches</span>
       <button @click="subscribe()" :disabled="subscribing"
-        class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0 ml-4">
+        class="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0 ml-4">
         <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
       </button>
     </div>
@@ -323,7 +323,7 @@
         </button>
         <button x-show="billing.status !== 'active'"
           @click="subscribe()" :disabled="subscribing"
-          class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors disabled:opacity-50">
+          class="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold transition-colors disabled:opacity-50">
           <span x-text="subscribing ? 'Redirecting…' : 'Subscribe — $8/mo'"></span>
         </button>
       </div>
@@ -338,7 +338,7 @@
           <p class="text-slate-500 text-sm mt-1">Your job search at a glance</p>
         </div>
         <button @click="go('scan')"
-          class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-indigo-600/20">
+          class="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-amber-500/20">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -352,8 +352,8 @@
         <div class="stat-card bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
           <div class="flex items-center justify-between mb-4">
             <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Found</span>
-            <div class="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center">
-              <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            <div class="w-8 h-8 bg-amber-50 rounded-xl flex items-center justify-center">
+              <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
             </div>
           </div>
           <div class="text-3xl font-bold text-slate-900" x-text="stats.total_jobs ?? 0"></div>
@@ -398,13 +398,13 @@
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h2 class="font-semibold text-slate-800 text-sm">Recent Matches</h2>
-          <button @click="go('jobs')" class="text-indigo-600 hover:text-indigo-700 text-xs font-semibold transition-colors">View all →</button>
+          <button @click="go('jobs')" class="text-amber-600 hover:text-amber-700 text-xs font-semibold transition-colors">View all →</button>
         </div>
 
         <div x-show="!stats.recent_jobs?.length" class="py-14 text-center">
           <div class="text-slate-300 text-4xl mb-3">○</div>
           <p class="text-slate-400 text-sm">No jobs yet —
-            <button @click="go('scan')" class="text-indigo-500 font-medium hover:underline">run your first scan</button>
+            <button @click="go('scan')" class="text-amber-600 font-medium hover:underline">run your first scan</button>
           </p>
         </div>
 
@@ -445,8 +445,8 @@
       <!-- Paywall (shown when trial expired / cancelled) -->
       <div x-show="!billing.has_access" x-cloak
         class="bg-white rounded-2xl shadow-sm border border-slate-100 p-10 text-center">
-        <div class="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-7 h-7 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
           </svg>
         </div>
@@ -457,7 +457,7 @@
           Subscribe to continue scanning. You'll keep all your existing job history and applications.
         </p>
         <button @click="subscribe()" :disabled="subscribing"
-          class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors shadow-md shadow-indigo-600/20">
+          class="px-6 py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-white font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
           <span x-text="subscribing ? 'Redirecting to checkout…' : 'Subscribe — $8 / month'"></span>
         </button>
         <p class="text-slate-400 text-xs mt-3">Secured by Stripe. Cancel anytime.</p>
@@ -468,13 +468,13 @@
 
       <!-- Free tier notice -->
       <div x-show="billing.is_free" x-cloak
-        class="flex items-start gap-3 bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-4 text-sm text-indigo-700">
+        class="flex items-start gap-3 bg-amber-50 border border-amber-100 rounded-xl p-4 mb-4 text-sm text-amber-700">
         <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         <span>Free plan — up to <strong>10 matches</strong> per scan,
           <strong x-text="stats.scans_remaining !== null ? stats.scans_remaining + ' scan' + (stats.scans_remaining === 1 ? '' : 's') + ' left today' : '3 scans/day'"></strong>.
-          <button @click="subscribe()" class="underline font-semibold hover:text-indigo-900 ml-1">Upgrade to Pro</button>
+          <button @click="subscribe()" class="underline font-semibold hover:text-amber-900 ml-1">Upgrade to Pro</button>
           for unlimited.</span>
       </div>
 
@@ -495,7 +495,7 @@
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-2">Search Mode</label>
           <select x-model="selMode"
-            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
             <template x-for="m in modes" :key="m.name">
               <option :value="m.name"
                 x-text="m.name.split(' ').map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ')"></option>
@@ -509,9 +509,9 @@
           <div class="flex gap-2">
             <input x-model="newMode" @keydown.enter="genMode()" type="text"
               placeholder="e.g. healthcare, fnb, logistics…"
-              class="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+              class="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
             <button @click="genMode()" :disabled="genning||!newMode.trim()"
-              class="px-4 py-2.5 bg-slate-900 hover:bg-slate-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2">
+              class="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2">
               <svg x-show="genning" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -553,7 +553,7 @@
       <!-- Start button -->
       <button @click="startScan()" :disabled="scanning || (billing.is_free && stats.scans_remaining === 0)"
         class="w-full py-3.5 rounded-2xl font-bold text-sm transition-all mb-5 flex items-center justify-center gap-3"
-        :class="scanning||(billing.is_free&&stats.scans_remaining===0)?'bg-indigo-100 text-indigo-400 cursor-not-allowed':'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 hover:shadow-lg hover:shadow-indigo-600/25'">
+        :class="scanning||(billing.is_free&&stats.scans_remaining===0)?'bg-amber-100 text-amber-600 cursor-not-allowed':'bg-amber-500 hover:bg-amber-400 text-white shadow-md shadow-amber-500/20 hover:shadow-lg hover:shadow-amber-500/25'">
         <svg x-show="scanning" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -657,7 +657,7 @@
           </a>
           <button x-show="hiddenCount > 0 || showHidden" @click="showHidden=!showHidden; loadJobs()"
           class="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors"
-          :class="showHidden ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'">
+          :class="showHidden ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path x-show="!showHidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
             <path x-show="showHidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path x-show="showHidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
@@ -672,10 +672,10 @@
         <div class="flex-1 min-w-44 relative">
           <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           <input x-model="jSearch" @input="loadJobs()" type="text" placeholder="Search title or company…"
-            class="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            class="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
         </div>
         <select x-model="jSource" @change="loadJobs()"
-          class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+          class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
           <option value="">All Sources</option>
           <option value="MyCareersFuture">MyCareersFuture</option>
           <option value="Indeed">Indeed</option>
@@ -683,7 +683,7 @@
           <option value="RemoteOK">RemoteOK</option>
         </select>
         <select x-model="jStatus" @change="loadJobs()"
-          class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+          class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
           <option value="">All Statuses</option>
           <option value="untracked">Untracked</option>
           <option value="applied">Applied</option>
@@ -701,12 +701,12 @@
         <p class="text-slate-400 text-sm mb-2">No scans yet.</p>
         <p class="text-slate-400 text-sm">
           <strong class="text-slate-500">Step 1:</strong>
-          <button @click="go('profile')" class="text-indigo-500 font-medium hover:underline">Fill in your Profile</button>
+          <button @click="go('profile')" class="text-amber-600 font-medium hover:underline">Fill in your Profile</button>
           so the AI can score jobs against your skills.
         </p>
         <p class="text-slate-400 text-sm mt-1">
           <strong class="text-slate-500">Step 2:</strong>
-          <button @click="go('scan')" class="text-indigo-500 font-medium hover:underline">Run a Scan</button>
+          <button @click="go('scan')" class="text-amber-600 font-medium hover:underline">Run a Scan</button>
           to fetch and match jobs from 4 sources.
         </p>
       </div>
@@ -717,7 +717,7 @@
         <div class="text-slate-300 text-4xl mb-3">⊘</div>
         <p class="text-slate-400 text-sm mb-2">No jobs match your filters.</p>
         <button @click="jSearch='';jSource='';jStatus='';loadJobs()"
-          class="text-indigo-500 text-sm font-semibold hover:underline">Clear filters</button>
+          class="text-amber-600 text-sm font-semibold hover:underline">Clear filters</button>
       </div>
 
       <div class="space-y-2">
@@ -756,7 +756,7 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap mb-1">
                 <a :href="safeUrl(job.url)" target="_blank"
-                  class="font-bold text-slate-800 text-sm hover:text-indigo-600 transition-colors" x-text="job.title"></a>
+                  class="font-bold text-slate-800 text-sm hover:text-amber-600 transition-colors" x-text="job.title"></a>
                 <span class="text-xs px-2.5 py-0.5 rounded-full font-semibold"
                   :class="chipClass(job.source)"
                   x-text="job.source?.replace('MyCareersFuture','MCF')"></span>
@@ -805,10 +805,10 @@
                 </template>
                 <template x-if="!job.hidden && billing.is_free">
                   <button @click="subscribe()" :disabled="subscribing"
-                    class="text-xs px-3 py-1.5 rounded-xl border border-slate-200 text-slate-300 font-semibold flex items-center gap-1 cursor-pointer hover:border-indigo-200 hover:text-indigo-400 transition-all">
+                    class="text-xs px-3 py-1.5 rounded-xl border border-slate-200 text-slate-300 font-semibold flex items-center gap-1 cursor-pointer hover:border-amber-200 hover:text-amber-600 transition-all">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     Tailor Resume
-                    <span class="ml-0.5 text-[9px] font-bold text-indigo-400 bg-indigo-50 border border-indigo-200 rounded px-1 py-px">PRO</span>
+                    <span class="ml-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1 py-px">PRO</span>
                   </button>
                 </template>
                 <!-- Restore button (shown when job is hidden) -->
@@ -819,7 +819,7 @@
                   </button>
                 </template>
                 <a :href="safeUrl(job.url)" target="_blank"
-                  class="ml-auto text-xs px-3 py-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 font-semibold transition-all flex items-center gap-1">
+                  class="ml-auto text-xs px-3 py-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-amber-600 hover:border-amber-200 font-semibold transition-all flex items-center gap-1">
                   View <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                 </a>
                 <!-- Not interested -->
@@ -862,7 +862,7 @@
                 <div class="flex items-center justify-between">
                   <span class="text-slate-400 text-xs" x-text="j.updated_at"></span>
                   <div class="flex items-center gap-2" @click.stop>
-                    <a :href="safeUrl(j.url)" target="_blank" class="text-xs text-indigo-500 hover:text-indigo-700 font-semibold">View</a>
+                    <a :href="safeUrl(j.url)" target="_blank" class="text-xs text-amber-600 hover:text-amber-700 font-semibold">View</a>
                     <span class="text-slate-200">|</span>
                     <button @click="clearApp(j.job_id)" class="text-xs text-slate-400 hover:text-red-500 font-semibold transition-colors">Clear</button>
                   </div>
@@ -901,7 +901,7 @@
                   <div class="flex items-center justify-between">
                     <span class="text-slate-400 text-xs" x-text="j.updated_at"></span>
                     <div class="flex items-center gap-2" @click.stop>
-                      <a :href="safeUrl(j.url)" target="_blank" class="text-xs text-indigo-500 hover:text-indigo-700 font-semibold">View</a>
+                      <a :href="safeUrl(j.url)" target="_blank" class="text-xs text-amber-600 hover:text-amber-700 font-semibold">View</a>
                       <span class="text-slate-200">|</span>
                       <button @click="clearApp(j.job_id)" class="text-xs text-slate-400 hover:text-red-500 font-semibold transition-colors">Clear</button>
                     </div>
@@ -956,15 +956,15 @@
           </div>
           <!-- Overlay -->
           <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
-            <div class="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
-              <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
             </div>
             <p class="font-bold text-slate-800 text-lg mb-1">Pro Plan Only</p>
             <p class="text-slate-500 text-sm mb-5 text-center max-w-xs">AI-generated cover notes are available on the Pro plan.</p>
             <button @click="subscribe()" :disabled="subscribing"
-              class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-indigo-600/20">
+              class="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
               <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
             </button>
           </div>
@@ -984,8 +984,8 @@
           <template x-for="n in notes" :key="n.filename">
             <div @click="openNote(n)"
               class="job-card bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4 flex items-center gap-4 cursor-pointer group">
-              <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
               </div>
               <div class="flex-1 min-w-0">
                 <div class="font-semibold text-slate-800 text-sm truncate" x-text="n.title||n.filename"></div>
@@ -1050,15 +1050,15 @@
           </div>
           <!-- Overlay -->
           <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
-            <div class="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
-              <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
             </div>
             <p class="font-bold text-slate-800 text-lg mb-1">Pro Plan Only</p>
             <p class="text-slate-500 text-sm mb-5 text-center max-w-xs">Analytics and insights are available on the Pro plan.</p>
             <button @click="subscribe()" :disabled="subscribing"
-              class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-indigo-600/20">
+              class="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
               <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
             </button>
           </div>
@@ -1149,16 +1149,16 @@
           <!-- Drop zone -->
           <label
             class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors"
-            :class="resumeDragging ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'"
+            :class="resumeDragging ? 'border-amber-400 bg-amber-50' : 'border-slate-200 hover:border-amber-300 hover:bg-slate-50'"
             @dragover.prevent="resumeDragging=true"
             @dragleave.prevent="resumeDragging=false"
             @drop.prevent="resumeDragging=false; handleResumeDrop($event)">
             <input type="file" class="hidden" accept=".pdf,.docx,.doc,.txt"
               @change="handleResumeFile($event)">
-            <svg class="w-8 h-8 mb-2" :class="resumeDragging?'text-indigo-400':'text-slate-300'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-8 h-8 mb-2" :class="resumeDragging?'text-amber-600':'text-slate-300'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
-            <span class="text-sm font-medium" :class="resumeDragging?'text-indigo-500':'text-slate-400'"
+            <span class="text-sm font-medium" :class="resumeDragging?'text-amber-600':'text-slate-400'"
               x-text="resumeFile ? resumeFile.name : 'Drop resume here or click to browse'"></span>
             <span class="text-xs text-slate-400 mt-0.5">PDF · DOCX · TXT</span>
           </label>
@@ -1167,7 +1167,7 @@
           <div class="flex items-center gap-3 mt-3">
             <button @click="parseResume()"
               :disabled="!resumeFile || resumeParsing"
-              class="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
+              class="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
               <svg x-show="resumeParsing" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -1191,20 +1191,20 @@
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1.5">Full Name</label>
                 <input x-model="profile.name" type="text" placeholder="Jane Doe"
-                  class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                  class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors"
                   :class="resumeHighlighted.has('name') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1.5">Phone</label>
                 <input x-model="profile.phone" type="text" placeholder="+65 9123 4567"
-                  class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                  class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors"
                   :class="resumeHighlighted.has('name') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'">
               </div>
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-1.5">Email</label>
               <input x-model="profile.email" type="email" placeholder="jane@example.com"
-                class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors"
                 :class="resumeHighlighted.has('email') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'">
             </div>
           </div>
@@ -1217,13 +1217,13 @@
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-1.5">Highest Education</label>
               <input x-model="profile.education" type="text" placeholder="e.g. B.Sc. Computer Science, NUS"
-                class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                class="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors"
                 :class="resumeHighlighted.has('education') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-1.5">Certifications <span class="font-normal text-slate-400">(comma-separated)</span></label>
               <textarea x-model="certsText" rows="2" placeholder="AWS Solutions Architect, PMP, Google Analytics…"
-                class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors"
                 :class="resumeHighlighted.has('skills') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'"></textarea>
             </div>
           </div>
@@ -1236,13 +1236,13 @@
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-1.5">Technical Skills <span class="font-normal text-slate-400">(comma-separated)</span></label>
               <textarea x-model="techSkillsText" rows="2" placeholder="Python, SQL, Power BI, Excel, Tableau…"
-                class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors"
                 :class="resumeHighlighted.has('skills') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'"></textarea>
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-1.5">Soft Skills <span class="font-normal text-slate-400">(comma-separated)</span></label>
               <textarea x-model="softSkillsText" rows="2" placeholder="Communication, Leadership, Problem-solving…"
-                class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors"
                 :class="resumeHighlighted.has('skills') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'"></textarea>
             </div>
           </div>
@@ -1253,7 +1253,7 @@
           <h3 class="font-bold text-slate-800 text-sm mb-5">Experience Summary</h3>
           <textarea x-model="profile.experience_summary" rows="4"
             placeholder="Brief overview of your professional background and key achievements…"
-            class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+            class="w-full border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors"
             :class="resumeHighlighted.has('experience_summary') ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-slate-200'"></textarea>
         </div>
 
@@ -1263,7 +1263,7 @@
           <div class="flex items-center justify-between mb-5">
             <h3 class="font-bold text-slate-800 text-sm">Work History</h3>
             <button @click="profile.work_history.push({title:'',company:'',period:'',summary:''})"
-              class="text-xs px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold rounded-xl transition-colors">
+              class="text-xs px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 font-semibold rounded-xl transition-colors">
               + Add
             </button>
           </div>
@@ -1275,14 +1275,14 @@
               <div class="border border-slate-200 rounded-xl p-4 space-y-3">
                 <div class="grid grid-cols-2 gap-3">
                   <input x-model="job.title" type="text" placeholder="Job Title"
-                    class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
                   <input x-model="job.company" type="text" placeholder="Company"
-                    class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
                 </div>
                 <input x-model="job.period" type="text" placeholder="e.g. Jan 2022 – Present"
-                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
                 <textarea x-model="job.summary" rows="2" placeholder="Key responsibilities and achievements…"
-                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></textarea>
+                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"></textarea>
                 <button @click="profile.work_history.splice(i,1)"
                   class="text-xs text-red-400 hover:text-red-600 font-semibold transition-colors">Remove</button>
               </div>
@@ -1296,7 +1296,7 @@
           <div class="flex items-center justify-between mb-5">
             <h3 class="font-bold text-slate-800 text-sm">Projects</h3>
             <button @click="profile.projects.push({name:'',description:''})"
-              class="text-xs px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold rounded-xl transition-colors">
+              class="text-xs px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 font-semibold rounded-xl transition-colors">
               + Add
             </button>
           </div>
@@ -1307,9 +1307,9 @@
             <template x-for="(proj, i) in profile.projects" :key="i">
               <div class="border border-slate-200 rounded-xl p-4 space-y-3">
                 <input x-model="proj.name" type="text" placeholder="Project name"
-                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
                 <textarea x-model="proj.description" rows="2" placeholder="What it does and your role…"
-                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></textarea>
+                  class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"></textarea>
                 <button @click="profile.projects.splice(i,1)"
                   class="text-xs text-red-400 hover:text-red-600 font-semibold transition-colors">Remove</button>
               </div>
@@ -1319,7 +1319,7 @@
 
         <!-- Save -->
         <button @click="saveProfile()" :disabled="profileSaving"
-          class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-2xl font-bold text-sm transition-colors shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2">
+          class="w-full py-3.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-white rounded-2xl font-bold text-sm transition-colors shadow-md shadow-amber-500/20 flex items-center justify-center gap-2">
           <svg x-show="profileSaving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -1331,15 +1331,15 @@
         <div class="relative rounded-2xl overflow-hidden">
         <!-- Lock overlay for free users -->
         <div x-show="billing.is_free" class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/75 backdrop-blur-sm rounded-2xl">
-          <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center mb-3">
-            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
             </svg>
           </div>
           <p class="font-bold text-slate-800 mb-1">Pro Plan Only</p>
           <p class="text-slate-500 text-xs mb-4 text-center max-w-[220px]">Upgrade to build and download AI-polished resumes.</p>
           <button @click="subscribe()" :disabled="subscribing"
-            class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors">
+            class="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors">
             <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
           </button>
         </div>
@@ -1352,12 +1352,12 @@
 
           <!-- Step 1: Polish -->
           <div class="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
-            <div class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</div>
+            <div class="w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</div>
             <div class="flex-1">
               <p class="text-sm font-semibold text-slate-700 mb-1">Polish with AI</p>
               <p class="text-xs text-slate-400 mb-3">CareerJobScan rewrites your summary, experience, and skills to sound more professional and ATS-friendly.</p>
               <button @click="polishResume()" :disabled="resumePolishing"
-                class="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
+                class="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
                 <svg x-show="resumePolishing" class="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -1393,7 +1393,7 @@
           <!-- Step 2: Download -->
           <div class="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
             <div class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold"
-              :class="resumePolished ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-400'">2</div>
+              :class="resumePolished ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-400'">2</div>
             <div class="flex-1">
               <p class="text-sm font-semibold text-slate-700 mb-1">Download PDF</p>
               <p class="text-xs text-slate-400 mb-3" x-text="resumePolished ? 'Downloads your AI-polished resume as a PDF.' : 'Polish first to get the best result, or download your raw profile.'"></p>
@@ -1435,15 +1435,15 @@
           </div>
           <!-- Overlay -->
           <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
-            <div class="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
-              <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
             </div>
             <p class="font-bold text-slate-800 text-lg mb-1">Pro Plan Only</p>
             <p class="text-slate-500 text-sm mb-5 text-center max-w-xs">AI interview prep questions are available on the Pro plan.</p>
             <button @click="subscribe()" :disabled="subscribing"
-              class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-indigo-600/20">
+              class="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
               <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
             </button>
           </div>
@@ -1456,7 +1456,7 @@
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-4">
         <label class="block text-sm font-semibold text-slate-700 mb-2">Select a Job</label>
         <select x-model="prepJobId"
-          class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+          class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
           <option value="">-- Choose a job from your list --</option>
           <template x-for="j in prepJobs" :key="j.id">
             <option :value="j.id" x-text="j.title + ' @ ' + j.company + ' (' + j.score + '/100)'"></option>
@@ -1464,7 +1464,7 @@
         </select>
         <p x-show="!prepJobs.length" class="text-slate-400 text-xs mt-2">No jobs yet — run a scan first.</p>
         <button @click="generatePrep()" :disabled="!prepJobId || prepLoading"
-          class="mt-4 flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
+          class="mt-4 flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
           <svg x-show="prepLoading" class="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           <svg x-show="!prepLoading" class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
           <span x-text="prepLoading ? 'Generating…' : 'Generate Questions'"></span>
@@ -1474,8 +1474,8 @@
 
       <div x-show="prepResult" x-cloak class="space-y-4 fade-in">
         <div class="flex items-center gap-3 px-1 mb-2">
-          <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
-            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
           </div>
           <div>
             <div class="font-bold text-slate-800 text-sm" x-text="prepResult.job.title"></div>
@@ -1485,14 +1485,14 @@
 
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-            <div class="w-6 h-6 bg-indigo-50 rounded-lg flex items-center justify-center"><svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg></div>
+            <div class="w-6 h-6 bg-amber-50 rounded-lg flex items-center justify-center"><svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg></div>
             <h3 class="font-bold text-slate-800 text-sm">Technical Questions</h3>
           </div>
           <div class="divide-y divide-slate-50">
             <template x-for="(q, i) in (prepResult.prep.technical || [])" :key="i">
               <div class="px-6 py-4">
                 <p class="text-sm font-semibold text-slate-800 mb-1.5" x-text="(i+1) + '. ' + q.question"></p>
-                <p class="text-xs text-indigo-600 bg-indigo-50 rounded-lg px-3 py-2" x-text="'💡 ' + q.tip"></p>
+                <p class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2" x-text="'💡 ' + q.tip"></p>
               </div>
             </template>
           </div>
@@ -1564,16 +1564,16 @@
               <label class="block text-xs font-semibold text-slate-500 mb-2">Job Titles to Search</label>
               <div class="flex flex-wrap gap-1.5 mb-2 min-h-[28px]">
                 <template x-for="(t,i) in cfg.target_titles" :key="i">
-                  <span class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                  <span class="inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">
                     <span x-text="t"></span>
-                    <button @click="cfg.target_titles.splice(i,1)" class="text-indigo-400 hover:text-indigo-700 leading-none ml-0.5">&times;</button>
+                    <button @click="cfg.target_titles.splice(i,1)" class="text-amber-600 hover:text-amber-700 leading-none ml-0.5">&times;</button>
                   </span>
                 </template>
               </div>
               <div class="flex gap-2">
                 <input x-model="newSearchInput.title" type="text" placeholder="e.g. Data Analyst"
                   @keydown.enter.prevent="addSearchTag('target_titles','title')"
-                  class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
                 <button @click="addSearchTag('target_titles','title')"
                   class="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm rounded-xl font-semibold transition-colors">Add</button>
               </div>
@@ -1592,7 +1592,7 @@
               <div class="flex gap-2">
                 <input x-model="newSearchInput.preferred" type="text" placeholder="e.g. SQL, Python"
                   @keydown.enter.prevent="addSearchTag('preferred_keywords','preferred')"
-                  class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
                 <button @click="addSearchTag('preferred_keywords','preferred')"
                   class="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm rounded-xl font-semibold transition-colors">Add</button>
               </div>
@@ -1611,7 +1611,7 @@
               <div class="flex gap-2">
                 <input x-model="newSearchInput.negative" type="text" placeholder="e.g. senior, 5 years"
                   @keydown.enter.prevent="addSearchTag('negative_keywords','negative')"
-                  class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
                 <button @click="addSearchTag('negative_keywords','negative')"
                   class="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm rounded-xl font-semibold transition-colors">Add</button>
               </div>
@@ -1627,18 +1627,18 @@
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1.5">Min Salary (SGD/mo)</label>
                 <input x-model.number="cfg.min_salary" type="number" step="100"
-                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1.5">Max Salary (SGD/mo)</label>
                 <input x-model.number="cfg.max_salary" type="number" step="100"
-                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
               </div>
             </div>
             <div>
               <div class="flex items-center justify-between mb-2">
                 <label class="text-xs font-semibold text-slate-500">Min Match Score</label>
-                <span class="text-sm font-bold text-indigo-600" x-text="cfg.min_score_threshold+'/100'"></span>
+                <span class="text-sm font-bold text-amber-600" x-text="cfg.min_score_threshold+'/100'"></span>
               </div>
               <input x-model.number="cfg.min_score_threshold" type="range" min="0" max="100"
                 class="w-full h-2 rounded-full appearance-none cursor-pointer">
@@ -1650,7 +1650,7 @@
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-1.5">Max Jobs per Notification</label>
               <input x-model.number="cfg.max_jobs_per_notification" type="number" min="1" max="50" step="1"
-                class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
               <p class="text-slate-400 text-xs mt-1.5">How many top matches to notify you about per scan.</p>
             </div>
           </div>
@@ -1677,7 +1677,7 @@
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1.5">Recipient Email</label>
                 <input x-model="cfg.email_to" type="email" placeholder="you@gmail.com"
-                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
                 <p class="text-slate-400 text-xs mt-1.5">Top matches will be emailed here after each scan.</p>
               </div>
               <div x-show="!cfg.email_configured"
@@ -1686,7 +1686,7 @@
                 Email sending requires <code class="font-mono bg-amber-100 px-1 rounded">RESEND_API_KEY</code> to be set in your environment.
               </div>
               <button @click="testEmail()" :disabled="emailTesting || !cfg.email_configured"
-                class="flex items-center gap-2 text-sm px-4 py-2.5 bg-slate-900 hover:bg-slate-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors">
+                class="flex items-center gap-2 text-sm px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors">
                 <svg x-show="emailTesting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -1717,10 +1717,10 @@
             <div x-show="schedule.enabled">
               <label class="block text-xs font-semibold text-slate-500 mb-1.5">Scan Time</label>
               <input x-model="schedule.time" type="time"
-                class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
             </div>
             <button @click="saveSchedule()"
-              class="text-sm px-4 py-2.5 bg-slate-900 hover:bg-slate-700 text-white rounded-xl font-semibold transition-colors">
+              class="text-sm px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-semibold transition-colors">
               Save Schedule
             </button>
           </div>
@@ -1760,7 +1760,7 @@
               </button>
               <button x-show="billing.status !== 'active'"
                 @click="subscribe()" :disabled="subscribing"
-                class="text-sm px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors">
+                class="text-sm px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors">
                 <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
               </button>
             </div>
@@ -1787,7 +1787,7 @@
         </div>
 
         <button @click="saveCfg()"
-          class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm transition-colors shadow-md shadow-indigo-600/20">
+          class="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-white rounded-2xl font-bold text-sm transition-colors shadow-md shadow-amber-500/20">
           Save Settings
         </button>
       </div>
@@ -1880,7 +1880,7 @@
 
         <!-- Loading -->
         <div x-show="tailorLoading" class="flex flex-col items-center justify-center py-16 gap-3">
-          <svg class="animate-spin w-8 h-8 text-indigo-500" fill="none" viewBox="0 0 24 24">
+          <svg class="animate-spin w-8 h-8 text-amber-600" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
           </svg>
@@ -1901,7 +1901,7 @@
             <div class="flex items-center justify-between mb-2">
               <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Tailored Summary</h3>
               <button @click="copyText(tailorResult?.tailored?.tailored_summary)"
-                class="text-xs text-indigo-500 hover:text-indigo-700 font-semibold transition-colors">Copy</button>
+                class="text-xs text-amber-600 hover:text-amber-700 font-semibold transition-colors">Copy</button>
             </div>
             <p class="text-sm text-slate-600 leading-relaxed" x-text="tailorResult?.tailored?.tailored_summary"></p>
           </div>
@@ -1918,7 +1918,7 @@
                       <p class="text-xs text-slate-400" x-text="w.period"></p>
                     </div>
                     <button @click="copyText(w.tailored_bullets)"
-                      class="text-xs text-indigo-500 hover:text-indigo-700 font-semibold transition-colors flex-shrink-0 ml-3">Copy</button>
+                      class="text-xs text-amber-600 hover:text-amber-700 font-semibold transition-colors flex-shrink-0 ml-3">Copy</button>
                   </div>
                   <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-line" x-text="w.tailored_bullets"></p>
                 </div>
@@ -1931,7 +1931,7 @@
             <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Skills to Highlight</h3>
             <div class="flex flex-wrap gap-1.5">
               <template x-for="(s, i) in (tailorResult?.tailored?.skills_to_highlight || [])" :key="i">
-                <span class="text-xs px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full font-semibold border border-indigo-100" x-text="s"></span>
+                <span class="text-xs px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full font-semibold border border-amber-100" x-text="s"></span>
               </template>
             </div>
           </div>
@@ -1942,7 +1942,7 @@
             <ul class="space-y-1.5">
               <template x-for="(t, i) in (tailorResult?.tailored?.tips || [])" :key="i">
                 <li class="flex items-start gap-2 text-sm text-slate-600">
-                  <span class="text-indigo-400 font-bold flex-shrink-0 mt-0.5">→</span>
+                  <span class="text-amber-600 font-bold flex-shrink-0 mt-0.5">→</span>
                   <span x-text="t"></span>
                 </li>
               </template>
