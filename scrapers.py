@@ -336,7 +336,7 @@ def fetch_indeed_rss() -> list:
                     "id": f"indeed_{hashlib.md5(link.encode()).hexdigest()[:12]}",
                     "title": job_title.strip(),
                     "company": company_name.strip(),
-                    "description": _clean_html(item.findtext("description", ""))[:2000],
+                    "description": _clean_html(item.findtext("description", ""))[:500],
                     "salary_min": None,
                     "salary_max": None,
                     "location": "Singapore",
@@ -371,9 +371,24 @@ def fetch_remoteok() -> list:
             "https://remoteok.com/api",
             headers={"User-Agent": _BROWSER_UA, "Accept": "application/json"},
             timeout=15,
+            stream=True,
         )
         resp.raise_for_status()
-        data = resp.json()
+        # Guard against huge responses — cap at 4MB to prevent OOM on low-memory servers
+        chunks = []
+        total = 0
+        for chunk in resp.iter_content(chunk_size=65536):
+            total += len(chunk)
+            if total > 4 * 1024 * 1024:
+                print("  [RemoteOK] Response too large — truncating at 4MB")
+                break
+            chunks.append(chunk)
+        import json as _json
+        try:
+            data = _json.loads(b"".join(chunks))
+        except Exception:
+            print("  [RemoteOK] Could not parse truncated response — skipping")
+            return []
     except Exception as e:
         print(f"  [RemoteOK] Failed to fetch: {e}")
         return []
@@ -425,6 +440,9 @@ def fetch_remoteok() -> list:
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
+_GLOBAL_JOB_CAP = 500  # Hard cap regardless of plan — prevents OOM on 512MB servers
+
+
 def scrape_all_sources(max_total: int = 0) -> list:
     sources = [
         ("MyCareersFuture", fetch_mcf),
@@ -433,15 +451,18 @@ def scrape_all_sources(max_total: int = 0) -> list:
         ("RemoteOK",        fetch_remoteok),
     ]
 
+    # Apply global cap — even Pro users are bounded to prevent OOM
+    effective_cap = min(max_total, _GLOBAL_JOB_CAP) if max_total > 0 else _GLOBAL_JOB_CAP
+
     all_jobs: list[dict] = []
     seen: set = set()
 
     for name, fn in sources:
-        if max_total > 0 and len(all_jobs) >= max_total:
-            print(f"\n[Scan] Reached {max_total} candidate limit — skipping remaining sources")
+        if len(all_jobs) >= effective_cap:
+            print(f"\n[Scan] Reached {effective_cap} candidate limit — skipping remaining sources")
             break
 
-        remaining = (max_total - len(all_jobs)) if max_total > 0 else 0
+        remaining = effective_cap - len(all_jobs)
         print(f"\nScanning {name}...\n")
         try:
             if name == "MyCareersFuture":
@@ -455,6 +476,8 @@ def scrape_all_sources(max_total: int = 0) -> list:
                 if j["id"] not in seen:
                     seen.add(j["id"])
                     all_jobs.append(j)
+                    if len(all_jobs) >= effective_cap:
+                        break
         except Exception as e:
             print(f"  {name} failed: {e}")
 
