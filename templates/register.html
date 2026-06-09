@@ -9,6 +9,9 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }</style>
+  {% if turnstile_site_key %}
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  {% endif %}
 </head>
 <body class="min-h-screen bg-stone-50 flex items-center justify-center p-4">
   <div class="w-full max-w-sm">
@@ -72,6 +75,10 @@
                  placeholder="••••••••">
         </div>
 
+        {% if turnstile_site_key %}
+        <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-theme="light"></div>
+        {% endif %}
+
         <button type="submit" id="submit-btn"
                 class="w-full py-2.5 px-4 rounded-lg bg-amber-500 hover:bg-amber-400
                        text-white text-sm font-semibold transition-colors
@@ -108,12 +115,14 @@
       btn.textContent = 'Creating account…';
 
       try {
+        const turnstileEl = document.querySelector('[name="cf-turnstile-response"]');
         const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email:    document.getElementById('email').value.trim(),
             password: pw,
+            cf_turnstile_response: turnstileEl ? turnstileEl.value : '',
           }),
         });
         const data = await res.json();

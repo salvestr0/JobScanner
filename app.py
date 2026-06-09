@@ -87,7 +87,7 @@ _redis_url = os.getenv("REDIS_URL", "").strip()
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
-    default_limits=[],
+    default_limits=["300/minute"],
     storage_uri=_redis_url if _redis_url else "memory://",
 )
 
@@ -485,10 +485,26 @@ def login_page():
 def register_page():
     if current_user.is_authenticated:
         return redirect(url_for("app_page"))
-    return render_template("register.html")
+    return render_template("register.html", turnstile_site_key=os.getenv("TURNSTILE_SITE_KEY", ""))
 
 
 # ── Auth API ───────────────────────────────────────────────────────────────────
+
+def _verify_turnstile(token):
+    secret = os.getenv("TURNSTILE_SECRET_KEY", "")
+    if not secret:
+        return True
+    import requests as _req
+    try:
+        resp = _req.post(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            data={"secret": secret, "response": token, "remoteip": request.remote_addr},
+            timeout=5,
+        )
+        return resp.json().get("success", False)
+    except Exception:
+        return False
+
 
 @app.route("/api/auth/register", methods=["POST"])
 @limiter.limit("5/minute;20/hour")
@@ -496,6 +512,9 @@ def auth_register():
     data     = request.json or {}
     email    = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
+
+    if os.getenv("TURNSTILE_SECRET_KEY") and not _verify_turnstile(data.get("cf_turnstile_response", "")):
+        return jsonify({"error": "Bot check failed — please try again"}), 400
 
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
