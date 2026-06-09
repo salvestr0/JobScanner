@@ -408,7 +408,7 @@ def _build_user_env(user: User) -> dict:
         "JOBSCANNER_USER_CONFIG": json.dumps(user_cfg),
         "JOBSCANNER_DATA_DIR":    data_dir,
     }
-    if user.subscription_status not in ("active",) and not user.is_admin:
+    if _is_free_tier(user):
         env["JOBSCANNER_MAX_JOBS"] = "10"
     return env
 
@@ -799,7 +799,7 @@ def stats():
     FREE_DAILY_LIMIT = 3
     scans_today = 0
     scans_remaining = None
-    if not _is_active(current_user):
+    if _is_free_tier(current_user):
         s = current_user.settings
         today = _date.today().isoformat()
         if s and s.last_scan_date == today:
@@ -1513,19 +1513,21 @@ def start_scan():
     if not re.match(r'^[a-z0-9_-]{1,32}$', mode):
         return jsonify({"error": "Invalid mode name"}), 400
 
-    # Daily scan limit for free plan
+    # Daily scan limit for free plan — check before claiming the scan slot,
+    # but only consume a scan once the slot is actually claimed below.
     FREE_DAILY_LIMIT = 3
-    if not _is_active(current_user):
+    free_tier = _is_free_tier(current_user)
+    free_settings = None
+    if free_tier:
         from datetime import date as _date
-        s = _get_or_create_settings(current_user.id)
+        free_settings = _get_or_create_settings(current_user.id)
         today = _date.today().isoformat()
-        if s.last_scan_date != today:
-            s.daily_scan_count = 0
-            s.last_scan_date   = today
-        if s.daily_scan_count >= FREE_DAILY_LIMIT:
+        if free_settings.last_scan_date != today:
+            free_settings.daily_scan_count = 0
+            free_settings.last_scan_date   = today
+            db.session.commit()
+        if (free_settings.daily_scan_count or 0) >= FREE_DAILY_LIMIT:
             return jsonify({"error": "daily_limit_reached", "remaining": 0}), 429
-        s.daily_scan_count += 1
-        db.session.commit()
 
     with _get_scan_lock(current_user.id):
         scan = _get_scan(current_user.id)
@@ -1533,6 +1535,11 @@ def start_scan():
             return jsonify({"error": "Scan already running"}), 409
         scan["running"] = True
         scan["q"]       = queue.Queue()
+
+    # Slot claimed — now consume one daily scan (so a 409 never burns quota).
+    if free_tier and free_settings is not None:
+        free_settings.daily_scan_count = (free_settings.daily_scan_count or 0) + 1
+        db.session.commit()
 
     history_row = ScanHistory(user_id=current_user.id, mode=mode, status="running")
     db.session.add(history_row)
@@ -1682,6 +1689,14 @@ def _is_active(user) -> bool:
         return True
     # trialing kept for legacy rows that haven't been migrated yet
     return user.subscription_status in ("active", "free", "trialing", None)
+
+
+def _is_free_tier(user) -> bool:
+    """Return True for non-paying users subject to free-tier limits
+    (daily scan cap + 10-result cap). Admins and active subscribers are exempt."""
+    if user.is_admin:
+        return False
+    return user.subscription_status not in ("active",)
 
 
 _AI_DAILY_LIMITS = {
@@ -1973,6 +1988,12 @@ def cron_scan():
             if user and not scan["running"]:
                 scan["running"] = True
                 scan["q"]       = queue.Queue()
+                # Record this scan in history (and avoid reusing a stale
+                # history_id left in the scan dict by a previous manual run).
+                history_row = ScanHistory(user_id=s.user_id, mode="analyst", status="running")
+                db.session.add(history_row)
+                db.session.commit()
+                scan["history_id"] = history_row.id
                 extra_env = _build_user_env(user)
                 t = threading.Thread(
                     target=_run_scan_inprocess,
@@ -2032,7 +2053,7 @@ def cron_weekly_digest():
         skipped_ids = {
             r.job_source_id
             for r in ApplicationStatus.query.filter_by(
-                user_id=s.user_id, status="skipped"
+                user_id=s.user_id, status="skip"
             ).all()
         }
         top_jobs = [j.to_dict() for j in recent if j.source_job_id not in skipped_ids][:8]
