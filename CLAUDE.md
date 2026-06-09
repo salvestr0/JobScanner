@@ -28,23 +28,23 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | `templates/index.html` | Main SPA (Alpine.js) — all pages except login/register/onboarding |
 | `templates/onboarding.html` | 2-step onboarding wizard (job prefs → Gemini key) |
 | `config.py` | Loads env vars, SEARCH_CONFIG defaults, Gemini mode generation |
-| `main.py` | Scan subprocess runner — called by `app.py` via `subprocess.Popen` |
+| `main.py` | Standalone CLI scan runner (manual/Task Scheduler use) — **not** called by `app.py`; the hosted app scans in-process |
 | `scrapers.py` | MCF API only (no scrapers — all previous ones removed) |
 | `scorer.py` | Job scoring engine (0–100), produces `match_reasons` and `score_breakdown` |
 | `cover_notes.py` | Gemini cover note generation |
 | `notifier.py` | Resend email digest |
 | `resume_parser.py` | PDF/DOCX → Gemini → structured profile |
-| `migrations/` | Flask-Migrate / Alembic — 3 migrations, head: `c4a2d8f91b3e` |
+| `migrations/` | Flask-Migrate / Alembic — head: `75ee9f96c50e` |
 
 ---
 
 ## Data Flow
 
 1. User triggers scan via UI (`/api/scan/start`) or cron (`/api/cron/scan`)
-2. `app.py` spawns `main.py` as a subprocess with user config in env vars
-3. `main.py` calls `scrapers.py` → `scorer.py` → `cover_notes.py` → `notifier.py`
-4. Results written to `data/users/<user_id>/matched_jobs.csv` + `seen_jobs.json`
-5. `_sync_scan_results()` in `app.py` imports CSV into the `jobs` DB table
+2. `app.py` runs `_run_scan_inprocess()` in a background thread (per-user config built by `_build_user_env`)
+3. It calls `scrapers.py` → `scorer.py`, then optionally `notifier.py` for the email digest
+4. Matched jobs + seen IDs are written **directly** to the `jobs` / `seen_jobs` DB tables
+5. Progress is streamed to the UI via `/api/scan/stream` (SSE); `ScanHistory` records the run
 
 ---
 
@@ -55,7 +55,6 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
   - `/api/cron/scan` — every 15 min, triggers scheduled user scans
   - `/api/cron/weekly-digest` — Mondays 08:00 SGT, sends email digests
   - `/api/cron/cleanup` — daily, deletes jobs >60 days old (keeps tracked), scan_history >90 days
-  - `/api/cron/expire-trials` — daily, flips expired trialing users to `expired` in DB
   - `/api/cron/stripe-sync` — daily, syncs Stripe subscription status to fix missed webhooks
 - **Supabase** — Session Pooler connection (IPv4 compatible), port 5432
 - **Stripe webhook** — endpoint: `/api/stripe/webhook` (not `/api/billing/webhook`)
@@ -105,7 +104,7 @@ python -m flask db migrate -m "description"
 python -m flask db upgrade
 ```
 
-Migration chain: `f7ef5236638b` → `b3c1e9f02a4d` → `c4a2d8f91b3e` (current head)
+Migration chain: starts at `f7ef5236638b`, branch reconciled by merge `a8e2d5f31b7c`, current head: `75ee9f96c50e`
 
 ---
 
@@ -153,7 +152,7 @@ python run.py                # starts Flask on http://localhost:5000
 - [x] Account deletion (PDPA compliant)
 - [x] Export jobs as CSV
 - [x] Scan history tracking
-- [x] Cron: cleanup, expire-trials, stripe-sync
+- [x] Cron: cleanup, stripe-sync
 
 ---
 
