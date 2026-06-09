@@ -38,8 +38,7 @@ class User(UserMixin, db.Model):
 
     # Billing
     stripe_customer_id  = db.Column(db.String(255))
-    subscription_status = db.Column(db.String(32), default="trialing")  # trialing | active | past_due | cancelled
-    trial_ends_at       = db.Column(db.DateTime(timezone=True))
+    subscription_status = db.Column(db.String(32), default="free")  # free | active | past_due | cancelled
     is_admin            = db.Column(db.Boolean, default=False)
 
     # AI quota tracking

@@ -1504,7 +1504,7 @@ def set_schedule():
 @limiter.limit("3/minute;15/hour")
 def start_scan():
     if not _is_active(current_user):
-        return jsonify({"error": "trial_expired"}), 403
+        return jsonify({"error": "access_denied"}), 403
 
     data   = request.json or {}
     mode   = data.get("mode", "analyst")
@@ -1677,23 +1677,17 @@ def delete_account():
 # ── Billing ───────────────────────────────────────────────────────────────────
 
 def _is_active(user) -> bool:
-    """Return True if user has access (free tier or active subscription)."""
+    """Return True if user has access (free or active subscription)."""
     if user.is_admin:
         return True
-    if user.subscription_status in ("active", "free"):
-        return True
-    if user.subscription_status in (None, "trialing"):
-        ends = user.trial_ends_at
-        if ends is None:
-            return True  # legacy users without trial end — treat as free
-        return datetime.now(timezone.utc) <= ends
-    return False
+    # trialing kept for legacy rows that haven't been migrated yet
+    return user.subscription_status in ("active", "free", "trialing", None)
 
 
 _AI_DAILY_LIMITS = {
     "active":    30,
-    "trialing":  10,
     "free":       5,
+    "trialing":   5,  # legacy rows — same as free
     "past_due":   5,
     "cancelled":  0,
     "expired":    0,
@@ -1729,32 +1723,22 @@ def _check_ai_quota(user) -> tuple[bool, str | None]:
 def _billing_status(user) -> dict:
     if user.is_admin:
         return {
-            "status":         "active",
-            "has_access":     True,
-            "is_free":        False,
-            "scan_limit":     None,
-            "trial_days_left": None,
+            "status":     "active",
+            "has_access": True,
+            "is_free":    False,
+            "scan_limit": None,
         }
-    status  = user.subscription_status or "free"
+    status = user.subscription_status or "free"
+    if status == "trialing":
+        status = "free"  # legacy rows — no trial UI
     is_free = status not in ("active",)
-
-    # Legacy trial handling — keep working for existing trialing users
-    trial_days_left = None
-    if status == "trialing" and user.trial_ends_at:
-        delta = user.trial_ends_at - datetime.now(timezone.utc)
-        trial_days_left = max(0, delta.days)
-        if datetime.now(timezone.utc) > user.trial_ends_at:
-            status = "expired"
-            is_free = False
-
+    has_access = is_free and status not in ("expired", "cancelled", "past_due")
     return {
-        "status":          status,
-        "has_access":      _is_active(user),
-        "is_free":         is_free and status not in ("expired", "cancelled", "past_due"),
-        "scan_limit":      10 if (is_free and status not in ("expired", "cancelled", "past_due")) else None,
-        "trial_ends_at":   user.trial_ends_at.isoformat() if user.trial_ends_at else None,
-        "trial_days_left": trial_days_left,
-        "email_verified":  bool(user.email_verified),
+        "status":         status,
+        "has_access":     _is_active(user),
+        "is_free":        has_access,
+        "scan_limit":     10 if has_access else None,
+        "email_verified": bool(user.email_verified),
     }
 
 
@@ -2102,31 +2086,6 @@ def cron_cleanup():
     return jsonify({"deleted_jobs": deleted_jobs, "deleted_scan_history": deleted_scans})
 
 
-@app.route("/api/cron/expire-trials", methods=["POST"])
-def cron_expire_trials():
-    """
-    Flip trialing users whose trial_ends_at is in the past to 'expired' in the DB.
-    Without this, the admin dashboard shows incorrect subscription counts.
-    Called daily by Render cron.
-    """
-    secret   = os.getenv("CRON_SECRET", "")
-    incoming = request.headers.get("X-Cron-Secret", "")
-    if not secret or not hmac.compare_digest(incoming, secret):
-        return jsonify({"error": "Forbidden"}), 403
-
-    now     = datetime.now(timezone.utc)
-    expired = User.query.filter(
-        User.subscription_status == "trialing",
-        User.trial_ends_at != None,  # noqa: E711
-        User.trial_ends_at < now,
-    ).all()
-
-    for user in expired:
-        user.subscription_status = "expired"
-
-    db.session.commit()
-    return jsonify({"expired": len(expired)})
-
 
 @app.route("/api/cron/stripe-sync", methods=["POST"])
 def cron_stripe_sync():
@@ -2147,7 +2106,6 @@ def cron_stripe_sync():
 
     STATUS_MAP = {
         "active":   "active",
-        "trialing": "trialing",
         "past_due": "past_due",
         "canceled": "cancelled",
         "unpaid":   "past_due",

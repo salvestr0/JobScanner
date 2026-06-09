@@ -299,21 +299,16 @@
       </button>
     </div>
     <!-- Expired / payment issues: warning strip -->
-    <div x-show="billing.status && !billing.is_free && billing.status !== 'active'" x-cloak
+    <div x-show="billing.status && !billing.has_access" x-cloak
       class="sticky top-0 z-20 flex items-center justify-between px-6 py-2.5 text-sm font-medium"
       :class="{
-        'bg-amber-50 border-b border-amber-200 text-amber-800': billing.trial_days_left > 1,
-        'bg-orange-50 border-b border-orange-200 text-orange-800': billing.trial_days_left === 1,
-        'bg-red-50 border-b border-red-200 text-red-800': billing.status === 'expired' || billing.trial_days_left === 0,
+        'bg-red-50 border-b border-red-200 text-red-800': billing.status === 'expired' || billing.status === 'cancelled',
         'bg-red-100 border-b border-red-300 text-red-900': billing.status === 'past_due',
       }">
       <span x-text="
         billing.status === 'past_due'  ? 'Payment failed — please update your payment method to keep access.' :
         billing.status === 'cancelled' ? 'Subscription cancelled — subscribe to continue scanning.' :
-        (billing.status === 'expired' || billing.trial_days_left === 0)
-          ? 'Your trial has ended — subscribe to continue scanning.' :
-        billing.trial_days_left === 1  ? '1 day left in your free trial.' :
-        billing.trial_days_left + ' days left in your free trial.'
+        'Your access has ended — subscribe to continue scanning.'
       "></span>
       <div class="flex items-center gap-3 flex-shrink-0 ml-4">
         <button x-show="billing.status === 'active' || billing.status === 'past_due'"
@@ -442,7 +437,7 @@
         <p class="text-slate-500 text-sm mt-1">Fetch jobs from MCF, Indeed, Adzuna and RemoteOK, then score them against your profile</p>
       </div>
 
-      <!-- Paywall (shown when trial expired / cancelled) -->
+      <!-- Paywall (shown when cancelled / expired / past due) -->
       <div x-show="!billing.has_access" x-cloak
         class="bg-white rounded-2xl shadow-sm border border-slate-100 p-10 text-center">
         <div class="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -451,7 +446,7 @@
           </svg>
         </div>
         <h2 class="text-lg font-bold text-slate-800 mb-2">
-          <span x-text="billing.status === 'past_due' ? 'Payment required' : 'Your free trial has ended'"></span>
+          <span x-text="billing.status === 'past_due' ? 'Payment required' : 'Subscription required'"></span>
         </h2>
         <p class="text-slate-500 text-sm mb-6 max-w-xs mx-auto">
           Subscribe to continue scanning. You'll keep all your existing job history and applications.
@@ -1755,23 +1750,19 @@
             <div>
               <div class="text-sm font-semibold text-slate-700 capitalize"
                 x-text="{
-                  free:     'Free plan',
-                  trialing: 'Free trial',
-                  active:   'Pro — active subscription',
-                  expired:  'Trial expired',
-                  past_due: 'Payment failed',
-                  cancelled:'Subscription cancelled',
+                  free:      'Free plan',
+                  active:    'Pro — active subscription',
+                  expired:   'Access expired',
+                  past_due:  'Payment failed',
+                  cancelled: 'Subscription cancelled',
                 }[billing.status] || 'Free plan'"></div>
               <div class="text-xs text-slate-400 mt-0.5"
                 x-text="
-                  billing.status === 'active'   ? 'Unlimited scans. Thank you!' :
+                  billing.status === 'active'    ? 'Unlimited scans. Thank you!' :
                   billing.status === 'past_due'  ? 'Update your payment method to restore access.' :
                   billing.status === 'cancelled' ? 'Subscribe again to continue scanning.' :
-                  billing.status === 'expired'   ? 'Trial ended — subscribe to continue scanning.' :
-                  billing.is_free               ? 'Up to 10 job matches per scan.' :
-                  (billing.trial_days_left !== null)
-                    ? billing.trial_days_left + ' day(s) remaining in your trial.'
-                    : 'Up to 10 job matches per scan.'
+                  billing.status === 'expired'   ? 'Access ended — subscribe to continue scanning.' :
+                  'Up to 10 job matches per scan.'
                 "></div>
             </div>
             <div class="flex gap-2">
@@ -2082,7 +2073,7 @@ function app() {
     resumeDownloading: false,
 
     // Billing
-    billing: { status: null, trial_days_left: null, has_access: true, is_free: true, scan_limit: 10 },
+    billing: { status: null, has_access: true, is_free: true, scan_limit: 10 },
     subscribing: false,
 
     // New tag inputs for search config
@@ -2619,12 +2610,8 @@ function app() {
         const r = await fetch('/api/scan/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:this.selMode,notify:this.notify})});
         if (r.status === 403) {
           const d = await r.json();
-          if (d.error === 'trial_expired') {
-            await this.loadBilling();
-            this.flash('Your trial has ended — subscribe to scan.', false);
-          } else {
-            this.flash('Access denied', false);
-          }
+          await this.loadBilling();
+          this.flash('Access denied — subscribe to continue scanning.', false);
           this.scanning = false;
           return;
         }
