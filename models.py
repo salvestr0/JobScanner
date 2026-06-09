@@ -42,6 +42,10 @@ class User(UserMixin, db.Model):
     trial_ends_at       = db.Column(db.DateTime(timezone=True))
     is_admin            = db.Column(db.Boolean, default=False)
 
+    # AI quota tracking
+    ai_calls_today      = db.Column(db.Integer, default=0)
+    ai_calls_reset_date = db.Column(db.Date, nullable=True)
+
     # Relationships
     profile   = db.relationship("UserProfile",  back_populates="user", uselist=False, cascade="all, delete-orphan")
     settings  = db.relationship("UserSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
@@ -154,6 +158,7 @@ class Job(db.Model):
     closing_date  = db.Column(db.String(32))
     hidden        = db.Column(db.Boolean, default=False)
     scan_date     = db.Column(db.DateTime(timezone=True), default=_now)
+    cover_note    = db.Column(db.Text, nullable=True)
 
     user = db.relationship("User", back_populates="jobs")
 

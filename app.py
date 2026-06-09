@@ -1026,12 +1026,22 @@ def generate_cover_note_route():
 
     data   = request.json or {}
     job_id = (data.get("job_id") or "").strip()
+    force  = bool(data.get("force"))
     if not job_id:
         return jsonify({"error": "job_id required"}), 400
 
     job_row = Job.query.filter_by(user_id=current_user.id, source_job_id=job_id).first()
     if not job_row:
         return jsonify({"error": "Job not found"}), 404
+
+    # Return cached cover note without consuming quota
+    if job_row.cover_note and not force:
+        return jsonify({"ok": True, "content": job_row.cover_note, "cached": True})
+
+    # Check daily AI quota before calling Gemini
+    allowed, quota_err = _check_ai_quota(current_user)
+    if not allowed:
+        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
 
     profile      = _get_or_create_profile(current_user.id)
     profile_dict = profile.to_dict()
@@ -1053,6 +1063,8 @@ def generate_cover_note_route():
         notes_dir = _cover_notes_dir(current_user.id)
         notes_dir.mkdir(parents=True, exist_ok=True)
         save_cover_note(job_dict, note_text, str(notes_dir))
+        job_row.cover_note = note_text
+        db.session.commit()
         return jsonify({"ok": True, "content": note_text})
     except Exception as e:
         app.logger.error("Cover note generation failed for user %s: %s", current_user.id, e, exc_info=True)
@@ -1188,6 +1200,10 @@ def resume_polish():
     import config as cfg
     import requests as _req
 
+    allowed, quota_err = _check_ai_quota(current_user)
+    if not allowed:
+        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
+
     api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
     if not api_key:
         return jsonify({"error": "AI service not configured"}), 400
@@ -1262,6 +1278,10 @@ Work history:
 def resume_tailor():
     import config as cfg
     import requests as _req
+
+    allowed, quota_err = _check_ai_quota(current_user)
+    if not allowed:
+        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
 
     api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
     if not api_key:
@@ -1670,6 +1690,42 @@ def _is_active(user) -> bool:
     return False
 
 
+_AI_DAILY_LIMITS = {
+    "active":    30,
+    "trialing":  10,
+    "free":       5,
+    "past_due":   5,
+    "cancelled":  0,
+    "expired":    0,
+}
+
+
+def _check_ai_quota(user) -> tuple[bool, str | None]:
+    """Check and increment the user's daily AI call quota.
+
+    Returns (allowed, error_message). Commits the counter increment on success.
+    Admins are always allowed.
+    """
+    from datetime import date as _date
+    if user.is_admin:
+        return True, None
+
+    today = _date.today()
+    if user.ai_calls_reset_date != today:
+        user.ai_calls_today = 0
+        user.ai_calls_reset_date = today
+
+    limit = _AI_DAILY_LIMITS.get(user.subscription_status, 5)
+    if limit == 0:
+        return False, "AI features are unavailable on your current plan."
+    if (user.ai_calls_today or 0) >= limit:
+        return False, f"Daily AI limit reached ({limit} calls/day). Resets at midnight SGT."
+
+    user.ai_calls_today = (user.ai_calls_today or 0) + 1
+    db.session.commit()
+    return True, None
+
+
 def _billing_status(user) -> dict:
     if user.is_admin:
         return {
@@ -1799,6 +1855,10 @@ def billing_webhook():
 def interview_prep():
     import config as cfg
     import requests as _req
+
+    allowed, quota_err = _check_ai_quota(current_user)
+    if not allowed:
+        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
 
     data   = request.json or {}
     job_id = (data.get("job_id") or "").strip()
