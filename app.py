@@ -126,17 +126,25 @@ def _send_email(to: str, subject: str, html: str) -> bool:
     api_key   = os.getenv("RESEND_API_KEY", "").strip()
     from_addr = os.getenv("RESEND_FROM", "CareerJobScan <noreply@jobscanner.app>").strip()
     if not api_key:
+        app.logger.warning("Email not sent to %s: RESEND_API_KEY not set", to)
         return False
     try:
         import requests as _req
-        _req.post(
+        resp = _req.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={"from": from_addr, "to": [to], "subject": subject, "html": html},
             timeout=10,
         )
+        if resp.status_code >= 400:
+            app.logger.error(
+                "Resend rejected email to %s (from %r): %s %s",
+                to, from_addr, resp.status_code, resp.text[:500],
+            )
+            return False
         return True
-    except Exception:
+    except Exception as exc:
+        app.logger.error("Email send to %s failed: %s", to, exc, exc_info=True)
         return False
 
 
@@ -686,7 +694,9 @@ def resend_verification():
     db.session.commit()
 
     verify_url = request.host_url.rstrip("/") + f"/verify-email?token={verify_token}"
-    _send_email(current_user.email, "Verify your CareerJobScan email", _verification_email_html(verify_url))
+    sent = _send_email(current_user.email, "Verify your CareerJobScan email", _verification_email_html(verify_url))
+    if not sent:
+        return jsonify({"ok": False, "error": "Email could not be sent. Please try again later."}), 502
     return jsonify({"ok": True})
 
 

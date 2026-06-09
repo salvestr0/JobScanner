@@ -2196,8 +2196,10 @@ function app() {
       this.verifyResending = true;
       this.verifyResendMsg = '';
       try {
-        await fetch('/api/auth/resend-verification', { method: 'POST' });
-        this.verifyResendMsg = 'Verification email sent!';
+        const res = await fetch('/api/auth/resend-verification', { method: 'POST' });
+        this.verifyResendMsg = res.ok
+          ? 'Verification email sent!'
+          : 'Failed to send — try again later.';
       } catch(_) {
         this.verifyResendMsg = 'Failed to send — try again later.';
       }
