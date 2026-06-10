@@ -22,7 +22,7 @@ warnings.filterwarnings("ignore", message="Fernet")
 import pytest
 
 import app as flask_app
-from models import ApplicationStatus, Job, User, db
+from models import User, db
 from scrapers import _USD_TO_SGD, _to_monthly_sgd
 
 
