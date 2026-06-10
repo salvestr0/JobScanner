@@ -8,6 +8,20 @@ from datetime import datetime, timezone, timedelta
 import requests
 
 
+def _reason_list(reasons) -> list:
+    """Normalise match_reasons to a list.
+
+    Scan results carry a list, but Job.to_dict() returns the DB's
+    "|"-joined string — slicing that as-is would render one pill per
+    character.
+    """
+    if not reasons:
+        return []
+    if isinstance(reasons, str):
+        return [r.strip() for r in reasons.split("|") if r.strip()]
+    return reasons
+
+
 def send_email_digest(jobs: list, settings: dict, subject_override: str = "") -> bool:
     """
     Send job matches as an HTML email digest via Resend.
@@ -59,7 +73,7 @@ def send_email_digest(jobs: list, settings: dict, subject_override: str = "") ->
             if sal:
                 loc_sal += f" · {sal}"
 
-            reasons = job.get("match_reasons") or []
+            reasons = _reason_list(job.get("match_reasons"))
             reason_pills = "".join(
                 f"<span style='display:inline-block;background:#EEF2FF;color:#4338CA;"
                 f"font-size:11px;padding:2px 7px;border-radius:10px;margin:3px 3px 0 0'>"
@@ -184,7 +198,7 @@ def send_weekly_digest(to_email: str, jobs: list, base_url: str = "", week_total
         else:
             badge_bg, badge_fg = "#FEE2E2", "#7F1D1D"
 
-        reasons = job.get("match_reasons") or []
+        reasons = _reason_list(job.get("match_reasons"))
         reason_pills = "".join(
             f"<span style='display:inline-block;background:#EEF2FF;color:#4338CA;"
             f"font-size:11px;padding:2px 7px;border-radius:10px;margin:3px 3px 0 0'>"
