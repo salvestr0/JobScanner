@@ -3,11 +3,13 @@ CareerJobScan Web UI — Flask backend (multi-user)
 Run: python run.py
 Open: http://localhost:5000
 """
+import hashlib
 import hmac
 import json
 import os
 import queue
 import re
+import secrets
 import threading
 import warnings
 from collections import Counter, defaultdict
@@ -29,7 +31,7 @@ if _sentry_dsn:
 from authlib.integrations.flask_client import OAuth
 from cryptography.fernet import Fernet, InvalidToken
 from dotenv import load_dotenv
-from flask import Flask, Response, jsonify, redirect, render_template, request, session, stream_with_context, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, stream_with_context, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
@@ -122,6 +124,18 @@ def _decrypt_api_key(ciphertext: str) -> str:
         return ciphertext
 
 
+def _log_gemini_usage(endpoint: str, user_id: str, response_json: dict) -> None:
+    usage = response_json.get("usageMetadata", {})
+    app.logger.info(
+        "gemini_usage endpoint=%s user=%s prompt_tokens=%s output_tokens=%s total_tokens=%s",
+        endpoint,
+        user_id,
+        usage.get("promptTokenCount", "?"),
+        usage.get("candidatesTokenCount", "?"),
+        usage.get("totalTokenCount", "?"),
+    )
+
+
 def _send_email(to: str, subject: str, html: str) -> bool:
     api_key   = os.getenv("RESEND_API_KEY", "").strip()
     from_addr = os.getenv("RESEND_FROM", "CareerJobScan <noreply@jobscanner.app>").strip()
@@ -190,7 +204,7 @@ _config_lock = threading.Lock()
 
 def _get_scan(user_id: str) -> dict:
     if user_id not in _scans:
-        _scans[user_id] = {"running": False, "q": queue.Queue(), "proc": None}
+        _scans[user_id] = {"running": False, "q": queue.Queue()}
     return _scans[user_id]
 
 
@@ -531,7 +545,6 @@ def auth_register():
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "Registration failed — try signing in instead"}), 409
 
-    import hashlib, secrets
     verify_token      = secrets.token_urlsafe(32)
     verify_token_hash = hashlib.sha256(verify_token.encode()).hexdigest()
 
@@ -577,8 +590,6 @@ def auth_logout():
 @app.route("/api/auth/forgot-password", methods=["POST"])
 @limiter.limit("3/minute;10/hour")
 def auth_forgot_password():
-    import hashlib, secrets, requests as _req
-
     email = (request.json or {}).get("email", "").strip().lower()
     # Always return success — don't reveal if email exists
     if not email:
@@ -621,8 +632,6 @@ def auth_forgot_password():
 @app.route("/api/auth/reset-password", methods=["POST"])
 @limiter.limit("5/minute;20/hour")
 def auth_reset_password():
-    import hashlib
-
     data     = request.json or {}
     token    = (data.get("token") or "").strip()
     password = data.get("password") or ""
@@ -662,7 +671,6 @@ def reset_password_page():
 
 @app.route("/verify-email")
 def verify_email_page():
-    import hashlib
     token      = (request.args.get("token") or "").strip()
     token_hash = hashlib.sha256(token.encode()).hexdigest() if token else ""
     user = User.query.filter_by(email_verify_token=token_hash).first() if token_hash else None
@@ -684,7 +692,6 @@ def verify_email_page():
 @login_required
 @limiter.limit("3/hour")
 def resend_verification():
-    import hashlib, secrets
     if current_user.email_verified:
         return jsonify({"ok": True})
 
@@ -760,6 +767,13 @@ def auth_me():
         "has_password": bool(current_user.password_hash),
         "is_admin":     _is_admin(current_user),
     })
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/health")
+def health():
+    return jsonify({"ok": True})
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
@@ -996,9 +1010,9 @@ def list_cover_notes():
             parts      = title_line.split("@", 1)
             job_title  = parts[0].strip()
             company    = parts[1].strip() if len(parts) > 1 else ""
-            score_line = next((l for l in lines if "Match Score:" in l), "")
+            score_line = next((ln for ln in lines if "Match Score:" in ln), "")
             score      = score_line.replace("Match Score:", "").replace("/100", "").strip() if score_line else ""
-            url_line   = next((l for l in lines if "Job URL:" in l), "")
+            url_line   = next((ln for ln in lines if "Job URL:" in ln), "")
             url        = url_line.replace("Job URL:", "").strip() if url_line else ""
             notes.append({
                 "filename": f.name,
@@ -1262,11 +1276,14 @@ Work history:
             timeout=30,
         )
         resp.raise_for_status()
-        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
+        _rj = resp.json()
+        _log_gemini_usage("resume_polish", str(current_user.id), _rj)
+        raw = _rj["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception:
         return jsonify({"error": "AI request failed. Please try again later."}), 502
 
-    import re as _re, json as _json
+    import re as _re
+    import json as _json
     match = _re.search(r'\{[\s\S]*\}', raw)
     if not match:
         return jsonify({"error": "AI returned unexpected format"}), 502
@@ -1355,11 +1372,14 @@ Return ONLY a valid JSON object with exactly this structure:
             timeout=30,
         )
         resp.raise_for_status()
-        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
+        _rj = resp.json()
+        _log_gemini_usage("resume_tailor", str(current_user.id), _rj)
+        raw = _rj["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception:
         return jsonify({"error": "AI request failed. Please try again later."}), 502
 
-    import re as _re, json as _json
+    import re as _re
+    import json as _json
     match = _re.search(r'\{[\s\S]*\}', raw)
     if not match:
         return jsonify({"error": "AI returned unexpected format"}), 502
@@ -1844,15 +1864,18 @@ def billing_webhook():
         return "", 200
 
     et = event["type"]
+    new_status = None
     if et in ("customer.subscription.created", "customer.subscription.updated"):
         stripe_status = obj.get("status", "")
-        user.subscription_status = "active" if stripe_status == "active" else stripe_status
+        new_status = "active" if stripe_status == "active" else stripe_status
     elif et == "customer.subscription.deleted":
-        user.subscription_status = "cancelled"
+        new_status = "cancelled"
     elif et == "invoice.payment_failed":
-        user.subscription_status = "past_due"
+        new_status = "past_due"
 
-    db.session.commit()
+    if new_status is not None and user.subscription_status != new_status:
+        user.subscription_status = new_status
+        db.session.commit()
     return "", 200
 
 
@@ -1941,8 +1964,10 @@ Rules:
             timeout=30,
         )
         resp.raise_for_status()
-        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
+        _rj = resp.json()
+        _log_gemini_usage("interview_prep", str(current_user.id), _rj)
+        raw = _rj["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception:
         return jsonify({"error": "AI request failed. Please try again later."}), 502
 
     match = re.search(r'\{[\s\S]*\}', raw)
@@ -2170,6 +2195,28 @@ def cron_stripe_sync():
 
     db.session.commit()
     return jsonify({"synced": len(users), "updated": updated})
+
+
+@app.route("/api/cron/billing-health", methods=["POST"])
+def cron_billing_health():
+    secret   = os.getenv("CRON_SECRET", "")
+    incoming = request.headers.get("X-Cron-Secret", "")
+    if not secret or not hmac.compare_digest(incoming, secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    admin_email = os.getenv("ADMIN_EMAIL", "").strip()
+    past_due = User.query.filter_by(subscription_status="past_due").all()
+    if past_due and admin_email:
+        rows = "".join(
+            f"<tr><td>{u.email}</td><td>{u.stripe_customer_id or '—'}</td></tr>"
+            for u in past_due
+        )
+        html = (
+            f"<h2>Billing Health — {len(past_due)} past_due account(s)</h2>"
+            f"<table><tr><th>Email</th><th>Stripe Customer</th></tr>{rows}</table>"
+        )
+        _send_email(admin_email, f"[CareerJobScan] {len(past_due)} past_due account(s)", html)
+    return jsonify({"past_due": len(past_due), "alerted": bool(past_due and admin_email)})
 
 
 # ── Admin ─────────────────────────────────────────────────────────────────────

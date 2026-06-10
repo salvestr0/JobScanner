@@ -56,6 +56,17 @@ def _parse_salary(val) -> int | None:
         return None
 
 
+_USD_TO_SGD = 1.35
+
+
+def _to_monthly_sgd(val, fx: float = 1.0) -> int | None:
+    n = _parse_salary(val)
+    if n is None:
+        return None
+    monthly = n / 12 if n >= 12000 else n
+    return int(round(monthly * fx))
+
+
 # ── MyCareersFuture ───────────────────────────────────────────────────────────
 
 _MCF_PRIMARY = (
@@ -97,7 +108,7 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
             print(f"  [MCF] Collected {len(jobs)} candidates — stopping early")
             break
         if len(jobs) >= 200:
-            print(f"  [MCF] Cap reached — stopping to conserve memory")
+            print("  [MCF] Cap reached — stopping to conserve memory")
             break
 
         print(f"  → Searching: {title}")
@@ -254,8 +265,8 @@ def fetch_adzuna(max_pages: int = 1) -> list:
                         "title": r.get("title", "Unknown"),
                         "company": company.get("display_name", "Unknown") if isinstance(company, dict) else "Unknown",
                         "description": _clean_html(r.get("description", ""))[:800],
-                        "salary_min": _parse_salary(r.get("salary_min")),
-                        "salary_max": _parse_salary(r.get("salary_max")),
+                        "salary_min": _to_monthly_sgd(r.get("salary_min")),
+                        "salary_max": _to_monthly_sgd(r.get("salary_max")),
                         "location": location.get("display_name", "Singapore") if isinstance(location, dict) else "Singapore",
                         "url": r.get("redirect_url", ""),
                         "posted_date": (r.get("created") or "")[:10],
@@ -422,8 +433,8 @@ def fetch_remoteok() -> list:
             "title": r.get("position", "Unknown"),
             "company": r.get("company", "Unknown"),
             "description": _clean_html(r.get("description", ""))[:800],
-            "salary_min": _parse_salary(r.get("salary_min")),
-            "salary_max": _parse_salary(r.get("salary_max")),
+            "salary_min": _to_monthly_sgd(r.get("salary_min"), fx=_USD_TO_SGD),
+            "salary_max": _to_monthly_sgd(r.get("salary_max"), fx=_USD_TO_SGD),
             "location": r.get("location") or "Remote",
             "url": job_url,
             "posted_date": (r.get("date") or "")[:10],

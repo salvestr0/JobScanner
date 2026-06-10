@@ -148,7 +148,7 @@ def score_job(job: dict, cfg: dict = None) -> dict:
         if loc_kw in full_text:
             if loc_kw in ["remote", "work from home", "wfh", "hybrid"]:
                 location_score = 10
-                reasons.append(f"Remote/hybrid available")
+                reasons.append("Remote/hybrid available")
             elif loc_kw in ["sengkang", "punggol", "hougang", "serangoon"]:
                 location_score = 10
                 reasons.append(f"Near home: {loc_kw}")
