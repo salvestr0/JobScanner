@@ -146,10 +146,6 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
             if job.get("match_reasons"):
                 print(f"     → {', '.join(job['match_reasons'][:3])}")
 
-    # 6. Cover notes — skipped during scan to stay within 512MB server limit.
-    # Generate on-demand from job cards in the app instead.
-    cover_notes = {}
-
     # 7. Save results to CSV
     save_jobs_csv(matched_jobs)
     print(f"\n💾 Results saved to {JOBS_CSV}")
@@ -173,11 +169,10 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
 
     # Summary
     print(f"\n{'=' * 50}")
-    print(f"📊 SCAN SUMMARY")
+    print("📊 SCAN SUMMARY")
     print(f"   Total scraped: {len(all_jobs)}")
     print(f"   New listings:  {len(new_jobs)}")
     print(f"   Matched:       {len(matched_jobs)}")
-    print(f"   Cover notes:   {len(cover_notes)}")
     print(f"{'=' * 50}")
 
     # Print all matched jobs with scores for reference

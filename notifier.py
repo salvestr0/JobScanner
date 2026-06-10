@@ -145,7 +145,7 @@ def send_weekly_digest(to_email: str, jobs: list, base_url: str = "", week_total
     now     = datetime.now(timezone.utc)
     week_start = (now - timedelta(days=7)).strftime("%-d %b")
     week_end   = now.strftime("%-d %b %Y")
-    subject = f"Your top job matches this week · CareerJobScan"
+    subject = "Your top job matches this week · CareerJobScan"
     dashboard_url = _html.escape(f"{base_url}/app") if base_url else "#"
 
     stat_parts = []
