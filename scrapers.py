@@ -67,6 +67,18 @@ def _to_monthly_sgd(val, fx: float = 1.0) -> int | None:
     return int(round(monthly * fx))
 
 
+def _dedupe_key(job: dict) -> str | None:
+    """
+    Fingerprint for cross-source duplicate detection: normalised title+company.
+    Returns None when either field is missing/Unknown — too risky to merge on.
+    """
+    title   = re.sub(r"[^a-z0-9]+", " ", (job.get("title") or "").lower()).strip()
+    company = re.sub(r"[^a-z0-9]+", " ", (job.get("company") or "").lower()).strip()
+    if not title or not company or title == "unknown" or company == "unknown":
+        return None
+    return f"{title}|{company}"
+
+
 # ── MyCareersFuture ───────────────────────────────────────────────────────────
 
 _MCF_PRIMARY = (
@@ -457,17 +469,28 @@ def scrape_all_sources(max_total: int = 0) -> list:
 
     print("\nScanning MyCareersFuture...\n")
     all_jobs: list[dict] = []
-    seen: set = set()
+    seen_ids: set = set()
+    seen_keys: set = set()
+    duplicates = 0
     try:
         jobs = fetch_mcf(max_pages=1, max_results=effective_cap)
         for j in jobs:
-            if j["id"] not in seen:
-                seen.add(j["id"])
-                all_jobs.append(j)
-                if len(all_jobs) >= effective_cap:
-                    break
+            if j["id"] in seen_ids:
+                continue
+            key = _dedupe_key(j)
+            if key is not None and key in seen_keys:
+                duplicates += 1
+                continue
+            seen_ids.add(j["id"])
+            if key is not None:
+                seen_keys.add(key)
+            all_jobs.append(j)
+            if len(all_jobs) >= effective_cap:
+                break
     except Exception as e:
         print(f"  MyCareersFuture failed: {e}")
 
+    if duplicates:
+        print(f"  Skipped {duplicates} duplicate listing(s) (same title + company)")
     print(f"\nTotal: {len(all_jobs)} unique jobs")
     return all_jobs
