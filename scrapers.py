@@ -56,16 +56,10 @@ def _parse_salary(val) -> int | None:
         return None
 
 
-# Approximate FX used to normalise foreign-currency salaries to SGD.
 _USD_TO_SGD = 1.35
 
 
 def _to_monthly_sgd(val, fx: float = 1.0) -> int | None:
-    """Normalise a salary figure to approximate monthly SGD.
-
-    Adzuna reports annual SGD; RemoteOK reports annual USD.
-    Values ≥ 12 000 are treated as annual and divided by 12.
-    """
     n = _parse_salary(val)
     if n is None:
         return None

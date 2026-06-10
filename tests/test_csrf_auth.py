@@ -119,7 +119,6 @@ def test_cron_correct_secret_runs(client):
     assert resp.status_code == 200
     body = resp.get_json()
     assert "triggered" in body
-    assert "pruned_jobs" in body
 
 
 def test_stripe_webhook_no_signature_returns_400(client):
@@ -185,65 +184,26 @@ def test_to_monthly_sgd_string_numbers():
     assert _to_monthly_sgd("3500") == 3500
 
 
-# ── Stale job pruning ────────────────────────────────────────────────────────────
+# ── Health endpoint ──────────────────────────────────────────────────────────────
 
-def test_prune_old_jobs_deletes_stale(client):
-    from datetime import datetime, timedelta, timezone
-    with flask_app.app.app_context():
-        user = User(email="prune@test.com", subscription_status="free")
-        db.session.add(user)
-        db.session.flush()
-
-        old_date = datetime.now(timezone.utc) - timedelta(days=90)
-        old_job = Job(
-            user_id=user.id,
-            source_job_id="old-job-1",
-            title="Old Job",
-            scan_date=old_date,
-            score=50,
-        )
-        new_job = Job(
-            user_id=user.id,
-            source_job_id="new-job-1",
-            title="New Job",
-            score=60,
-        )
-        db.session.add_all([old_job, new_job])
-        db.session.commit()
-
-        deleted = flask_app._prune_old_jobs()
-        assert deleted == 1
-
-        remaining = Job.query.filter_by(user_id=user.id).all()
-        assert len(remaining) == 1
-        assert remaining[0].source_job_id == "new-job-1"
+def test_health_endpoint(client):
+    resp = client.get("/api/health")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"ok": True}
 
 
-def test_prune_old_jobs_keeps_applied(client):
-    from datetime import datetime, timedelta, timezone
-    with flask_app.app.app_context():
-        user = User(email="applied@test.com", subscription_status="free")
-        db.session.add(user)
-        db.session.flush()
+# ── Billing health cron ──────────────────────────────────────────────────────────
 
-        old_date = datetime.now(timezone.utc) - timedelta(days=90)
-        applied_job = Job(
-            user_id=user.id,
-            source_job_id="applied-job-1",
-            title="Applied Job",
-            scan_date=old_date,
-            score=50,
-        )
-        db.session.add(applied_job)
-        status = ApplicationStatus(
-            user_id=user.id,
-            job_source_id="applied-job-1",
-            status="applied",
-        )
-        db.session.add(status)
-        db.session.commit()
+def test_billing_health_wrong_secret(client):
+    resp = client.post("/api/cron/billing-health",
+                       headers={"X-Cron-Secret": "wrong"})
+    assert resp.status_code == 403
 
-        deleted = flask_app._prune_old_jobs()
-        assert deleted == 0
 
-        assert Job.query.filter_by(source_job_id="applied-job-1").count() == 1
+def test_billing_health_correct_secret(client):
+    resp = client.post("/api/cron/billing-health",
+                       headers={"X-Cron-Secret": "test-cron-secret-xyz"})
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert "past_due" in body
+    assert "alerted" in body

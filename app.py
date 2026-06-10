@@ -590,7 +590,6 @@ def auth_logout():
 @app.route("/api/auth/forgot-password", methods=["POST"])
 @limiter.limit("3/minute;10/hour")
 def auth_forgot_password():
-
     email = (request.json or {}).get("email", "").strip().lower()
     # Always return success — don't reveal if email exists
     if not email:
@@ -633,7 +632,6 @@ def auth_forgot_password():
 @app.route("/api/auth/reset-password", methods=["POST"])
 @limiter.limit("5/minute;20/hour")
 def auth_reset_password():
-
     data     = request.json or {}
     token    = (data.get("token") or "").strip()
     password = data.get("password") or ""
@@ -1866,15 +1864,18 @@ def billing_webhook():
         return "", 200
 
     et = event["type"]
+    new_status = None
     if et in ("customer.subscription.created", "customer.subscription.updated"):
         stripe_status = obj.get("status", "")
-        user.subscription_status = "active" if stripe_status == "active" else stripe_status
+        new_status = "active" if stripe_status == "active" else stripe_status
     elif et == "customer.subscription.deleted":
-        user.subscription_status = "cancelled"
+        new_status = "cancelled"
     elif et == "invoice.payment_failed":
-        user.subscription_status = "past_due"
+        new_status = "past_due"
 
-    db.session.commit()
+    if new_status is not None and user.subscription_status != new_status:
+        user.subscription_status = new_status
+        db.session.commit()
     return "", 200
 
 
@@ -1987,28 +1988,6 @@ Rules:
 
 # ── Cron endpoint (Railway scheduled job) ─────────────────────────────────────
 
-_JOB_PRUNE_DAYS = 60
-_KEEP_STATUSES  = {"applied", "interview", "offer"}
-
-
-def _prune_old_jobs() -> int:
-    """Delete job rows older than _JOB_PRUNE_DAYS days, skipping any with an active application status."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=_JOB_PRUNE_DAYS)
-    protected = {
-        r.job_source_id
-        for r in ApplicationStatus.query
-        .filter(ApplicationStatus.status.in_(list(_KEEP_STATUSES)))
-        .with_entities(ApplicationStatus.job_source_id)
-        .all()
-    }
-    q = Job.query.filter(Job.scan_date < cutoff)
-    if protected:
-        q = q.filter(Job.source_job_id.notin_(protected))
-    deleted = q.delete(synchronize_session=False)
-    db.session.commit()
-    return deleted
-
-
 @app.route("/api/cron/scan", methods=["POST"])
 def cron_scan():
     """
@@ -2020,8 +1999,6 @@ def cron_scan():
     incoming = request.headers.get("X-Cron-Secret", "")
     if not secret or not hmac.compare_digest(incoming, secret):
         return jsonify({"error": "Forbidden"}), 403
-
-    pruned = _prune_old_jobs()
 
     now_hm  = datetime.now(timezone.utc).strftime("%H:%M")
     now_h   = int(now_hm.split(":")[0])
@@ -2062,7 +2039,7 @@ def cron_scan():
                 t.start()
                 triggered.append(user.email)
 
-    return jsonify({"triggered": triggered, "pruned_jobs": pruned})
+    return jsonify({"triggered": triggered})
 
 
 @app.route("/api/cron/weekly-digest", methods=["POST"])
@@ -2222,10 +2199,6 @@ def cron_stripe_sync():
 
 @app.route("/api/cron/billing-health", methods=["POST"])
 def cron_billing_health():
-    """
-    Daily billing health check — emails ADMIN_EMAIL a summary of past_due accounts.
-    Trigger alongside /api/cron/scan from Render cron.
-    """
     secret   = os.getenv("CRON_SECRET", "")
     incoming = request.headers.get("X-Cron-Secret", "")
     if not secret or not hmac.compare_digest(incoming, secret):
@@ -2233,23 +2206,16 @@ def cron_billing_health():
 
     admin_email = os.getenv("ADMIN_EMAIL", "").strip()
     past_due = User.query.filter_by(subscription_status="past_due").all()
-
     if past_due and admin_email:
         rows = "".join(
             f"<tr><td>{u.email}</td><td>{u.stripe_customer_id or '—'}</td></tr>"
             for u in past_due
         )
-        html = f"""
-<h2>Billing Health — {datetime.now(timezone.utc).strftime('%Y-%m-%d')}</h2>
-<p><strong>{len(past_due)}</strong> account(s) with <code>past_due</code> status:</p>
-<table border="1" cellpadding="4">
-  <thead><tr><th>Email</th><th>Stripe Customer</th></tr></thead>
-  <tbody>{rows}</tbody>
-</table>
-<p>Log in to <a href="https://dashboard.stripe.com">Stripe dashboard</a> to review.</p>
-"""
+        html = (
+            f"<h2>Billing Health — {len(past_due)} past_due account(s)</h2>"
+            f"<table><tr><th>Email</th><th>Stripe Customer</th></tr>{rows}</table>"
+        )
         _send_email(admin_email, f"[CareerJobScan] {len(past_due)} past_due account(s)", html)
-
     return jsonify({"past_due": len(past_due), "alerted": bool(past_due and admin_email)})
 
 
