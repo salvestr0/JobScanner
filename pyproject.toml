@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # line too long
+    "E402",  # module-level import not at top (Flask apps do this intentionally)
+    "E731",  # lambda assignment
+    "W291",  # trailing whitespace
+    "W293",  # whitespace before ':'
+]

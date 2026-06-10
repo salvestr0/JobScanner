@@ -146,7 +146,7 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
     cover_notes = {}
     if not max_jobs:
         from cover_notes import generate_cover_note, save_cover_note
-        print(f"\n📝 Generating cover notes...")
+        print("\n📝 Generating cover notes...")
         for job in top_jobs:
             try:
                 note = generate_cover_note(job)
@@ -179,7 +179,7 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
 
     # Summary
     print(f"\n{'=' * 50}")
-    print(f"📊 SCAN SUMMARY")
+    print("📊 SCAN SUMMARY")
     print(f"   Total scraped: {len(all_jobs)}")
     print(f"   New listings:  {len(new_jobs)}")
     print(f"   Matched:       {len(matched_jobs)}")

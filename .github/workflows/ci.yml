@@ -7,19 +7,56 @@ on:
     branches: ["master"]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint
+        run: ruff check . --select E,F,W --ignore E501,E402,E731,W291,W293
+
+  migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Check migration heads (must be exactly one)
+        env:
+          SECRET_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          DATABASE_URL: sqlite:///ci_migrate.db
+          CRON_SECRET: ci-cron-secret
+        run: |
+          heads=$(python -m flask db heads 2>&1)
+          echo "Heads: $heads"
+          count=$(echo "$heads" | grep -c "(head)" || true)
+          if [ "$count" -ne 1 ]; then
+            echo "ERROR: Expected 1 migration head, found $count. Merge conflict in migrations?"
+            exit 1
+          fi
+      - name: Apply all migrations cleanly
+        env:
+          SECRET_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          DATABASE_URL: sqlite:///ci_migrate.db
+          CRON_SECRET: ci-cron-secret
+        run: python -m flask db upgrade
+
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: pip install -r requirements.txt pytest
-
       - name: Run tests
         env:
           SECRET_KEY: ${{ secrets.SECRET_KEY || 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }}

@@ -7,13 +7,11 @@ from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
-from reportlab.lib.colors import HexColor, white
-from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from reportlab.lib.colors import HexColor
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, HRFlowable,
-    Table, TableStyle, KeepTogether,
+    KeepTogether,
 )
-from reportlab.lib import colors
 
 _INDIGO  = HexColor("#4F46E5")
 _DARK    = HexColor("#1E293B")

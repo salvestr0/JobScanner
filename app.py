@@ -722,9 +722,9 @@ def list_cover_notes():
             parts      = title_line.split("@", 1)
             job_title  = parts[0].strip()
             company    = parts[1].strip() if len(parts) > 1 else ""
-            score_line = next((l for l in lines if "Match Score:" in l), "")
+            score_line = next((ln for ln in lines if "Match Score:" in ln), "")
             score      = score_line.replace("Match Score:", "").replace("/100", "").strip() if score_line else ""
-            url_line   = next((l for l in lines if "Job URL:" in l), "")
+            url_line   = next((ln for ln in lines if "Job URL:" in ln), "")
             url        = url_line.replace("Job URL:", "").strip() if url_line else ""
             notes.append({
                 "filename": f.name,
@@ -932,7 +932,8 @@ Work history:
     except Exception as e:
         return jsonify({"error": f"Gemini request failed: {e}"}), 502
 
-    import re as _re, json as _json
+    import re as _re
+    import json as _json
     match = _re.search(r'\{[\s\S]*\}', raw)
     if not match:
         return jsonify({"error": "Gemini returned unexpected format"}), 502
@@ -1021,7 +1022,8 @@ Return ONLY a valid JSON object with exactly this structure:
     except Exception as e:
         return jsonify({"error": f"Gemini request failed: {e}"}), 502
 
-    import re as _re, json as _json
+    import re as _re
+    import json as _json
     match = _re.search(r'\{[\s\S]*\}', raw)
     if not match:
         return jsonify({"error": "Gemini returned unexpected format"}), 502
@@ -1493,6 +1495,28 @@ Rules:
 
 # ── Cron endpoint (Railway scheduled job) ─────────────────────────────────────
 
+_JOB_PRUNE_DAYS = 60
+_KEEP_STATUSES  = {"applied", "interview", "offer"}
+
+
+def _prune_old_jobs() -> int:
+    """Delete job rows older than _JOB_PRUNE_DAYS days, skipping any with an active application status."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=_JOB_PRUNE_DAYS)
+    protected = {
+        r.job_source_id
+        for r in ApplicationStatus.query
+        .filter(ApplicationStatus.status.in_(list(_KEEP_STATUSES)))
+        .with_entities(ApplicationStatus.job_source_id)
+        .all()
+    }
+    q = Job.query.filter(Job.scan_date < cutoff)
+    if protected:
+        q = q.filter(Job.source_job_id.notin_(protected))
+    deleted = q.delete(synchronize_session=False)
+    db.session.commit()
+    return deleted
+
+
 @app.route("/api/cron/scan", methods=["POST"])
 @csrf.exempt
 def cron_scan():
@@ -1505,6 +1529,8 @@ def cron_scan():
     incoming = request.headers.get("X-Cron-Secret", "")
     if not secret or not hmac.compare_digest(incoming, secret):
         return jsonify({"error": "Forbidden"}), 403
+
+    pruned = _prune_old_jobs()
 
     now_hm  = datetime.now(timezone.utc).strftime("%H:%M")
     now_h   = int(now_hm.split(":")[0])
@@ -1539,7 +1565,7 @@ def cron_scan():
                 t.start()
                 triggered.append(user.email)
 
-    return jsonify({"triggered": triggered})
+    return jsonify({"triggered": triggered, "pruned_jobs": pruned})
 
 
 # ── Admin ─────────────────────────────────────────────────────────────────────

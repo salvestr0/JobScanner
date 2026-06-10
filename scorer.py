@@ -5,7 +5,7 @@ Returns a score from 0-100 indicating how well the job matches.
 """
 
 import re
-from config import PROFILE, SEARCH_CONFIG
+from config import SEARCH_CONFIG
 
 
 def score_job(job: dict) -> dict:
@@ -54,7 +54,7 @@ def score_job(job: dict) -> dict:
             for adj in adjacent:
                 if adj in title and any(k in full_text for k in ["data", "analytics", "reporting"]):
                     title_score = 15
-                    reasons.append(f"Adjacent role with data focus")
+                    reasons.append("Adjacent role with data focus")
                     break
     breakdown["title"] = title_score
     score += title_score
@@ -129,7 +129,7 @@ def score_job(job: dict) -> dict:
         if loc_kw in full_text:
             if loc_kw in ["remote", "work from home", "wfh", "hybrid"]:
                 location_score = 10
-                reasons.append(f"Remote/hybrid available")
+                reasons.append("Remote/hybrid available")
             elif loc_kw in ["sengkang", "punggol", "hougang", "serangoon"]:
                 location_score = 10
                 reasons.append(f"Near home: {loc_kw}")
