@@ -24,6 +24,12 @@ env/
 # Flask / Migrations cache
 instance/
 
+# Test / coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
 # User data — never commit any runtime data files
 data/
 
