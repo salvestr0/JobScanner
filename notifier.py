@@ -59,6 +59,15 @@ def send_email_digest(jobs: list, settings: dict, subject_override: str = "") ->
             if sal:
                 loc_sal += f" · {sal}"
 
+            reasons = job.get("match_reasons") or []
+            reason_pills = "".join(
+                f"<span style='display:inline-block;background:#EEF2FF;color:#4338CA;"
+                f"font-size:11px;padding:2px 7px;border-radius:10px;margin:3px 3px 0 0'>"
+                f"{_html.escape(r)}</span>"
+                for r in reasons[:3]
+            )
+            reasons_html = f"<div style='margin-top:5px'>{reason_pills}</div>" if reason_pills else ""
+
             rows += f"""
             <tr>
               <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top">
@@ -69,6 +78,7 @@ def send_email_digest(jobs: list, settings: dict, subject_override: str = "") ->
                 <a href="{url}" style="color:#4F46E5;font-weight:600;text-decoration:none;
                   font-size:14px">{title}</a><br>
                 <span style="color:#64748b;font-size:13px">{company}{loc_sal}</span>
+                {reasons_html}
               </td>
               <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top;
                 font-size:12px;color:#94a3b8;white-space:nowrap">{source}</td>
@@ -145,7 +155,7 @@ def send_weekly_digest(to_email: str, jobs: list, base_url: str = "", week_total
     now     = datetime.now(timezone.utc)
     week_start = (now - timedelta(days=7)).strftime("%-d %b")
     week_end   = now.strftime("%-d %b %Y")
-    subject = f"Your top job matches this week · CareerJobScan"
+    subject = "Your top job matches this week · CareerJobScan"
     dashboard_url = _html.escape(f"{base_url}/app") if base_url else "#"
 
     stat_parts = []
@@ -174,19 +184,29 @@ def send_weekly_digest(to_email: str, jobs: list, base_url: str = "", week_total
         else:
             badge_bg, badge_fg = "#FEE2E2", "#7F1D1D"
 
+        reasons = job.get("match_reasons") or []
+        reason_pills = "".join(
+            f"<span style='display:inline-block;background:#EEF2FF;color:#4338CA;"
+            f"font-size:11px;padding:2px 7px;border-radius:10px;margin:3px 3px 0 0'>"
+            f"{_html.escape(r)}</span>"
+            for r in reasons[:3]
+        )
+        reasons_html = f"<div style='margin-top:5px'>{reason_pills}</div>" if reason_pills else ""
+
         rows += f"""
             <tr>
-              <td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle;width:52px">
+              <td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;vertical-align:top;width:52px">
                 <span style="display:inline-block;background:{badge_bg};color:{badge_fg};
                   font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;
                   white-space:nowrap">{score}</span>
               </td>
-              <td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle">
+              <td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;vertical-align:top">
                 <a href="{url}" style="color:#4F46E5;font-weight:600;text-decoration:none;
                   font-size:14px;line-height:1.4">{title}</a><br>
                 <span style="color:#64748b;font-size:13px">{company}{sal}</span>
+                {reasons_html}
               </td>
-              <td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle;
+              <td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;vertical-align:top;
                 font-size:11px;color:#94a3b8;white-space:nowrap">{source}</td>
             </tr>"""
 
