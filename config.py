@@ -245,7 +245,8 @@ def load_user_config(json_str: str):
 # Ignored in multi-user mode (subprocess sets JOBSCANNER_USER_CONFIG instead).
 # ============================================================
 _PROFILE_FILE = "data/profile.json"
-if not _os.getenv("JOBSCANNER_USER_CONFIG") and _os.path.exists(_PROFILE_FILE):
+_HOSTED_MODE = _os.getenv("JOBSCANNER_USER_CONFIG") or _os.getenv("JOBSCANNER_CONFIG_FILE")
+if not _HOSTED_MODE and _os.path.exists(_PROFILE_FILE):
     try:
         with open(_PROFILE_FILE, encoding="utf-8") as _pf:
             PROFILE.update(_json.load(_pf))

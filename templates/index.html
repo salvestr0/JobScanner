@@ -1918,9 +1918,6 @@ function app() {
     billing: { status: null, trial_days_left: null, has_access: true, is_free: true, scan_limit: 10 },
     subscribing: false,
 
-    // Credentials (Gemini)
-    creds: { gemini_api_key: '' },
-
     // New tag inputs for search config
     newSearchInput: { title: '', preferred: '', negative: '' },
 
@@ -2003,7 +2000,6 @@ function app() {
         this.loadStats(),
         this.loadModes(),
         this.loadCfg(),
-        this.loadCreds(),
         this.loadBilling(),
         this.loadSchedule(),
         this.loadProfile(),
@@ -2046,26 +2042,6 @@ function app() {
         if (!this.cfg.preferred_keywords) this.cfg.preferred_keywords = [];
         if (!this.cfg.negative_keywords)  this.cfg.negative_keywords  = [];
       } catch(_){}
-    },
-
-    async loadCreds() {
-      try {
-        const d = await (await fetch('/api/credentials')).json();
-        this.creds.gemini_api_key = d.gemini_api_key || '';
-      } catch(_){}
-    },
-
-    async saveCreds() {
-      try {
-        const r = await fetch('/api/credentials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.creds),
-        });
-        const d = await r.json();
-        this.flash(d.ok ? 'Credentials saved!' : 'Save failed', d.ok);
-        if (d.ok) await this.loadCfg();
-      } catch(_) { this.flash('Network error', false); }
     },
 
     addSearchTag(list, inputKey) {

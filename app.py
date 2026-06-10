@@ -5,7 +5,6 @@ Open: http://localhost:5000
 """
 import hmac
 import json
-import logging
 import os
 import queue
 import re
@@ -32,7 +31,7 @@ if _sentry_dsn:
 
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
-from flask import Flask, Response, jsonify, redirect, render_template, request, session, stream_with_context, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, stream_with_context, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
