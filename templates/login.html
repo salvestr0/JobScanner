@@ -45,6 +45,9 @@
       <div id="success-msg" class="hidden mb-4 px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">
         Password updated — sign in with your new password.
       </div>
+      <div id="verified-msg" class="hidden mb-4 px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">
+        Email verified — sign in to continue.
+      </div>
       <div id="error-msg" class="hidden mb-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm"></div>
 
       <form id="login-form" class="space-y-4">
@@ -93,6 +96,14 @@
     }
     if (params.get('reset') === '1') {
       document.getElementById('success-msg').classList.remove('hidden');
+    }
+    if (params.get('verified') === '1') {
+      document.getElementById('verified-msg').classList.remove('hidden');
+    }
+    if (params.get('verify_error') === '1') {
+      const e = document.getElementById('error-msg');
+      e.textContent = 'That verification link is invalid or has expired — sign in and use "Resend email" to get a new one.';
+      e.classList.remove('hidden');
     }
 
     const form   = document.getElementById('login-form');

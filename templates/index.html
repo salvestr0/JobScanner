@@ -2183,6 +2183,11 @@ function app() {
       const params = new URLSearchParams(window.location.search);
       if (params.get('verified') === '1') {
         this.flash('Email verified successfully!', true);
+        await this.loadBilling?.();
+        history.replaceState({}, '', '/app');
+      }
+      if (params.get('verify_error') === '1') {
+        this.flash('That verification link is invalid or expired — click "Resend email" for a fresh one.', false);
         history.replaceState({}, '', '/app');
       }
     },

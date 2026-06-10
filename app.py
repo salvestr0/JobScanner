@@ -183,6 +183,26 @@ def _verification_email_html(verify_url: str) -> str:
 </body></html>"""
 
 
+def _make_verify_token(user_id: str) -> str:
+    """Signed, stateless email-verification token (72h validity).
+
+    Unlike the old DB-stored hash, signed tokens don't invalidate earlier
+    emails on every resend — any link the user received keeps working
+    until they're verified.
+    """
+    from itsdangerous import URLSafeTimedSerializer
+    return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="email-verify").dumps(user_id)
+
+
+def _load_verify_token(token: str, max_age: int = 72 * 3600) -> str | None:
+    from itsdangerous import URLSafeTimedSerializer
+    try:
+        return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="email-verify").loads(
+            token, max_age=max_age)
+    except Exception:
+        return None
+
+
 @login_manager.user_loader
 def load_user(user_id: str):
     return db.session.get(User, user_id)
@@ -545,20 +565,16 @@ def auth_register():
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "Registration failed — try signing in instead"}), 409
 
-    verify_token      = secrets.token_urlsafe(32)
-    verify_token_hash = hashlib.sha256(verify_token.encode()).hexdigest()
-
     user = User(
         email=email,
         subscription_status="free",
         email_verified=False,
-        email_verify_token=verify_token_hash,
     )
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
 
-    verify_url = request.host_url.rstrip("/") + f"/verify-email?token={verify_token}"
+    verify_url = request.host_url.rstrip("/") + f"/verify-email?token={_make_verify_token(user.id)}"
     _send_email(email, "Verify your CareerJobScan email", _verification_email_html(verify_url))
 
     login_user(user, remember=True)
@@ -671,21 +687,30 @@ def reset_password_page():
 
 @app.route("/verify-email")
 def verify_email_page():
-    token      = (request.args.get("token") or "").strip()
-    token_hash = hashlib.sha256(token.encode()).hexdigest() if token else ""
-    user = User.query.filter_by(email_verify_token=token_hash).first() if token_hash else None
+    token = (request.args.get("token") or "").strip()
 
-    if user and not user.email_verified:
-        user.email_verified     = True
-        user.email_verify_token = None
-        db.session.commit()
-        if current_user.is_authenticated:
-            return redirect("/app?verified=1")
-        return redirect("/login?verified=1")
+    user = None
+    if token:
+        user_id = _load_verify_token(token)
+        if user_id:
+            user = db.session.get(User, user_id)
+        else:
+            # Legacy links (pre-signed-token emails stored a sha256 hash)
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            user = User.query.filter_by(email_verify_token=token_hash).first()
 
-    if current_user.is_authenticated:
-        return redirect("/app")
-    return redirect("/login")
+    if user:
+        if not user.email_verified:
+            user.email_verified     = True
+            user.email_verify_token = None
+            db.session.commit()
+        # Already-verified users clicking again still get a success redirect
+        dest = "/app" if current_user.is_authenticated else "/login"
+        return redirect(f"{dest}?verified=1")
+
+    # Invalid or expired link — tell the user instead of failing silently
+    dest = "/app" if current_user.is_authenticated else "/login"
+    return redirect(f"{dest}?verify_error=1")
 
 
 @app.route("/api/auth/resend-verification", methods=["POST"])
@@ -695,12 +720,8 @@ def resend_verification():
     if current_user.email_verified:
         return jsonify({"ok": True})
 
-    verify_token      = secrets.token_urlsafe(32)
-    verify_token_hash = hashlib.sha256(verify_token.encode()).hexdigest()
-    current_user.email_verify_token = verify_token_hash
-    db.session.commit()
-
-    verify_url = request.host_url.rstrip("/") + f"/verify-email?token={verify_token}"
+    # Signed token — resending no longer invalidates links from earlier emails
+    verify_url = request.host_url.rstrip("/") + f"/verify-email?token={_make_verify_token(current_user.id)}"
     sent = _send_email(current_user.email, "Verify your CareerJobScan email", _verification_email_html(verify_url))
     if not sent:
         return jsonify({"ok": False, "error": "Email could not be sent. Please try again later."}), 502
