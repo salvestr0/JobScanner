@@ -255,6 +255,18 @@ def test_bare_degree_mention_scores_minus_8():
     assert result["score_breakdown"]["education"] == -8
 
 
+def test_ite_as_word_counts_as_accepting_diploma():
+    result = score(title="Warehouse Picker", description="open to ite graduates")
+    assert result["score_breakdown"]["education"] == 5
+
+
+def test_onsite_and_website_are_not_ite_matches():
+    # Regression: "ite" was matched as a bare substring, so "onsite",
+    # "website", "suite" etc. wrongly earned the diploma bonus
+    result = score(title="Warehouse Picker", description="onsite role, apply via our website")
+    assert result["score_breakdown"]["education"] == 3
+
+
 def test_no_education_mention_scores_plus_3():
     result = score(title="Warehouse Picker", description="general labour work")
     assert result["score_breakdown"]["education"] == 3

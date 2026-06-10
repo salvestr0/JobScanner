@@ -192,11 +192,13 @@ def score_job(job: dict, cfg: dict = None) -> dict:
         "university degree", "recognised degree", "recognized degree",
     ]
 
+    # "ite" needs word boundaries — bare substring matching would hit
+    # "onsite", "website", "suite", etc.
     accepts_diploma = any(kw in full_text for kw in [
-        "diploma", "polytechnic", "ite", "nitec",
+        "diploma", "polytechnic", "nitec",
         "diploma or degree", "degree or diploma",
         "degree/diploma", "diploma/degree",
-    ])
+    ]) or bool(re.search(r"\bite\b", full_text))
     has_strict_degree = any(p in full_text for p in strict_degree_phrases)
     has_soft_degree = any(p in full_text for p in soft_degree_phrases)
     mentions_degree = "degree" in full_text
