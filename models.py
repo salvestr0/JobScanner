@@ -25,18 +25,34 @@ class User(UserMixin, db.Model):
     google_id      = db.Column(db.String(255), unique=True, nullable=True)
     created_at     = db.Column(db.DateTime(timezone=True), default=_now)
 
+    # Per-user API credentials (optional — fall back to env vars if blank)
+    gemini_api_key = db.Column(db.String(255))
+
+    # Email verification
+    email_verified       = db.Column(db.Boolean, default=False)
+    email_verify_token   = db.Column(db.String(64), nullable=True)
+
+    # Password reset
+    reset_token         = db.Column(db.String(64), nullable=True)
+    reset_token_expires = db.Column(db.DateTime(timezone=True), nullable=True)
+
     # Billing
     stripe_customer_id  = db.Column(db.String(255))
-    subscription_status = db.Column(db.String(32), default="trialing")  # trialing | active | past_due | cancelled
-    trial_ends_at       = db.Column(db.DateTime(timezone=True))
+    subscription_status = db.Column(db.String(32), default="free")  # free | active | past_due | cancelled
+    is_admin            = db.Column(db.Boolean, default=False)
+
+    # AI quota tracking
+    ai_calls_today      = db.Column(db.Integer, default=0)
+    ai_calls_reset_date = db.Column(db.Date, nullable=True)
 
     # Relationships
     profile   = db.relationship("UserProfile",  back_populates="user", uselist=False, cascade="all, delete-orphan")
     settings  = db.relationship("UserSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    jobs      = db.relationship("Job",                back_populates="user", cascade="all, delete-orphan")
-    statuses  = db.relationship("ApplicationStatus",  back_populates="user", cascade="all, delete-orphan")
-    seen      = db.relationship("SeenJob",            back_populates="user", cascade="all, delete-orphan")
-    modes     = db.relationship("SearchMode",         back_populates="user", cascade="all, delete-orphan")
+    jobs         = db.relationship("Job",               back_populates="user", cascade="all, delete-orphan")
+    statuses     = db.relationship("ApplicationStatus", back_populates="user", cascade="all, delete-orphan")
+    seen         = db.relationship("SeenJob",            back_populates="user", cascade="all, delete-orphan")
+    modes        = db.relationship("SearchMode",         back_populates="user", cascade="all, delete-orphan")
+    scan_history = db.relationship("ScanHistory",        back_populates="user", cascade="all, delete-orphan")
 
     def set_password(self, plain: str):
         self.password_hash = bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
@@ -141,6 +157,7 @@ class Job(db.Model):
     closing_date  = db.Column(db.String(32))
     hidden        = db.Column(db.Boolean, default=False)
     scan_date     = db.Column(db.DateTime(timezone=True), default=_now)
+    cover_note    = db.Column(db.Text, nullable=True)
 
     user = db.relationship("User", back_populates="jobs")
 
@@ -200,6 +217,34 @@ class SeenJob(db.Model):
     first_seen_at = db.Column(db.DateTime(timezone=True), default=_now)
 
     user = db.relationship("User", back_populates="seen")
+
+
+class ScanHistory(db.Model):
+    __tablename__ = "scan_history"
+
+    id          = db.Column(db.String(36), primary_key=True, default=_uuid)
+    user_id     = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False, index=True)
+    mode        = db.Column(db.String(64))
+    started_at  = db.Column(db.DateTime(timezone=True), default=_now)
+    finished_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    job_count   = db.Column(db.Integer, default=0)
+    status      = db.Column(db.String(16), default="running")  # running | done | failed
+
+    user = db.relationship("User", back_populates="scan_history")
+
+    def to_dict(self) -> dict:
+        duration = None
+        if self.started_at and self.finished_at:
+            duration = int((self.finished_at - self.started_at).total_seconds())
+        return {
+            "id":          self.id,
+            "mode":        self.mode or "",
+            "started_at":  self.started_at.strftime("%Y-%m-%d %H:%M") if self.started_at else "",
+            "finished_at": self.finished_at.strftime("%Y-%m-%d %H:%M") if self.finished_at else "",
+            "job_count":   self.job_count or 0,
+            "status":      self.status or "done",
+            "duration_s":  duration,
+        }
 
 
 class SearchMode(db.Model):

@@ -9,8 +9,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.lib.colors import HexColor
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, HRFlowable,
-    KeepTogether,
+    SimpleDocTemplate, Paragraph, Spacer, HRFlowable, KeepTogether,
 )
 
 _INDIGO  = HexColor("#4F46E5")

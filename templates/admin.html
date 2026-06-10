@@ -1,31 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Admin — Job Scanner</title>
+  <title>Admin — CareerJobScan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script>
-    (function () {
-      const _orig = window.fetch;
-      window.fetch = function (url, opts) {
-        opts = opts || {};
-        const method = (opts.method || 'GET').toUpperCase();
-        if (method !== 'GET' && method !== 'HEAD') {
-          const tok = document.querySelector('meta[name="csrf-token"]')?.content
-                   || document.cookie.match(/csrf_token=([^;]+)/)?.[1];
-          if (tok) opts.headers = Object.assign({'X-CSRFToken': tok}, opts.headers || {});
-        }
-        return _orig.call(this, url, opts);
-      };
-    })();
-  </script>
   <style>
     *, body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
     .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
@@ -42,7 +26,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
         </svg>
       </div>
-      <span class="font-bold text-slate-800">Job Scanner</span>
+      <span class="font-bold text-slate-800">CareerJobScan</span>
       <span class="text-slate-300 text-sm">/</span>
       <span class="text-sm font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">Admin</span>
     </div>
@@ -167,7 +151,6 @@
             <option value="">All statuses</option>
             <option value="active">Paid</option>
             <option value="free">Free</option>
-            <option value="trialing">Trialing</option>
             <option value="expired">Expired</option>
             <option value="cancelled">Cancelled</option>
           </select>

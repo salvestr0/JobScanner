@@ -1,5 +1,5 @@
-"""
-Configuration for Job Scanner Tool.
+﻿"""
+Configuration for CareerJobScan Tool.
 All credentials are loaded from environment variables (set via .env or Railway).
 """
 
@@ -98,21 +98,13 @@ COVER_NOTES_DIR = f"{DATA_DIR}/cover_notes"
 # DYNAMIC SEARCH MODES
 # ============================================================
 
-_LOCATION_KEYWORDS = [
-    "sengkang", "punggol", "hougang", "serangoon",
-    "ang mo kio", "bishan", "toa payoh",
-    "remote", "work from home", "wfh", "hybrid",
-    "changi business park", "one-north", "mapletree",
-    "paya lebar", "tai seng", "ubi", "macpherson",
-]
-
 _MODES_CACHE_FILE = "data/modes_cache.json"
 
 _MODE_DEFAULTS = {
     "min_salary": 2200,
     "max_salary": 4000,
     "preferred_location": "Sengkang",
-    "location_keywords": _LOCATION_KEYWORDS,
+    "location_keywords": SEARCH_CONFIG["location_keywords"],
     "min_score_threshold": 38,
     "max_jobs_per_notification": 20,
 }
@@ -233,6 +225,11 @@ def load_user_config(json_str: str):
     except Exception:
         return
 
+    global GEMINI_API_KEY
+
+    if "gemini_api_key" in data:
+        GEMINI_API_KEY = data["gemini_api_key"]
+
     if "profile" in data:
         PROFILE.update(data["profile"])
 
@@ -245,8 +242,7 @@ def load_user_config(json_str: str):
 # Ignored in multi-user mode (subprocess sets JOBSCANNER_USER_CONFIG instead).
 # ============================================================
 _PROFILE_FILE = "data/profile.json"
-_HOSTED_MODE = _os.getenv("JOBSCANNER_USER_CONFIG") or _os.getenv("JOBSCANNER_CONFIG_FILE")
-if not _HOSTED_MODE and _os.path.exists(_PROFILE_FILE):
+if not _os.getenv("JOBSCANNER_USER_CONFIG") and _os.path.exists(_PROFILE_FILE):
     try:
         with open(_PROFILE_FILE, encoding="utf-8") as _pf:
             PROFILE.update(_json.load(_pf))

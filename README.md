@@ -27,10 +27,11 @@ AI-powered job scanner for Singapore. Pulls listings from multiple sources daily
 | Source | Type | Notes |
 |--------|------|-------|
 | **MyCareersFuture** | Singapore govt API | Official, most comprehensive |
+| **Indeed** | Public RSS feed | Singapore listings, sorted by date |
 | **Adzuna** | REST API | Requires free API key at [developer.adzuna.com](https://developer.adzuna.com) |
 | **RemoteOK** | Public JSON API | Remote-friendly roles worldwide |
 
-All sources use official APIs or public endpoints. No HTML scraping.
+All sources use official APIs or public syndication endpoints. No HTML scraping.
 
 ---
 

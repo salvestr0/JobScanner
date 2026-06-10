@@ -1,22 +1,25 @@
 """
-Job fetchers — MyCareersFuture, Adzuna, RemoteOK.
+Job fetchers — MyCareersFuture, Adzuna, Indeed RSS, RemoteOK.
 
-All sources use official APIs or public endpoints (no HTML scraping).
+All sources use official APIs or public syndication endpoints (no HTML scraping).
 LinkedIn / JobStreet / Glints HTML scraping violates their ToS — do not add them back.
-Indeed RSS was removed — Indeed discontinued its public RSS/XML job feeds.
 """
 
 import hashlib
-import re
 import time
+import defusedxml.ElementTree as ET
+from email.utils import parsedate_to_datetime
+
+
+import re
+import socket
 
 import requests
 
 from config import ADZUNA_APP_ID, ADZUNA_APP_KEY, SEARCH_CONFIG
 
-# Approximate FX used to normalise foreign-currency salaries to SGD.
-# RemoteOK lists salaries in USD; MCF/Adzuna (SG) are already SGD.
-_USD_TO_SGD = 1.35
+# Hard backstop — prevents TCP-stall hangs that bypass requests' timeout
+socket.setdefaulttimeout(10)
 
 # ── Shared headers ────────────────────────────────────────────────────────────
 
@@ -48,34 +51,35 @@ def _parse_salary(val) -> int | None:
     if val is None:
         return None
     try:
-        return int(float(str(val).replace("$", "").replace(",", "").strip()))
+        return int(str(val).replace("$", "").replace(",", "").strip())
     except (ValueError, AttributeError):
         return None
 
 
-def _to_monthly_sgd(val, fx: float = 1.0) -> int | None:
-    """
-    Normalise a salary figure to an approximate monthly SGD amount so it can be
-    compared against the monthly min_salary/max_salary in SEARCH_CONFIG.
+# Approximate FX used to normalise foreign-currency salaries to SGD.
+_USD_TO_SGD = 1.35
 
-    The scorer expects monthly SGD. MCF already converts annual→monthly itself.
-    Adzuna (SG) reports annual SGD; RemoteOK reports annual USD. We detect large
-    figures as annual and divide by 12, then apply the FX rate (1.0 for SGD).
+
+def _to_monthly_sgd(val, fx: float = 1.0) -> int | None:
+    """Normalise a salary figure to approximate monthly SGD.
+
+    Adzuna reports annual SGD; RemoteOK reports annual USD.
+    Values ≥ 12 000 are treated as annual and divided by 12.
     """
     n = _parse_salary(val)
     if n is None:
         return None
-    monthly = n / 12 if n >= 12000 else n   # figures ≥12k are almost certainly annual
+    monthly = n / 12 if n >= 12000 else n
     return int(round(monthly * fx))
 
 
 # ── MyCareersFuture ───────────────────────────────────────────────────────────
 
-_MCF_ENDPOINTS = [
-    (
-        "https://api.mycareersfuture.gov.sg/v2/jobs",
-        lambda term, page: {"search": term, "limit": 20, "page": page, "sortBy": "new_posting_date"},
-    ),
+_MCF_PRIMARY = (
+    "https://api.mycareersfuture.gov.sg/v2/jobs",
+    lambda term, page: {"search": term, "limit": 20, "page": page, "sortBy": "new_posting_date"},
+)
+_MCF_FALLBACKS = [
     (
         "https://api.mycareersfuture.gov.sg/v2/search",
         lambda term, page: {"search": term, "limit": 20, "page": page, "sortBy": "new_posting_date"},
@@ -87,45 +91,30 @@ _MCF_ENDPOINTS = [
 ]
 
 
-def _find_working_endpoint() -> tuple | None:
-    probe_term = SEARCH_CONFIG["target_titles"][0]
-    for url, param_fn in _MCF_ENDPOINTS:
-        try:
-            resp = requests.get(url, params=param_fn(probe_term, 0), headers=_MCF_HEADERS, timeout=8)
-            if resp.status_code != 200:
-                continue
-            data = resp.json()
-            if isinstance(data, dict) and ("results" in data or "jobs" in data):
-                print(f"  [MCF] Using endpoint: {url}")
-                return url, param_fn
-            if isinstance(data, list) and data:
-                print(f"  [MCF] Using endpoint: {url}")
-                return url, param_fn
-        except Exception:
-            continue
-    return None
-
-
 def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
-    """Fetch jobs from MyCareersFuture API for all target titles."""
-    endpoint = _find_working_endpoint()
-    if not endpoint:
-        print("  [MCF] All endpoints unavailable. MCF may be temporarily down.")
+    """Fetch jobs from MyCareersFuture API for up to 2 target titles."""
+    titles = SEARCH_CONFIG.get("target_titles") or []
+    if not titles:
+        print("  [MCF] No target titles configured.")
         return []
 
-    url, param_fn = endpoint
+    # No probe request — hardcode primary endpoint to save a rate-limited request
+    url, param_fn = _MCF_PRIMARY
     jobs: list[dict] = []
     consecutive_failures = 0
 
-    for title in SEARCH_CONFIG["target_titles"]:
+    # 2 titles max — keeps total MCF requests at 2, well within rate limit
+    titles_to_search = titles[:2]
+
+    for title in titles_to_search:
         if consecutive_failures >= 3:
             print(f"  [MCF] Too many failures, stopping. Got {len(jobs)} jobs so far.")
             break
         if max_results > 0 and len(jobs) >= max_results:
             print(f"  [MCF] Collected {len(jobs)} candidates — stopping early")
             break
-        if len(jobs) >= 400:
-            print("  [MCF] Hard cap reached (400) — stopping to conserve memory")
+        if len(jobs) >= 200:
+            print(f"  [MCF] Cap reached — stopping to conserve memory")
             break
 
         print(f"  → Searching: {title}")
@@ -133,7 +122,17 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
 
         for page in range(max_pages):
             try:
-                resp = requests.get(url, params=param_fn(title, page), headers=_MCF_HEADERS, timeout=8)
+                resp = requests.get(url, params=param_fn(title, page), headers=_MCF_HEADERS, timeout=(4, 10))
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    # Try fallback endpoints before giving up
+                    for fb_url, fb_fn in _MCF_FALLBACKS:
+                        try:
+                            resp = requests.get(fb_url, params=fb_fn(title, page), headers=_MCF_HEADERS, timeout=(4, 10))
+                            if resp.status_code == 200:
+                                url, param_fn = fb_url, fb_fn
+                                break
+                        except Exception:
+                            continue
                 resp.raise_for_status()
                 data = resp.json()
 
@@ -196,12 +195,11 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
                         "posted_date": posted,
                         "closing_date": closing_date,
                         "source": "MyCareersFuture",
-                        "experience_required": r.get("minimumYearsExperience"),
                     })
                     title_count += 1
 
                 print(f"     page {page + 1}: {len(results)} listings")
-                time.sleep(1.5)
+                time.sleep(2.5)
 
             except requests.exceptions.Timeout:
                 print(f"  [MCF] Timeout for '{title}' page {page} — skipping")
@@ -279,7 +277,6 @@ def fetch_adzuna(max_pages: int = 1) -> list:
                         "url": r.get("redirect_url", ""),
                         "posted_date": (r.get("created") or "")[:10],
                         "source": "Adzuna",
-                        "experience_required": None,
                     })
 
                 time.sleep(1)
@@ -292,6 +289,85 @@ def fetch_adzuna(max_pages: int = 1) -> list:
                 break
 
     print(f"[Adzuna] {len(jobs)} unique jobs")
+    return jobs
+
+
+# ── Indeed RSS ────────────────────────────────────────────────────────────────
+
+def fetch_indeed_rss() -> list:
+    """
+    Fetch jobs from Indeed Singapore via their public RSS feeds.
+    RSS is a syndication format designed for consumption (distinct from HTML scraping).
+    """
+    jobs: list[dict] = []
+    seen_urls: set = set()
+
+    headers = {
+        "User-Agent": _BROWSER_UA,
+        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+    }
+
+    for title in SEARCH_CONFIG["target_titles"]:
+        print(f"  → Searching: {title}")
+        try:
+            resp = requests.get(
+                "https://sg.indeed.com/rss",
+                params={"q": title, "l": "Singapore", "sort": "date", "fromage": "30"},
+                headers=headers,
+                timeout=10,
+            )
+            resp.raise_for_status()
+
+            root = ET.fromstring(resp.content)
+            channel = root.find("channel")
+            if channel is None:
+                continue
+
+            items = channel.findall("item")
+            print(f"     {len(items)} listings")
+            for item in items:
+                link = item.findtext("link", "").strip()
+                if not link or link in seen_urls:
+                    continue
+                seen_urls.add(link)
+
+                raw_title = item.findtext("title", "").strip()
+                # Indeed RSS title is often "Job Title - Company Name"
+                if " - " in raw_title:
+                    job_title, company_name = raw_title.rsplit(" - ", 1)
+                else:
+                    job_title, company_name = raw_title, "Unknown"
+
+                # Parse RFC 2822 pubDate → YYYY-MM-DD
+                pub_raw = item.findtext("pubDate", "").strip()
+                try:
+                    date_str = parsedate_to_datetime(pub_raw).strftime("%Y-%m-%d")
+                except Exception:
+                    date_str = ""
+
+                jobs.append({
+                    "id": f"indeed_{hashlib.md5(link.encode()).hexdigest()[:12]}",
+                    "title": job_title.strip(),
+                    "company": company_name.strip(),
+                    "description": _clean_html(item.findtext("description", ""))[:500],
+                    "salary_min": None,
+                    "salary_max": None,
+                    "location": "Singapore",
+                    "url": link,
+                    "posted_date": date_str,
+                    "source": "Indeed",
+                })
+
+            time.sleep(1.5)
+
+        except ET.ParseError as e:
+            print(f"  [Indeed RSS] XML parse error for '{title}': {e}")
+        except requests.exceptions.Timeout:
+            print(f"  [Indeed RSS] Timeout for '{title}' — skipping")
+        except Exception as e:
+            print(f"  [Indeed RSS] Error for '{title}': {e}")
+
+    print(f"[Indeed RSS] {len(jobs)} unique jobs")
     return jobs
 
 
@@ -308,9 +384,24 @@ def fetch_remoteok() -> list:
             "https://remoteok.com/api",
             headers={"User-Agent": _BROWSER_UA, "Accept": "application/json"},
             timeout=15,
+            stream=True,
         )
         resp.raise_for_status()
-        data = resp.json()
+        # Guard against huge responses — cap at 4MB to prevent OOM on low-memory servers
+        chunks = []
+        total = 0
+        for chunk in resp.iter_content(chunk_size=65536):
+            total += len(chunk)
+            if total > 4 * 1024 * 1024:
+                print("  [RemoteOK] Response too large — truncating at 4MB")
+                break
+            chunks.append(chunk)
+        import json as _json
+        try:
+            data = _json.loads(b"".join(chunks))
+        except Exception:
+            print("  [RemoteOK] Could not parse truncated response — skipping")
+            return []
     except Exception as e:
         print(f"  [RemoteOK] Failed to fetch: {e}")
         return []
@@ -354,7 +445,6 @@ def fetch_remoteok() -> list:
             "url": job_url,
             "posted_date": (r.get("date") or "")[:10],
             "source": "RemoteOK",
-            "experience_required": None,
         })
 
     print(f"[RemoteOK] {len(jobs)} matching jobs")
@@ -363,37 +453,27 @@ def fetch_remoteok() -> list:
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
-def scrape_all_sources(max_total: int = 0) -> list:
-    sources = [
-        ("MyCareersFuture", fetch_mcf),
-        ("Adzuna",          fetch_adzuna),
-        ("RemoteOK",        fetch_remoteok),
-    ]
+_GLOBAL_JOB_CAP = 200  # Temporary low cap for 512MB Render — raise when infra upgrades
 
+
+def scrape_all_sources(max_total: int = 0) -> list:
+    # Temporary: MCF only to stay within 512MB RAM on current Render plan.
+    # Restore Adzuna, Indeed RSS, RemoteOK when infra upgrades (see git commit dd9cbd3).
+    effective_cap = min(max_total, _GLOBAL_JOB_CAP) if max_total > 0 else _GLOBAL_JOB_CAP
+
+    print("\nScanning MyCareersFuture...\n")
     all_jobs: list[dict] = []
     seen: set = set()
+    try:
+        jobs = fetch_mcf(max_pages=1, max_results=effective_cap)
+        for j in jobs:
+            if j["id"] not in seen:
+                seen.add(j["id"])
+                all_jobs.append(j)
+                if len(all_jobs) >= effective_cap:
+                    break
+    except Exception as e:
+        print(f"  MyCareersFuture failed: {e}")
 
-    for name, fn in sources:
-        if max_total > 0 and len(all_jobs) >= max_total:
-            print(f"\n[Scan] Reached {max_total} candidate limit — skipping remaining sources")
-            break
-
-        remaining = (max_total - len(all_jobs)) if max_total > 0 else 0
-        print(f"\nScanning {name}...\n")
-        try:
-            if name == "MyCareersFuture":
-                jobs = fetch_mcf(max_results=remaining)
-            else:
-                jobs = fn()
-            if len(jobs) > 200:
-                print(f"  [{name}] Capping at 200 results to conserve memory")
-                jobs = jobs[:200]
-            for j in jobs:
-                if j["id"] not in seen:
-                    seen.add(j["id"])
-                    all_jobs.append(j)
-        except Exception as e:
-            print(f"  {name} failed: {e}")
-
-    print(f"\nTotal: {len(all_jobs)} unique jobs across {len(sources)} sources")
+    print(f"\nTotal: {len(all_jobs)} unique jobs")
     return all_jobs

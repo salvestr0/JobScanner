@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-Job Scanner Tool - Main Entry Point
+CareerJobScan Tool - Main Entry Point
 ====================================
 Scrapes job boards, scores matches against your profile,
 generates cover notes, and emails results via Resend.
@@ -55,14 +55,18 @@ def save_seen_jobs(seen: set):
 
 
 def save_jobs_csv(jobs: list):
-    """Write matched jobs to CSV, replacing any previous scan's file."""
-    with open(JOBS_CSV, "w", newline="", encoding="utf-8") as f:
+    """Append matched jobs to CSV file."""
+    file_exists = os.path.exists(JOBS_CSV)
+
+    with open(JOBS_CSV, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=[
             "scan_date", "id", "title", "company", "location",
             "salary_min", "salary_max", "score", "match_reasons",
             "source", "url", "posted_date", "closing_date",
         ])
-        writer.writeheader()
+
+        if not file_exists:
+            writer.writeheader()
 
         for job in jobs:
             writer.writerow({
@@ -142,19 +146,9 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
             if job.get("match_reasons"):
                 print(f"     → {', '.join(job['match_reasons'][:3])}")
 
-    # 6. Generate cover notes for Pro plan only (free plan skips to save memory)
+    # 6. Cover notes — skipped during scan to stay within 512MB server limit.
+    # Generate on-demand from job cards in the app instead.
     cover_notes = {}
-    if not max_jobs:
-        from cover_notes import generate_cover_note, save_cover_note
-        print("\n📝 Generating cover notes...")
-        for job in top_jobs:
-            try:
-                note = generate_cover_note(job)
-                filepath = save_cover_note(job, note)
-                cover_notes[job["id"]] = note
-                print(f"  ✅ Saved: {filepath}")
-            except Exception as e:
-                print(f"  ❌ Failed for {job['title']}: {e}")
 
     # 7. Save results to CSV
     save_jobs_csv(matched_jobs)
@@ -179,7 +173,7 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
 
     # Summary
     print(f"\n{'=' * 50}")
-    print("📊 SCAN SUMMARY")
+    print(f"📊 SCAN SUMMARY")
     print(f"   Total scraped: {len(all_jobs)}")
     print(f"   New listings:  {len(new_jobs)}")
     print(f"   Matched:       {len(matched_jobs)}")
@@ -200,22 +194,11 @@ def run_scan(notify: bool = True, mode: str = "analyst"):
 
 
 def main():
-    # Multi-user hosted mode: load config from tempfile (secure) or env var (legacy local dev)
-    _config_file = os.environ.get("JOBSCANNER_CONFIG_FILE")
-    if _config_file and os.path.exists(_config_file):
-        try:
-            import config as _cfg
-            with open(_config_file, encoding="utf-8") as _f:
-                _cfg_data = _f.read()
-        finally:
-            try:
-                os.unlink(_config_file)  # delete immediately — key is now only in memory
-            except OSError:
-                pass
-        _cfg.load_user_config(_cfg_data)
-    elif os.environ.get("JOBSCANNER_USER_CONFIG"):
+    # Multi-user hosted mode: override config from env vars set by app.py
+    _user_cfg = os.environ.get("JOBSCANNER_USER_CONFIG")
+    if _user_cfg:
         import config as _cfg
-        _cfg.load_user_config(os.environ["JOBSCANNER_USER_CONFIG"])
+        _cfg.load_user_config(_user_cfg)
 
     _data_dir = os.environ.get("JOBSCANNER_DATA_DIR")
     if _data_dir:
