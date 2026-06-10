@@ -1373,16 +1373,20 @@ def billing_webhook():
     if not user:
         return "", 200
 
+    new_status = None
     et = event["type"]
     if et in ("customer.subscription.created", "customer.subscription.updated"):
         stripe_status = obj.get("status", "")
-        user.subscription_status = "active" if stripe_status == "active" else stripe_status
+        new_status = "active" if stripe_status == "active" else stripe_status
     elif et == "customer.subscription.deleted":
-        user.subscription_status = "cancelled"
+        new_status = "cancelled"
     elif et == "invoice.payment_failed":
-        user.subscription_status = "past_due"
+        new_status = "past_due"
 
-    db.session.commit()
+    if new_status is not None and user.subscription_status != new_status:
+        user.subscription_status = new_status
+        db.session.commit()
+
     return "", 200
 
 

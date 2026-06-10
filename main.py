@@ -55,18 +55,14 @@ def save_seen_jobs(seen: set):
 
 
 def save_jobs_csv(jobs: list):
-    """Append matched jobs to CSV file."""
-    file_exists = os.path.exists(JOBS_CSV)
-
-    with open(JOBS_CSV, "a", newline="", encoding="utf-8") as f:
+    """Write matched jobs to CSV, replacing any previous scan's file."""
+    with open(JOBS_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=[
             "scan_date", "id", "title", "company", "location",
             "salary_min", "salary_max", "score", "match_reasons",
             "source", "url", "posted_date", "closing_date",
         ])
-
-        if not file_exists:
-            writer.writeheader()
+        writer.writeheader()
 
         for job in jobs:
             writer.writerow({

@@ -22,8 +22,7 @@ def score_job(job: dict) -> dict:
     title = job.get("title", "").lower()
     description = job.get("description", "").lower()
     location = job.get("location", "").lower()
-    search_query = job.get("search_query", "").lower()
-    full_text = f"{title} {description} {location} {search_query}"
+    full_text = f"{title} {description} {location}"
 
     score = 0
     breakdown = {}
@@ -49,13 +48,6 @@ def score_job(job: dict) -> dict:
         if title_score == 0 and "analyst" in title:
             title_score = 20
             reasons.append("Contains 'analyst' in title")
-        # Job was returned by a targeted search (helps sources with sparse descriptions)
-        elif title_score == 0 and search_query:
-            for target in SEARCH_CONFIG["target_titles"]:
-                if target.lower() in search_query:
-                    title_score = 20
-                    reasons.append(f"Found via '{target}' search")
-                    break
         # Adjacent roles
         if title_score == 0:
             adjacent = ["associate", "coordinator", "executive", "support"]
