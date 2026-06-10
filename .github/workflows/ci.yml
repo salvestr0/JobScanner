@@ -56,10 +56,14 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest
+        run: pip install -r requirements.txt pytest pytest-cov
       - name: Run tests
         env:
           SECRET_KEY: ${{ secrets.SECRET_KEY || 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }}
-          DATABASE_URL: sqlite:///:memory:
+          # Quoted: a bare trailing colon (":memory:") is invalid YAML
+          DATABASE_URL: "sqlite:///:memory:"
           CRON_SECRET: test-cron-secret-ci
-        run: python -m pytest tests/ -v
+        # Coverage floor: source coverage was 46% when introduced (see
+        # pyproject.toml [tool.coverage.run] for what's excluded).
+        # Raise the floor as coverage grows; don't lower it.
+        run: python -m pytest tests/ -v --cov=. --cov-fail-under=42

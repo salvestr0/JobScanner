@@ -1,6 +1,13 @@
 [tool.ruff]
 line-length = 120
 
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "migrations/*",
+    "migrate_data.py",  # one-off migration script
+]
+
 [tool.ruff.lint]
 select = ["E", "F", "W"]
 ignore = [

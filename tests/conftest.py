@@ -9,7 +9,10 @@ import warnings
 
 os.environ.setdefault("SECRET_KEY", "a" * 32)
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
-os.environ.setdefault("CRON_SECRET", "test-cron-secret-xyz")
+# Hard-set, not setdefault: tests send this exact secret, and the cron
+# routes read CRON_SECRET per-request, so an ambient value (e.g. from the
+# CI workflow env) would otherwise make every cron test 403.
+os.environ["CRON_SECRET"] = "test-cron-secret-xyz"
 
 warnings.filterwarnings("ignore", message="REDIS_URL not set")
 warnings.filterwarnings("ignore", message="Fernet")
