@@ -142,6 +142,14 @@ def _send_email(to: str, subject: str, html: str) -> bool:
     if not api_key:
         app.logger.warning("Email not sent to %s: RESEND_API_KEY not set", to)
         return False
+    if "resend.dev" in from_addr:
+        # The shared test domain only delivers to the Resend account owner's
+        # own address — real users never receive these emails.
+        app.logger.warning(
+            "RESEND_FROM is the resend.dev test address — emails to anyone "
+            "but the Resend account owner will not be delivered. Verify a "
+            "custom domain in Resend and set RESEND_FROM."
+        )
     try:
         import requests as _req
         resp = _req.post(
@@ -156,6 +164,13 @@ def _send_email(to: str, subject: str, html: str) -> bool:
                 to, from_addr, resp.status_code, resp.text[:500],
             )
             return False
+        # Log the Resend message id so deliveries can be cross-referenced
+        # in the Resend dashboard (and mismatched API keys spotted).
+        try:
+            msg_id = resp.json().get("id", "?")
+        except Exception:
+            msg_id = "?"
+        app.logger.info("Email accepted by Resend: to=%s subject=%r id=%s", to, subject, msg_id)
         return True
     except Exception as exc:
         app.logger.error("Email send to %s failed: %s", to, exc, exc_info=True)
