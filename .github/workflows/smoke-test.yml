@@ -1,0 +1,48 @@
+name: Smoke Test (post-deploy)
+
+on:
+  push:
+    branches: ["master"]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      APP_URL: ${{ vars.APP_URL || 'https://jobscanner-m7pb.onrender.com' }}
+
+    steps:
+      - name: Wait for Render deploy
+        run: |
+          echo "Polling $APP_URL/api/health for up to 5 minutes..."
+          for i in $(seq 1 20); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/api/health" || echo "000")
+            echo "Attempt $i: HTTP $status"
+            if [ "$status" = "200" ]; then
+              echo "App is up."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "App did not come up in time."
+          exit 1
+
+      - name: Health endpoint returns ok
+        run: |
+          body=$(curl -sf "$APP_URL/api/health")
+          echo "$body"
+          echo "$body" | grep -q '"ok":true' || (echo "Health check failed" && exit 1)
+
+      - name: Home page loads
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/")
+          [ "$status" = "200" ] || (echo "Home page returned $status" && exit 1)
+
+      - name: Login page loads
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/login")
+          [ "$status" = "200" ] || (echo "Login page returned $status" && exit 1)
+
+      - name: Unauthenticated API returns 401 not 500
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/api/auth/me")
+          [ "$status" = "401" ] || (echo "/api/auth/me returned $status, expected 401" && exit 1)
