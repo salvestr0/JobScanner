@@ -124,6 +124,18 @@ def _decrypt_api_key(ciphertext: str) -> str:
         return ciphertext
 
 
+def _log_gemini_usage(endpoint: str, user_id: str, response_json: dict) -> None:
+    usage = response_json.get("usageMetadata", {})
+    app.logger.info(
+        "gemini_usage endpoint=%s user=%s prompt_tokens=%s output_tokens=%s total_tokens=%s",
+        endpoint,
+        user_id,
+        usage.get("promptTokenCount", "?"),
+        usage.get("candidatesTokenCount", "?"),
+        usage.get("totalTokenCount", "?"),
+    )
+
+
 def _send_email(to: str, subject: str, html: str) -> bool:
     api_key   = os.getenv("RESEND_API_KEY", "").strip()
     from_addr = os.getenv("RESEND_FROM", "CareerJobScan <noreply@jobscanner.app>").strip()
@@ -1259,7 +1271,9 @@ Work history:
             timeout=30,
         )
         resp.raise_for_status()
-        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        _rj = resp.json()
+        _log_gemini_usage("resume_polish", str(current_user.id), _rj)
+        raw = _rj["candidates"][0]["content"]["parts"][0]["text"]
     except Exception:
         return jsonify({"error": "AI request failed. Please try again later."}), 502
 
@@ -1353,7 +1367,9 @@ Return ONLY a valid JSON object with exactly this structure:
             timeout=30,
         )
         resp.raise_for_status()
-        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        _rj = resp.json()
+        _log_gemini_usage("resume_tailor", str(current_user.id), _rj)
+        raw = _rj["candidates"][0]["content"]["parts"][0]["text"]
     except Exception:
         return jsonify({"error": "AI request failed. Please try again later."}), 502
 
@@ -1940,7 +1956,9 @@ Rules:
             timeout=30,
         )
         resp.raise_for_status()
-        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        _rj = resp.json()
+        _log_gemini_usage("interview_prep", str(current_user.id), _rj)
+        raw = _rj["candidates"][0]["content"]["parts"][0]["text"]
     except Exception:
         return jsonify({"error": "AI request failed. Please try again later."}), 502
 
@@ -2193,6 +2211,39 @@ def cron_stripe_sync():
 
     db.session.commit()
     return jsonify({"synced": len(users), "updated": updated})
+
+
+@app.route("/api/cron/billing-health", methods=["POST"])
+def cron_billing_health():
+    """
+    Daily billing health check — emails ADMIN_EMAIL a summary of past_due accounts.
+    Trigger alongside /api/cron/scan from Render cron.
+    """
+    secret   = os.getenv("CRON_SECRET", "")
+    incoming = request.headers.get("X-Cron-Secret", "")
+    if not secret or not hmac.compare_digest(incoming, secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    admin_email = os.getenv("ADMIN_EMAIL", "").strip()
+    past_due = User.query.filter_by(subscription_status="past_due").all()
+
+    if past_due and admin_email:
+        rows = "".join(
+            f"<tr><td>{u.email}</td><td>{u.stripe_customer_id or '—'}</td></tr>"
+            for u in past_due
+        )
+        html = f"""
+<h2>Billing Health — {datetime.now(timezone.utc).strftime('%Y-%m-%d')}</h2>
+<p><strong>{len(past_due)}</strong> account(s) with <code>past_due</code> status:</p>
+<table border="1" cellpadding="4">
+  <thead><tr><th>Email</th><th>Stripe Customer</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table>
+<p>Log in to <a href="https://dashboard.stripe.com">Stripe dashboard</a> to review.</p>
+"""
+        _send_email(admin_email, f"[CareerJobScan] {len(past_due)} past_due account(s)", html)
+
+    return jsonify({"past_due": len(past_due), "alerted": bool(past_due and admin_email)})
 
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
