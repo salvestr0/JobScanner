@@ -1,21 +1,22 @@
 """
-Job fetchers — MyCareersFuture, Adzuna, Indeed RSS, RemoteOK.
+Job fetchers — MyCareersFuture, Adzuna, RemoteOK.
 
-All sources use official APIs or public syndication endpoints (no HTML scraping).
+All sources use official APIs or public endpoints (no HTML scraping).
 LinkedIn / JobStreet / Glints HTML scraping violates their ToS — do not add them back.
+Indeed RSS was removed — Indeed discontinued its public RSS/XML job feeds.
 """
 
 import hashlib
-import time
-import defusedxml.ElementTree as ET
-from email.utils import parsedate_to_datetime
-from urllib.parse import quote_plus
-
 import re
+import time
 
 import requests
 
 from config import ADZUNA_APP_ID, ADZUNA_APP_KEY, SEARCH_CONFIG
+
+# Approximate FX used to normalise foreign-currency salaries to SGD.
+# RemoteOK lists salaries in USD; MCF/Adzuna (SG) are already SGD.
+_USD_TO_SGD = 1.35
 
 # ── Shared headers ────────────────────────────────────────────────────────────
 
@@ -47,9 +48,25 @@ def _parse_salary(val) -> int | None:
     if val is None:
         return None
     try:
-        return int(str(val).replace("$", "").replace(",", "").strip())
+        return int(float(str(val).replace("$", "").replace(",", "").strip()))
     except (ValueError, AttributeError):
         return None
+
+
+def _to_monthly_sgd(val, fx: float = 1.0) -> int | None:
+    """
+    Normalise a salary figure to an approximate monthly SGD amount so it can be
+    compared against the monthly min_salary/max_salary in SEARCH_CONFIG.
+
+    The scorer expects monthly SGD. MCF already converts annual→monthly itself.
+    Adzuna (SG) reports annual SGD; RemoteOK reports annual USD. We detect large
+    figures as annual and divide by 12, then apply the FX rate (1.0 for SGD).
+    """
+    n = _parse_salary(val)
+    if n is None:
+        return None
+    monthly = n / 12 if n >= 12000 else n   # figures ≥12k are almost certainly annual
+    return int(round(monthly * fx))
 
 
 # ── MyCareersFuture ───────────────────────────────────────────────────────────
@@ -256,8 +273,8 @@ def fetch_adzuna(max_pages: int = 1) -> list:
                         "title": r.get("title", "Unknown"),
                         "company": company.get("display_name", "Unknown") if isinstance(company, dict) else "Unknown",
                         "description": _clean_html(r.get("description", ""))[:800],
-                        "salary_min": _parse_salary(r.get("salary_min")),
-                        "salary_max": _parse_salary(r.get("salary_max")),
+                        "salary_min": _to_monthly_sgd(r.get("salary_min")),
+                        "salary_max": _to_monthly_sgd(r.get("salary_max")),
                         "location": location.get("display_name", "Singapore") if isinstance(location, dict) else "Singapore",
                         "url": r.get("redirect_url", ""),
                         "posted_date": (r.get("created") or "")[:10],
@@ -275,86 +292,6 @@ def fetch_adzuna(max_pages: int = 1) -> list:
                 break
 
     print(f"[Adzuna] {len(jobs)} unique jobs")
-    return jobs
-
-
-# ── Indeed RSS ────────────────────────────────────────────────────────────────
-
-def fetch_indeed_rss() -> list:
-    """
-    Fetch jobs from Indeed Singapore via their public RSS feeds.
-    RSS is a syndication format designed for consumption (distinct from HTML scraping).
-    """
-    jobs: list[dict] = []
-    seen_urls: set = set()
-
-    headers = {
-        "User-Agent": _BROWSER_UA,
-        "Accept": "application/rss+xml, application/xml, text/xml, */*",
-    }
-
-    for title in SEARCH_CONFIG["target_titles"]:
-        print(f"  → Searching: {title}")
-        try:
-            resp = requests.get(
-                "https://sg.indeed.com/rss",
-                params={"q": title, "l": "Singapore", "sort": "date", "fromage": "30"},
-                headers=headers,
-                timeout=10,
-            )
-            resp.raise_for_status()
-
-            root = ET.fromstring(resp.content)
-            channel = root.find("channel")
-            if channel is None:
-                continue
-
-            items = channel.findall("item")
-            print(f"     {len(items)} listings")
-            for item in items:
-                link = item.findtext("link", "").strip()
-                if not link or link in seen_urls:
-                    continue
-                seen_urls.add(link)
-
-                raw_title = item.findtext("title", "").strip()
-                # Indeed RSS title is often "Job Title - Company Name"
-                if " - " in raw_title:
-                    job_title, company_name = raw_title.rsplit(" - ", 1)
-                else:
-                    job_title, company_name = raw_title, "Unknown"
-
-                # Parse RFC 2822 pubDate → YYYY-MM-DD
-                pub_raw = item.findtext("pubDate", "").strip()
-                try:
-                    date_str = parsedate_to_datetime(pub_raw).strftime("%Y-%m-%d")
-                except Exception:
-                    date_str = ""
-
-                jobs.append({
-                    "id": f"indeed_{hashlib.md5(link.encode()).hexdigest()[:12]}",
-                    "title": job_title.strip(),
-                    "company": company_name.strip(),
-                    "description": _clean_html(item.findtext("description", ""))[:2000],
-                    "salary_min": None,
-                    "salary_max": None,
-                    "location": "Singapore",
-                    "url": link,
-                    "posted_date": date_str,
-                    "source": "Indeed",
-                    "experience_required": None,
-                })
-
-            time.sleep(1.5)
-
-        except ET.ParseError as e:
-            print(f"  [Indeed RSS] XML parse error for '{title}': {e}")
-        except requests.exceptions.Timeout:
-            print(f"  [Indeed RSS] Timeout for '{title}' — skipping")
-        except Exception as e:
-            print(f"  [Indeed RSS] Error for '{title}': {e}")
-
-    print(f"[Indeed RSS] {len(jobs)} unique jobs")
     return jobs
 
 
@@ -411,8 +348,8 @@ def fetch_remoteok() -> list:
             "title": r.get("position", "Unknown"),
             "company": r.get("company", "Unknown"),
             "description": _clean_html(r.get("description", ""))[:800],
-            "salary_min": _parse_salary(r.get("salary_min")),
-            "salary_max": _parse_salary(r.get("salary_max")),
+            "salary_min": _to_monthly_sgd(r.get("salary_min"), fx=_USD_TO_SGD),
+            "salary_max": _to_monthly_sgd(r.get("salary_max"), fx=_USD_TO_SGD),
             "location": r.get("location") or "Remote",
             "url": job_url,
             "posted_date": (r.get("date") or "")[:10],
@@ -430,7 +367,6 @@ def scrape_all_sources(max_total: int = 0) -> list:
     sources = [
         ("MyCareersFuture", fetch_mcf),
         ("Adzuna",          fetch_adzuna),
-        ("Indeed RSS",      fetch_indeed_rss),
         ("RemoteOK",        fetch_remoteok),
     ]
 
