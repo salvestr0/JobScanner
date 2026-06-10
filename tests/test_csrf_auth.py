@@ -5,42 +5,15 @@ Tests what is actually in master's codebase:
   - Register / login / logout / protected endpoint flow
   - _is_active() and _is_free_tier() billing gate logic
   - _to_monthly_sgd() salary normalization
-  - _prune_old_jobs() stale job pruning
   - Cron and Stripe webhook endpoints require correct secrets
+
+The `client` fixture lives in conftest.py.
 """
 import json
-import os
-import warnings
-
-os.environ.setdefault("SECRET_KEY", "a" * 32)
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
-os.environ.setdefault("CRON_SECRET", "test-cron-secret-xyz")
-
-warnings.filterwarnings("ignore", message="REDIS_URL not set")
-warnings.filterwarnings("ignore", message="Fernet")
-
-import pytest
 
 import app as flask_app
-from models import User, db
+from models import User
 from scrapers import _USD_TO_SGD, _dedupe_key, _to_monthly_sgd
-
-
-# ── Fixtures ────────────────────────────────────────────────────────────────────
-
-@pytest.fixture
-def client():
-    flask_app.app.config.update(
-        TESTING=True,
-        SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
-        RATELIMIT_ENABLED=False,
-    )
-    with flask_app.app.test_client() as c:
-        with flask_app.app.app_context():
-            db.create_all()
-            yield c
-            db.session.remove()
-            db.drop_all()
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────────

@@ -1850,7 +1850,11 @@ def billing_webhook():
     sig     = request.headers.get("Stripe-Signature", "")
 
     try:
-        event = stripe.Webhook.construct_event(payload, sig, secret)
+        # Signature check only — then parse the raw payload as plain JSON.
+        # stripe v15+ StripeObject no longer subclasses dict, so .get() on
+        # the constructed event crashes; plain dicts are version-proof.
+        stripe.Webhook.construct_event(payload, sig, secret)
+        event = json.loads(payload)
     except (stripe.error.SignatureVerificationError, ValueError):
         return "", 400
 
