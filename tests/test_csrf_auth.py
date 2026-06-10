@@ -13,7 +13,7 @@ import json
 
 import app as flask_app
 from models import User
-from scrapers import _USD_TO_SGD, _to_monthly_sgd
+from scrapers import _USD_TO_SGD, _dedupe_key, _to_monthly_sgd
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────────
@@ -155,6 +155,32 @@ def test_to_monthly_sgd_none():
 def test_to_monthly_sgd_string_numbers():
     assert _to_monthly_sgd("48000") == 4000
     assert _to_monthly_sgd("3500") == 3500
+
+
+# ── Duplicate detection ──────────────────────────────────────────────────────────
+
+def test_dedupe_key_same_job_different_sources():
+    mcf    = {"title": "Data Analyst", "company": "DBS Bank", "source": "MyCareersFuture"}
+    adzuna = {"title": "Data  Analyst", "company": "DBS BANK", "source": "Adzuna"}
+    assert _dedupe_key(mcf) == _dedupe_key(adzuna)
+
+
+def test_dedupe_key_punctuation_normalised():
+    a = {"title": "AI/ML Engineer (Junior)", "company": "Grab Pte. Ltd."}
+    b = {"title": "AI ML Engineer Junior",   "company": "Grab Pte Ltd"}
+    assert _dedupe_key(a) == _dedupe_key(b)
+
+
+def test_dedupe_key_different_jobs_differ():
+    a = {"title": "Data Analyst",  "company": "DBS Bank"}
+    b = {"title": "Data Engineer", "company": "DBS Bank"}
+    assert _dedupe_key(a) != _dedupe_key(b)
+
+
+def test_dedupe_key_unknown_company_returns_none():
+    assert _dedupe_key({"title": "Data Analyst", "company": "Unknown"}) is None
+    assert _dedupe_key({"title": "Data Analyst", "company": ""}) is None
+    assert _dedupe_key({"title": "", "company": "DBS Bank"}) is None
 
 
 # ── Health endpoint ──────────────────────────────────────────────────────────────
