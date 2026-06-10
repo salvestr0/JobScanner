@@ -25,8 +25,11 @@ def client():
     flask_app.app.config.update(
         TESTING=True,
         SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
-        RATELIMIT_ENABLED=False,
     )
+    # RATELIMIT_ENABLED in config is read at init_app time (import), so it
+    # can't disable the limiter here — the in-memory counters would otherwise
+    # accumulate across tests and 429 strict limits like delete-account's 3/hour.
+    flask_app.limiter.enabled = False
     with flask_app.app.test_client() as c:
         with flask_app.app.app_context():
             db.create_all()
