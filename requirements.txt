@@ -16,5 +16,5 @@ gunicorn>=21.2.0
 reportlab>=4.5.1
 cryptography>=48.0.1
 sentry-sdk[flask]>=2.62.0
-redis>=5.0.0
+redis>=8.0.0
 defusedxml>=0.7.1
