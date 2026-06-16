@@ -60,6 +60,6 @@ jobs:
       - name: Run tests
         env:
           SECRET_KEY: ${{ secrets.SECRET_KEY || 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }}
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
           CRON_SECRET: test-cron-secret-ci
         run: python -m pytest tests/ -v
