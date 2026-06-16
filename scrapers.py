@@ -1,5 +1,5 @@
 """
-Job fetchers — MyCareersFuture, Adzuna, Indeed RSS, RemoteOK.
+Job fetchers — MyCareersFuture, Adzuna, RemoteOK.
 
 All sources use official APIs or public syndication endpoints (no HTML scraping).
 LinkedIn / JobStreet / Glints HTML scraping violates their ToS — do not add them back.
@@ -7,8 +7,6 @@ LinkedIn / JobStreet / Glints HTML scraping violates their ToS — do not add th
 
 import hashlib
 import time
-import defusedxml.ElementTree as ET
-from email.utils import parsedate_to_datetime
 
 
 import re
@@ -298,85 +296,6 @@ def fetch_adzuna(max_pages: int = 1) -> list:
     return jobs
 
 
-# ── Indeed RSS ────────────────────────────────────────────────────────────────
-
-def fetch_indeed_rss() -> list:
-    """
-    Fetch jobs from Indeed Singapore via their public RSS feeds.
-    RSS is a syndication format designed for consumption (distinct from HTML scraping).
-    """
-    jobs: list[dict] = []
-    seen_urls: set = set()
-
-    headers = {
-        "User-Agent": _BROWSER_UA,
-        "Accept": "application/rss+xml, application/xml, text/xml, */*",
-    }
-
-    for title in SEARCH_CONFIG["target_titles"]:
-        print(f"  → Searching: {title}")
-        try:
-            resp = requests.get(
-                "https://sg.indeed.com/rss",
-                params={"q": title, "l": "Singapore", "sort": "date", "fromage": "30"},
-                headers=headers,
-                timeout=10,
-            )
-            resp.raise_for_status()
-
-            root = ET.fromstring(resp.content)
-            channel = root.find("channel")
-            if channel is None:
-                continue
-
-            items = channel.findall("item")
-            print(f"     {len(items)} listings")
-            for item in items:
-                link = item.findtext("link", "").strip()
-                if not link or link in seen_urls:
-                    continue
-                seen_urls.add(link)
-
-                raw_title = item.findtext("title", "").strip()
-                # Indeed RSS title is often "Job Title - Company Name"
-                if " - " in raw_title:
-                    job_title, company_name = raw_title.rsplit(" - ", 1)
-                else:
-                    job_title, company_name = raw_title, "Unknown"
-
-                # Parse RFC 2822 pubDate → YYYY-MM-DD
-                pub_raw = item.findtext("pubDate", "").strip()
-                try:
-                    date_str = parsedate_to_datetime(pub_raw).strftime("%Y-%m-%d")
-                except Exception:
-                    date_str = ""
-
-                jobs.append({
-                    "id": f"indeed_{hashlib.md5(link.encode()).hexdigest()[:12]}",
-                    "title": job_title.strip(),
-                    "company": company_name.strip(),
-                    "description": _clean_html(item.findtext("description", ""))[:500],
-                    "salary_min": None,
-                    "salary_max": None,
-                    "location": "Singapore",
-                    "url": link,
-                    "posted_date": date_str,
-                    "source": "Indeed",
-                })
-
-            time.sleep(1.5)
-
-        except ET.ParseError as e:
-            print(f"  [Indeed RSS] XML parse error for '{title}': {e}")
-        except requests.exceptions.Timeout:
-            print(f"  [Indeed RSS] Timeout for '{title}' — skipping")
-        except Exception as e:
-            print(f"  [Indeed RSS] Error for '{title}': {e}")
-
-    print(f"[Indeed RSS] {len(jobs)} unique jobs")
-    return jobs
-
-
 # ── RemoteOK ──────────────────────────────────────────────────────────────────
 
 def fetch_remoteok() -> list:
@@ -459,22 +378,22 @@ def fetch_remoteok() -> list:
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
-_GLOBAL_JOB_CAP = 200  # Temporary low cap for 512MB Render — raise when infra upgrades
+_GLOBAL_JOB_CAP = 500
 
 
 def scrape_all_sources(max_total: int = 0) -> list:
-    # Temporary: MCF only to stay within 512MB RAM on current Render plan.
-    # Restore Adzuna, Indeed RSS, RemoteOK when infra upgrades (see git commit dd9cbd3).
     effective_cap = min(max_total, _GLOBAL_JOB_CAP) if max_total > 0 else _GLOBAL_JOB_CAP
 
-    print("\nScanning MyCareersFuture...\n")
     all_jobs: list[dict] = []
     seen_ids: set = set()
     seen_keys: set = set()
     duplicates = 0
-    try:
-        jobs = fetch_mcf(max_pages=1, max_results=effective_cap)
+
+    def _ingest(jobs: list) -> None:
+        nonlocal duplicates
         for j in jobs:
+            if len(all_jobs) >= effective_cap:
+                break
             if j["id"] in seen_ids:
                 continue
             key = _dedupe_key(j)
@@ -485,12 +404,21 @@ def scrape_all_sources(max_total: int = 0) -> list:
             if key is not None:
                 seen_keys.add(key)
             all_jobs.append(j)
-            if len(all_jobs) >= effective_cap:
-                break
-    except Exception as e:
-        print(f"  MyCareersFuture failed: {e}")
+
+    for name, fetcher in [
+        ("MyCareersFuture", lambda: fetch_mcf(max_pages=2, max_results=effective_cap)),
+        ("Adzuna",          lambda: fetch_adzuna(max_pages=2)),
+        ("RemoteOK",        fetch_remoteok),
+    ]:
+        if len(all_jobs) >= effective_cap:
+            break
+        print(f"\nScanning {name}...\n")
+        try:
+            _ingest(fetcher())
+        except Exception as e:
+            print(f"  {name} failed: {e}")
 
     if duplicates:
-        print(f"  Skipped {duplicates} duplicate listing(s) (same title + company)")
+        print(f"\n  Skipped {duplicates} cross-source duplicate(s)")
     print(f"\nTotal: {len(all_jobs)} unique jobs")
     return all_jobs
