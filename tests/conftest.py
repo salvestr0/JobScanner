@@ -9,7 +9,9 @@ import warnings
 
 os.environ.setdefault("SECRET_KEY", "a" * 32)
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
-os.environ.setdefault("CRON_SECRET", "test-cron-secret-xyz")
+# Forced (not setdefault): the cron/billing tests assert against this exact
+# value, so a stray CRON_SECRET from the CI env must not override it.
+os.environ["CRON_SECRET"] = "test-cron-secret-xyz"
 
 warnings.filterwarnings("ignore", message="REDIS_URL not set")
 warnings.filterwarnings("ignore", message="Fernet")
