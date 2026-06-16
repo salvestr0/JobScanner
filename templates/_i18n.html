@@ -1,0 +1,935 @@
+<style>
+  .language-switcher {
+    position: relative;
+    z-index: 80;
+    display: inline-flex;
+    color: #111827;
+  }
+
+  .language-switcher__button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.25rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid rgba(214, 211, 209, 0.9);
+    border-radius: 0.65rem;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1;
+    transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .language-switcher__button:hover,
+  .language-switcher.is-open .language-switcher__button {
+    border-color: #9ca3af;
+    color: #111827;
+    box-shadow: 0 5px 16px rgba(15, 23, 42, 0.1);
+  }
+
+  .language-switcher__icon {
+    width: 1.08rem;
+    height: 1.08rem;
+    flex: 0 0 auto;
+  }
+
+  .language-switcher__chevron {
+    width: 0.8rem;
+    height: 0.8rem;
+    flex: 0 0 auto;
+    transition: transform 0.15s ease;
+  }
+
+  .language-switcher.is-open .language-switcher__chevron {
+    transform: rotate(180deg);
+  }
+
+  .language-switcher__menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.45rem);
+    display: none;
+    width: 12.25rem;
+    overflow: hidden;
+    border: 1px solid #e7e5e4;
+    border-radius: 0.75rem;
+    background: white;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14);
+  }
+
+  .language-switcher.is-open .language-switcher__menu {
+    display: block;
+  }
+
+  .language-switcher__option {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.8rem;
+    color: #374151;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: left;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .language-switcher__option:hover,
+  .language-switcher__option[aria-current="true"] {
+    background: #f3f4f6;
+    color: #111827;
+  }
+
+  .language-switcher__check {
+    visibility: hidden;
+    color: #111827;
+  }
+
+  .language-switcher__option[aria-current="true"] .language-switcher__check {
+    visibility: visible;
+  }
+
+  .language-switcher--fixed {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+  }
+
+  @media (max-width: 640px) {
+    .language-switcher--compact-sm .language-switcher__label {
+      display: none;
+    }
+
+    .language-switcher--compact-sm .language-switcher__button {
+      padding-inline: 0.6rem;
+    }
+
+    .language-switcher__menu {
+      width: 11.75rem;
+    }
+  }
+</style>
+
+<script>
+(function () {
+  if (window.__careerJobScanI18n) return;
+  window.__careerJobScanI18n = true;
+
+  const LANGUAGES = {
+    en: { label: 'English', htmlLang: 'en' },
+    zh: { label: '中文', htmlLang: 'zh-Hans' },
+    ms: { label: 'Bahasa Malaysia', htmlLang: 'ms-MY' },
+  };
+
+  const rows = [
+    [`CareerJobScan — Singapore Job Matching, Done For You`, `CareerJobScan — 新加坡求职匹配助手`, `CareerJobScan — Padanan Kerja Singapura`],
+    [`Sign In — CareerJobScan`, `登录 — CareerJobScan`, `Log Masuk — CareerJobScan`],
+    [`Create Account — CareerJobScan`, `注册账号 — CareerJobScan`, `Cipta Akaun — CareerJobScan`],
+    [`Forgot Password — CareerJobScan`, `找回密码 — CareerJobScan`, `Lupa Kata Laluan — CareerJobScan`],
+    [`Reset Password — CareerJobScan`, `重设密码 — CareerJobScan`, `Tetapkan Semula Kata Laluan — CareerJobScan`],
+    [`Setup — CareerJobScan`, `设置 — CareerJobScan`, `Persediaan — CareerJobScan`],
+    [`Admin — CareerJobScan`, `管理员 — CareerJobScan`, `Pentadbir — CareerJobScan`],
+    [`Privacy Policy — CareerJobScan`, `隐私政策 — CareerJobScan`, `Dasar Privasi — CareerJobScan`],
+    [`Terms of Service — CareerJobScan`, `服务条款 — CareerJobScan`, `Terma Perkhidmatan — CareerJobScan`],
+
+    [`Sign in`, `登录`, `Log masuk`],
+    [`Sign in →`, `登录 →`, `Log masuk →`],
+    [`Get started free`, `免费开始`, `Mula percuma`],
+    [`Get started for free`, `免费开始使用`, `Mula secara percuma`],
+    [`Create your account`, `创建你的账号`, `Cipta akaun anda`],
+    [`Create account`, `创建账号`, `Cipta akaun`],
+    [`Already have an account?`, `已经有账号？`, `Sudah ada akaun?`],
+    [`Don't have an account?`, `还没有账号？`, `Belum ada akaun?`],
+    [`Create one`, `创建一个`, `Daftar sekarang`],
+    [`Continue with Google`, `使用 Google 继续`, `Teruskan dengan Google`],
+    [`or`, `或`, `atau`],
+    [`Email`, `电邮`, `Emel`],
+    [`Password`, `密码`, `Kata laluan`],
+    [`Confirm password`, `确认密码`, `Sahkan kata laluan`],
+    [`Forgot password?`, `忘记密码？`, `Lupa kata laluan?`],
+    [`Sign in to your account`, `登录你的账号`, `Log masuk ke akaun anda`],
+    [`Password updated — sign in with your new password.`, `密码已更新，请使用新密码登录。`, `Kata laluan telah dikemas kini. Log masuk dengan kata laluan baharu anda.`],
+    [`Email verified — sign in to continue.`, `电邮已验证，请登录继续。`, `Emel telah disahkan. Log masuk untuk teruskan.`],
+    [`Google sign-in failed — please try again or use email/password.`, `Google 登录失败，请重试，或改用电邮和密码。`, `Log masuk Google gagal. Cuba lagi atau gunakan emel/kata laluan.`],
+    [`That verification link is invalid or has expired — sign in and use "Resend email" to get a new one.`, `验证链接无效或已过期。请登录后点击“重新发送电邮”获取新链接。`, `Pautan pengesahan itu tidak sah atau telah luput. Log masuk dan gunakan "Hantar semula emel" untuk mendapatkan pautan baharu.`],
+    [`Login failed`, `登录失败`, `Log masuk gagal`],
+    [`Signing in…`, `正在登录…`, `Sedang log masuk…`],
+    [`Registration failed`, `注册失败`, `Pendaftaran gagal`],
+    [`Creating account…`, `正在创建账号…`, `Sedang mencipta akaun…`],
+    [`Passwords do not match`, `两次输入的密码不一致`, `Kata laluan tidak sepadan`],
+    [`Forgot password?`, `忘记密码？`, `Lupa kata laluan?`],
+    [`Enter your email and we'll send a reset link`, `输入电邮，我们会发送重设链接`, `Masukkan emel anda dan kami akan hantar pautan tetapan semula`],
+    [`If an account exists for that email, a reset link is on its way. Check your inbox.`, `如果该电邮已注册，重设链接已经发出。请查看收件箱。`, `Jika akaun wujud untuk emel itu, pautan tetapan semula sedang dihantar. Sila semak peti masuk anda.`],
+    [`Send reset link`, `发送重设链接`, `Hantar pautan tetapan semula`],
+    [`Sending…`, `正在发送…`, `Sedang menghantar…`],
+    [`← Back to sign in`, `← 返回登录`, `← Kembali ke log masuk`],
+    [`Set new password`, `设置新密码`, `Tetapkan kata laluan baharu`],
+    [`Choose a strong password for your account`, `为账号设置一个安全的新密码`, `Pilih kata laluan yang kukuh untuk akaun anda`],
+    [`Invalid or expired link`, `链接无效或已过期`, `Pautan tidak sah atau telah luput`],
+    [`This reset link has expired or already been used.`, `这个重设链接已过期或已被使用。`, `Pautan tetapan semula ini telah luput atau sudah digunakan.`],
+    [`Request a new link`, `重新获取链接`, `Minta pautan baharu`],
+    [`New password`, `新密码`, `Kata laluan baharu`],
+    [`Password must be at least 8 characters`, `密码至少需要 8 个字符`, `Kata laluan mesti sekurang-kurangnya 8 aksara`],
+    [`Saving…`, `正在保存…`, `Sedang menyimpan…`],
+    [`Something went wrong`, `出了点问题`, `Ada sesuatu yang tidak kena`],
+    [`Network error — please try again`, `网络异常，请再试一次`, `Ralat rangkaian. Sila cuba lagi`],
+    [`Network error`, `网络异常`, `Ralat rangkaian`],
+    [`At least 8 characters`, `至少 8 个字符`, `Sekurang-kurangnya 8 aksara`],
+    [`Repeat your new password`, `再次输入新密码`, `Ulang kata laluan baharu anda`],
+    [`you@example.com`, `you@example.com`, `you@example.com`],
+    [`••••••••`, `••••••••`, `••••••••`],
+
+    [`Built for Singapore's job market`, `专为新加坡求职市场打造`, `Dibina untuk pasaran kerja Singapura`],
+    [`Your next job is already posted.`, `下一份好工作，可能已经上线。`, `Kerja seterusnya anda mungkin sudah diiklankan.`],
+    [`You just haven't found it yet.`, `只是你还没找到它。`, `Anda cuma belum menjumpainya lagi.`],
+    [`CareerJobScan scans Singapore's top job boards daily, scores every listing against your skills and salary range, and surfaces only the roles worth applying to.`, `CareerJobScan 每天扫描新加坡主流招聘平台，根据你的技能和薪资范围为岗位评分，只把值得投递的职位摆到你面前。`, `CareerJobScan mengimbas papan kerja utama Singapura setiap hari, menilai setiap iklan mengikut kemahiran dan julat gaji anda, lalu memaparkan hanya peranan yang berbaloi untuk dimohon.`],
+    [`Start for free — no card needed`, `免费开始，无需信用卡`, `Mula percuma, tanpa kad`],
+    [`Scans these boards daily`, `每天扫描这些平台`, `Mengimbas papan kerja ini setiap hari`],
+    [`Your matches, ranked and ready`, `匹配岗位，已排好优先级`, `Padanan anda, disusun dan sedia`],
+    [`Every listing scored 0–100. See exactly why each one matched.`, `每个岗位都有 0–100 分，并清楚说明为什么匹配。`, `Setiap iklan diberi skor 0–100. Lihat dengan jelas sebab ia sepadan.`],
+    [`Jobs`, `岗位`, `Kerja`],
+    [`All matches`, `全部匹配`, `Semua padanan`],
+    [`High match (80+)`, `高匹配 (80+)`, `Padanan tinggi (80+)`],
+    [`Applied`, `已申请`, `Dipohon`],
+    [`Saved`, `已保存`, `Disimpan`],
+    [`Sources`, `来源`, `Sumber`],
+    [`How it works`, `如何运作`, `Cara ia berfungsi`],
+    [`Set it up once. Let it run every day.`, `设置一次，之后每天自动运行。`, `Tetapkan sekali. Biarkan ia berjalan setiap hari.`],
+    [`Tell us what you're looking for`, `告诉我们你想找什么`, `Beritahu kami kerja yang anda cari`],
+    [`Set your job titles, salary range, preferred locations (Sengkang? Jurong? WFH?), and keywords. Takes two minutes.`, `填写目标职位、薪资范围、偏好地点（Sengkang、Jurong、WFH 都可以）和关键词，两分钟就好。`, `Tetapkan jawatan, julat gaji, lokasi pilihan (Sengkang? Jurong? WFH?) dan kata kunci. Ambil masa dua minit sahaja.`],
+    [`We scan every day`, `我们每天扫描`, `Kami imbas setiap hari`],
+    [`CareerJobScan checks MCF, Indeed, Adzuna, and RemoteOK daily and scores every new listing against your profile. 0–100.`, `CareerJobScan 每天检查 MCF、Indeed、Adzuna 和 RemoteOK，并按你的资料为每个新岗位打 0–100 分。`, `CareerJobScan menyemak MCF, Indeed, Adzuna dan RemoteOK setiap hari, kemudian memberi skor 0–100 untuk setiap iklan baharu berdasarkan profil anda.`],
+    [`You see only what fits`, `你只看真正合适的`, `Anda hanya lihat yang sesuai`],
+    [`Top matches land in your inbox and dashboard. Every match shows why it scored — skills hit, salary fit, location match.`, `高匹配岗位会出现在你的收件箱和仪表盘中；每个匹配都会说明原因：技能命中、薪资合适、地点符合。`, `Padanan terbaik masuk ke peti masuk dan papan pemuka anda. Setiap padanan menerangkan sebab skornya: kemahiran sepadan, gaji sesuai, lokasi kena.`],
+    [`What's included`, `包含哪些功能`, `Apa yang disertakan`],
+    [`No fluff. Just things that actually help you get hired.`, `不堆噱头，只做真正帮助你求职的功能。`, `Tiada gimik. Hanya perkara yang benar-benar membantu anda mendapatkan kerja.`],
+    [`Match scoring with reasons`, `带原因的匹配评分`, `Skor padanan dengan sebab`],
+    [`Every listing gets a 0–100 score. You see exactly why — which skills matched, whether the salary fits, and what's missing.`, `每个岗位都会得到 0–100 分。你能看到具体原因：哪些技能匹配、薪资是否合适、还缺什么。`, `Setiap iklan mendapat skor 0–100. Anda dapat lihat sebabnya: kemahiran yang sepadan, sama ada gaji sesuai, dan apa yang masih kurang.`],
+    [`Daily email digest`, `每日邮件摘要`, `Ringkasan emel harian`],
+    [`Your top matches sent to your inbox each morning — clean, ranked, one click to apply. No need to log in every day.`, `每天早上把最佳匹配发到你的收件箱，干净、排好序，一键去投递，不必每天登录。`, `Padanan terbaik dihantar ke peti masuk anda setiap pagi: kemas, tersusun, dan satu klik untuk memohon. Tidak perlu log masuk setiap hari.`],
+    [`AI cover notes & resume tailoring`, `AI 求职说明与简历定制`, `Nota iringan AI & penyesuaian resume`],
+    [`Generate a cover note for any match, or rewrite your resume bullets to fit a specific job description. Powered by Gemini.`, `为任意匹配岗位生成求职说明，或把简历要点改写得更贴合岗位描述。由 Gemini 提供支持。`, `Jana nota iringan untuk mana-mana padanan, atau tulis semula poin resume supaya sesuai dengan deskripsi kerja tertentu. Dikuasakan oleh Gemini.`],
+    [`Application tracker + interview prep`, `申请追踪 + 面试准备`, `Penjejak permohonan + persediaan temu duga`],
+    [`Track applied, interviewing, and rejected roles in one place. AI generates role-specific interview questions for any listing.`, `集中追踪已申请、面试中和已拒绝的岗位。AI 可为任意岗位生成针对性的面试题。`, `Jejak kerja yang telah dipohon, sedang ditemu duga dan ditolak di satu tempat. AI menjana soalan temu duga khusus untuk setiap iklan.`],
+    [`Pricing`, `价格`, `Harga`],
+    [`Free to start. No credit card, no trial expiry.`, `免费开始，无需信用卡，也没有试用期倒计时。`, `Percuma untuk bermula. Tiada kad kredit, tiada tempoh percubaan yang luput.`],
+    [`Free`, `免费`, `Percuma`],
+    [`/ forever`, `/ 永久`, `/ selamanya`],
+    [`3 scans per day, up to 10 matches each`, `每天 3 次扫描，每次最多 10 个匹配`, `3 imbasan sehari, sehingga 10 padanan setiap satu`],
+    [`Profile & resume upload`, `个人资料与简历上传`, `Profil & muat naik resume`],
+    [`Application tracker`, `申请追踪`, `Penjejak permohonan`],
+    [`Most popular`, `最受欢迎`, `Paling popular`],
+    [`/ month`, `/ 月`, `/ bulan`],
+    [`Unlimited`, `无限`, `Tanpa had`],
+    [`job matches per scan`, `每次扫描匹配岗位`, `padanan kerja setiap imbasan`],
+    [`AI cover notes + resume tailoring`, `AI 求职说明 + 简历定制`, `Nota iringan AI + penyesuaian resume`],
+    [`Multiple AI scan modes`, `多种 AI 扫描模式`, `Pelbagai mod imbasan AI`],
+    [`Interview prep questions`, `面试准备题`, `Soalan persediaan temu duga`],
+    [`Cancel anytime, no questions asked`, `随时取消，无需解释`, `Batal bila-bila masa, tanpa banyak soal`],
+    [`Start free, upgrade anytime`, `免费开始，随时升级`, `Mula percuma, naik taraf bila-bila masa`],
+    [`Common questions`, `常见问题`, `Soalan lazim`],
+    [`What is MyCareersFuture (MCF)?`, `MyCareersFuture (MCF) 是什么？`, `Apakah MyCareersFuture (MCF)?`],
+    [`MCF is Singapore's national jobs portal run by Workforce Singapore (WSG). Employers are required to post Singapore-based roles here first. All listings are verified employer postings — no ghost jobs or recruitment spam.`, `MCF 是由 Workforce Singapore (WSG) 运营的新加坡国家招聘平台。雇主通常需要先在这里发布新加坡本地岗位；所有岗位都经过雇主验证，减少“幽灵岗位”和招聘垃圾信息。`, `MCF ialah portal kerja nasional Singapura yang dikendalikan oleh Workforce Singapore (WSG). Majikan perlu mengiklankan peranan berpangkalan di Singapura di sini terlebih dahulu. Semua iklan disahkan oleh majikan, tanpa kerja palsu atau spam perekrutan.`],
+    [`How does the scoring work?`, `评分是怎么算的？`, `Bagaimana skor dikira?`],
+    [`Each listing is compared against your profile — skills, salary range, preferred location, and keywords. The score (0–100) reflects how well it fits. You also see the reasons: what matched, what didn't, and whether the salary was in range.`, `每个岗位都会与你的资料比较，包括技能、薪资范围、偏好地点和关键词。0–100 分代表匹配程度，你也会看到原因：匹配了什么、没匹配什么、薪资是否在范围内。`, `Setiap iklan dibandingkan dengan profil anda: kemahiran, julat gaji, lokasi pilihan dan kata kunci. Skor 0–100 menunjukkan tahap kesesuaian. Anda juga nampak sebabnya: apa yang sepadan, apa yang tidak, dan sama ada gaji dalam julat.`],
+    [`Will it work if I'm fresh out of poly or ITE?`, `刚从 Poly 或 ITE 毕业也能用吗？`, `Boleh guna kalau baru tamat poly atau ITE?`],
+    [`Yes. The scoring accounts for your education level and filters out roles that require degrees if you don't have one. You can also set keywords like "entry level", "fresh grad", or "no experience required" to boost relevant listings.`, `可以。评分会考虑你的学历；如果你没有学位，会过滤掉明确要求学位的岗位。你也可以用 “entry level”、“fresh grad”、“no experience required” 等关键词提高相关岗位的权重。`, `Boleh. Skor mengambil kira tahap pendidikan anda dan menapis peranan yang memerlukan ijazah jika anda tiada ijazah. Anda juga boleh tetapkan kata kunci seperti "entry level", "fresh grad" atau "no experience required" untuk mengutamakan iklan yang relevan.`],
+    [`Is my data safe?`, `我的资料安全吗？`, `Adakah data saya selamat?`],
+    [`Your profile and resume are stored encrypted. We don't share or sell your data to employers or recruiters. You can delete your account and everything associated with it at any time from Settings.`, `你的个人资料和简历会加密存储。我们不会把你的资料分享或出售给雇主、猎头或招聘中介。你可以随时在设置里删除账号及相关数据。`, `Profil dan resume anda disimpan secara terenkripsi. Kami tidak berkongsi atau menjual data anda kepada majikan atau perekrut. Anda boleh memadam akaun dan semua data berkaitan pada bila-bila masa melalui Tetapan.`],
+    [`Can I cancel anytime?`, `可以随时取消吗？`, `Boleh batal bila-bila masa?`],
+    [`Yes. Cancel from your account settings with one click. You keep Pro access until the end of the billing period — no early cutoff, no penalties.`, `可以。你可以在账号设置里一键取消。Pro 权限会保留到当前账单周期结束，不会提前中断，也没有罚金。`, `Boleh. Batalkan dari tetapan akaun dengan satu klik. Akses Pro kekal sehingga hujung tempoh bil; tiada potongan awal, tiada penalti.`],
+    [`Stop scrolling. Start applying.`, `少刷岗位，多投申请。`, `Berhenti menatal. Mula memohon.`],
+    [`Free to start. Set up in two minutes. We'll handle the rest.`, `免费开始，两分钟完成设置，剩下的交给我们。`, `Percuma untuk bermula. Tetapan siap dalam dua minit. Selebihnya kami uruskan.`],
+    [`No credit card required.`, `无需信用卡。`, `Kad kredit tidak diperlukan.`],
+    [`Privacy`, `隐私`, `Privasi`],
+    [`Terms`, `条款`, `Terma`],
+    [`© 2026 CareerJobScan. Built for Singapore.`, `© 2026 CareerJobScan。为新加坡打造。`, `© 2026 CareerJobScan. Dibina untuk Singapura.`],
+
+    [`Status`, `状态`, `Status`],
+    [`Interview Date`, `面试日期`, `Tarikh temu duga`],
+    [`Time`, `时间`, `Masa`],
+    [`Notes`, `备注`, `Nota`],
+    [`Cancel`, `取消`, `Batal`],
+    [`Save`, `保存`, `Simpan`],
+    [`View original listing →`, `查看原始岗位 →`, `Lihat iklan asal →`],
+    [`Singapore`, `新加坡`, `Singapura`],
+    [`Check your inbox — verify your email to secure your account.`, `请查看收件箱，验证电邮以保护账号安全。`, `Semak peti masuk anda. Sahkan emel untuk melindungi akaun.`],
+    [`Resend email`, `重新发送电邮`, `Hantar semula emel`],
+    [`Scan running…`, `正在扫描…`, `Imbasan sedang berjalan…`],
+    [`Last scan:`, `上次扫描：`, `Imbasan terakhir:`],
+    [`Never`, `从未`, `Belum pernah`],
+    [`Admin Dashboard`, `管理员后台`, `Papan pemuka pentadbir`],
+    [`Sign out`, `退出登录`, `Log keluar`],
+    [`Free plan — scans show up to 10 job matches`, `免费版每次扫描最多显示 10 个匹配岗位`, `Pelan percuma memaparkan sehingga 10 padanan kerja setiap imbasan`],
+    [`Upgrade — $8/mo`, `升级 — $8/月`, `Naik taraf — $8/bln`],
+    [`Subscribe — $8/mo`, `订阅 — $8/月`, `Langgan — $8/bln`],
+    [`Payment failed — please update your payment method to keep access.`, `付款失败，请更新付款方式以继续使用。`, `Bayaran gagal. Sila kemas kini kaedah pembayaran untuk mengekalkan akses.`],
+    [`Subscription cancelled — subscribe to continue scanning.`, `订阅已取消，请重新订阅以继续扫描。`, `Langganan telah dibatalkan. Langgan semula untuk terus mengimbas.`],
+    [`Your access has ended — subscribe to continue scanning.`, `你的访问权限已结束，请订阅以继续扫描。`, `Akses anda telah tamat. Langgan untuk terus mengimbas.`],
+    [`Manage Subscription`, `管理订阅`, `Urus langganan`],
+    [`Payment required`, `需要处理付款`, `Bayaran diperlukan`],
+    [`Subscription required`, `需要订阅`, `Langganan diperlukan`],
+    [`Redirecting to checkout…`, `正在跳转到付款页面…`, `Sedang pergi ke pembayaran…`],
+    [`Subscribe — $8 / month`, `订阅 — $8 / 月`, `Langgan — $8 / bulan`],
+    [`Dashboard`, `仪表盘`, `Papan pemuka`],
+    [`Your job search at a glance`, `一眼掌握求职进度`, `Ringkasan carian kerja anda`],
+    [`Run New Scan`, `开始新扫描`, `Jalankan imbasan baharu`],
+    [`Found`, `发现`, `Dijumpai`],
+    [`total listings`, `个岗位`, `jumlah iklan`],
+    [`applications sent`, `份已申请`, `permohonan dihantar`],
+    [`Interviews`, `面试`, `Temu duga`],
+    [`scheduled`, `已安排`, `dijadualkan`],
+    [`Skipped`, `已跳过`, `Dilangkau`],
+    [`not interested`, `不感兴趣`, `tidak berminat`],
+    [`Recent Matches`, `最新匹配`, `Padanan terkini`],
+    [`View all →`, `查看全部 →`, `Lihat semua →`],
+    [`No jobs yet —`, `还没有岗位 —`, `Belum ada kerja —`],
+    [`run your first scan`, `先运行第一次扫描`, `jalankan imbasan pertama anda`],
+    [`Run Scan`, `运行扫描`, `Jalankan imbasan`],
+    [`Fetch jobs from MCF, Indeed, Adzuna and RemoteOK, then score them against your profile`, `从 MCF、Indeed、Adzuna 和 RemoteOK 获取岗位，并按你的资料评分`, `Ambil kerja daripada MCF, Indeed, Adzuna dan RemoteOK, kemudian skor mengikut profil anda`],
+    [`Subscribe to continue scanning. You'll keep all your existing job history and applications.`, `订阅后即可继续扫描，你现有的岗位记录和申请进度都会保留。`, `Langgan untuk terus mengimbas. Semua sejarah kerja dan permohonan sedia ada akan dikekalkan.`],
+    [`Secured by Stripe. Cancel anytime.`, `由 Stripe 安全处理。可随时取消。`, `Dilindungi oleh Stripe. Batal bila-bila masa.`],
+    [`Free plan — up to`, `免费版每次最多`, `Pelan percuma — sehingga`],
+    [`10 matches`, `10 个匹配`, `10 padanan`],
+    [`per scan,`, `每次扫描，`, `setiap imbasan,`],
+    [`Upgrade to Pro`, `升级到 Pro`, `Naik taraf ke Pro`],
+    [`for unlimited.`, `即可无限匹配。`, `untuk tanpa had.`],
+    [`3 scans/day`, `每天 3 次扫描`, `3 imbasan/hari`],
+    [`You've used all 3 free scans for today. Resets at midnight, or`, `你今天的 3 次免费扫描已用完。午夜会重置，或`, `Anda telah menggunakan semua 3 imbasan percuma hari ini. Ia diset semula pada tengah malam, atau`],
+    [`for unlimited scans.`, `获得无限扫描。`, `untuk imbasan tanpa had.`],
+    [`Search Mode`, `搜索模式`, `Mod carian`],
+    [`Add Custom Mode`, `添加自定义模式`, `Tambah mod tersuai`],
+    [`CareerJobScan generates job titles + keywords for any industry`, `CareerJobScan 可为任何行业生成职位和关键词`, `CareerJobScan menjana jawatan + kata kunci untuk mana-mana industri`],
+    [`AI Generate`, `AI 生成`, `Jana AI`],
+    [`Generating…`, `正在生成…`, `Sedang menjana…`],
+    [`Email notification`, `邮件通知`, `Notifikasi emel`],
+    [`Send top matches to your email after scan`, `扫描后把最佳匹配发到你的电邮`, `Hantar padanan terbaik ke emel anda selepas imbasan`],
+    [`Your profile looks empty. The AI scorer needs your skills and experience to rank jobs accurately — without it, most jobs will score below the threshold and won't appear.`, `你的个人资料还比较空。AI 评分需要技能和经历来准确排序；没有这些资料，大多数岗位分数会低于阈值而不显示。`, `Profil anda nampak kosong. Penskor AI memerlukan kemahiran dan pengalaman untuk menyusun kerja dengan tepat. Tanpanya, kebanyakan kerja akan mendapat skor di bawah ambang dan tidak muncul.`],
+    [`Fill in your Profile first →`, `先填写个人资料 →`, `Lengkapkan Profil dahulu →`],
+    [`Scan complete`, `扫描完成`, `Imbasan selesai`],
+    [`New matches added to your jobs list`, `新匹配已加入岗位列表`, `Padanan baharu ditambah ke senarai kerja anda`],
+    [`View Jobs →`, `查看岗位 →`, `Lihat Kerja →`],
+    [`No new matches found.`, `没有找到新的匹配。`, `Tiada padanan baharu ditemui.`],
+    [`A few things to check:`, `可以检查这几项：`, `Beberapa perkara untuk disemak:`],
+    [`Profile`, `个人资料`, `Profil`],
+    [`— is it filled in? Without skills and experience, jobs score below the threshold and are filtered out.`, `— 是否已填写？如果没有技能和经历，岗位分数会低于阈值并被过滤。`, `— sudah lengkap? Tanpa kemahiran dan pengalaman, skor kerja akan jatuh di bawah ambang dan ditapis keluar.`],
+    [`Your seen history may be stale —`, `你的已看记录可能需要刷新 —`, `Sejarah dilihat anda mungkin sudah lapuk —`],
+    [`Settings → Clear Seen History`, `设置 → 清空已看记录`, `Tetapan → Kosongkan sejarah dilihat`],
+    [`to rescan old listings.`, `即可重新扫描旧岗位。`, `untuk mengimbas semula iklan lama.`],
+    [`Check your internet connection or try again in a few minutes.`, `请检查网络连接，或稍后再试。`, `Semak sambungan internet atau cuba lagi dalam beberapa minit.`],
+    [`Scan History`, `扫描记录`, `Sejarah imbasan`],
+    [`No new matches`, `没有新匹配`, `Tiada padanan baharu`],
+    [`Export CSV`, `导出 CSV`, `Eksport CSV`],
+    [`All Sources`, `全部来源`, `Semua sumber`],
+    [`All Statuses`, `全部状态`, `Semua status`],
+    [`Untracked`, `未跟进`, `Belum dijejaki`],
+    [`Interview`, `面试`, `Temu duga`],
+    [`Loading…`, `加载中…`, `Sedang memuat…`],
+    [`No scans yet.`, `还没有扫描记录。`, `Belum ada imbasan.`],
+    [`Step 1:`, `第 1 步：`, `Langkah 1:`],
+    [`Fill in your Profile`, `填写个人资料`, `Lengkapkan Profil`],
+    [`so the AI can score jobs against your skills.`, `让 AI 能按你的技能为岗位评分。`, `supaya AI boleh memberi skor kerja mengikut kemahiran anda.`],
+    [`Step 2:`, `第 2 步：`, `Langkah 2:`],
+    [`Run a Scan`, `运行扫描`, `Jalankan imbasan`],
+    [`to fetch and match jobs from 4 sources.`, `从 4 个来源获取并匹配岗位。`, `untuk mengambil dan memadankan kerja daripada 4 sumber.`],
+    [`No jobs match your filters.`, `没有岗位符合当前筛选。`, `Tiada kerja yang sepadan dengan penapis anda.`],
+    [`Clear filters`, `清除筛选`, `Kosongkan penapis`],
+    [`Score Breakdown`, `评分明细`, `Pecahan skor`],
+    [`No breakdown available`, `暂无评分明细`, `Tiada pecahan tersedia`],
+    [`Click score to close`, `点击分数可关闭`, `Klik skor untuk tutup`],
+    [`✓ Applied`, `✓ 已申请`, `✓ Dipohon`],
+    [`🎯 Interview`, `🎯 面试`, `🎯 Temu duga`],
+    [`✕ Skip`, `✕ 跳过`, `✕ Langkau`],
+    [`Clear`, `清除`, `Kosongkan`],
+    [`Tailor Resume`, `定制简历`, `Sesuaikan resume`],
+    [`Cover Note`, `求职说明`, `Nota iringan`],
+    [`Restore`, `恢复`, `Pulihkan`],
+    [`View`, `查看`, `Lihat`],
+    [`Applications`, `申请进度`, `Permohonan`],
+    [`Track your application progress`, `追踪你的申请进度`, `Jejak kemajuan permohonan anda`],
+    [`No applications yet`, `还没有申请记录`, `Belum ada permohonan`],
+    [`No interviews yet`, `还没有面试`, `Belum ada temu duga`],
+    [`Nothing skipped`, `还没有跳过的岗位`, `Tiada yang dilangkau`],
+    [`Cover Notes`, `求职说明`, `Nota iringan`],
+    [`Pro Plan Only`, `仅限 Pro 方案`, `Pelan Pro sahaja`],
+    [`AI-generated cover notes are available on the Pro plan.`, `AI 生成求职说明仅 Pro 方案可用。`, `Nota iringan jana AI tersedia dalam pelan Pro.`],
+    [`No cover notes yet. Click`, `还没有求职说明。点击任意岗位卡片上的`, `Belum ada nota iringan. Klik`],
+    [`on any job card to generate one.`, `即可生成。`, `pada mana-mana kad kerja untuk menjana satu.`],
+    [`Back`, `返回`, `Kembali`],
+    [`Copy`, `复制`, `Salin`],
+    [`Analytics`, `数据洞察`, `Analitik`],
+    [`Insights from your job search data`, `来自求职数据的洞察`, `Cerapan daripada data carian kerja anda`],
+    [`Analytics and insights are available on the Pro plan.`, `数据洞察仅 Pro 方案可用。`, `Analitik dan cerapan tersedia dalam pelan Pro.`],
+    [`Total Jobs`, `岗位总数`, `Jumlah kerja`],
+    [`No data yet — run a scan first.`, `还没有数据，请先运行一次扫描。`, `Belum ada data. Jalankan imbasan dahulu.`],
+    [`Source Breakdown`, `来源分布`, `Pecahan sumber`],
+    [`Score Distribution`, `分数分布`, `Taburan skor`],
+    [`Weekly Trend`, `每周趋势`, `Trend mingguan`],
+    [`Top Companies`, `热门公司`, `Syarikat teratas`],
+    [`Used to personalise cover notes and scoring`, `用于个性化求职说明和评分`, `Digunakan untuk memperibadikan nota iringan dan skor`],
+    [`Import from Resume`, `从简历导入`, `Import daripada resume`],
+    [`Upload a PDF, DOCX, or TXT file — CareerJobScan will extract and fill in your profile fields.`, `上传 PDF、DOCX 或 TXT 文件，CareerJobScan 会提取内容并填入你的个人资料。`, `Muat naik fail PDF, DOCX atau TXT. CareerJobScan akan mengekstrak dan mengisi medan profil anda.`],
+    [`Basic Info`, `基本资料`, `Maklumat asas`],
+    [`Full Name`, `姓名`, `Nama penuh`],
+    [`Phone`, `电话`, `Telefon`],
+    [`Education`, `教育背景`, `Pendidikan`],
+    [`Highest Education`, `最高学历`, `Pendidikan tertinggi`],
+    [`Certifications`, `证书`, `Sijil`],
+    [`(comma-separated)`, `（用英文逗号分隔）`, `(pisahkan dengan koma)`],
+    [`Skills`, `技能`, `Kemahiran`],
+    [`Technical Skills`, `技术技能`, `Kemahiran teknikal`],
+    [`Soft Skills`, `软技能`, `Kemahiran insaniah`],
+    [`Experience Summary`, `经历概述`, `Ringkasan pengalaman`],
+    [`Work History`, `工作经历`, `Sejarah kerja`],
+    [`+ Add`, `+ 添加`, `+ Tambah`],
+    [`No work history yet`, `还没有工作经历`, `Belum ada sejarah kerja`],
+    [`Remove`, `移除`, `Buang`],
+    [`Projects`, `项目经历`, `Projek`],
+    [`No projects yet`, `还没有项目经历`, `Belum ada projek`],
+    [`Save Profile`, `保存个人资料`, `Simpan profil`],
+    [`Upgrade to build and download AI-polished resumes.`, `升级后即可生成并下载 AI 优化简历。`, `Naik taraf untuk membina dan memuat turun resume yang diperkemas AI.`],
+    [`Resume Builder`, `简历生成器`, `Pembina resume`],
+    [`AI polishes your profile into a professional resume, then generates a downloadable PDF.`, `AI 会把你的资料润色成专业简历，并生成可下载的 PDF。`, `AI memperkemas profil anda menjadi resume profesional, kemudian menjana PDF untuk dimuat turun.`],
+    [`Polish with AI`, `用 AI 润色`, `Kemas dengan AI`],
+    [`CareerJobScan rewrites your summary, experience, and skills to sound more professional and ATS-friendly.`, `CareerJobScan 会改写你的简介、经历和技能，让表述更专业，也更适合 ATS。`, `CareerJobScan menulis semula ringkasan, pengalaman dan kemahiran anda supaya lebih profesional dan mesra ATS.`],
+    [`AI polishing complete — preview below`, `AI 润色完成，预览如下`, `Kemasan AI selesai. Pratonton di bawah`],
+    [`Summary`, `简介`, `Ringkasan`],
+    [`Experience (first role)`, `经历（第一份）`, `Pengalaman (peranan pertama)`],
+    [`Download PDF`, `下载 PDF`, `Muat turun PDF`],
+    [`Interview Prep`, `面试准备`, `Persediaan temu duga`],
+    [`Pick a job and CareerJobScan generates tailored interview questions`, `选择一个岗位，CareerJobScan 会生成针对性的面试题`, `Pilih kerja dan CareerJobScan akan menjana soalan temu duga tersuai`],
+    [`AI interview prep questions are available on the Pro plan.`, `AI 面试准备题仅 Pro 方案可用。`, `Soalan persediaan temu duga AI tersedia dalam pelan Pro.`],
+    [`Select a Job`, `选择岗位`, `Pilih kerja`],
+    [`-- Choose a job from your list --`, `-- 从列表中选择岗位 --`, `-- Pilih kerja daripada senarai anda --`],
+    [`No jobs yet — run a scan first.`, `还没有岗位，请先运行扫描。`, `Belum ada kerja. Jalankan imbasan dahulu.`],
+    [`Technical Questions`, `技术问题`, `Soalan teknikal`],
+    [`Behavioral Questions`, `行为问题`, `Soalan tingkah laku`],
+    [`(STAR format)`, `（STAR 格式）`, `(format STAR)`],
+    [`Company & Culture Fit`, `公司与文化匹配`, `Keserasian syarikat & budaya`],
+    [`Questions to Ask Them`, `可以反问的问题`, `Soalan untuk ditanya kepada mereka`],
+    [`Settings`, `设置`, `Tetapan`],
+    [`Configure your job scanner preferences`, `配置你的岗位扫描偏好`, `Tetapkan pilihan pengimbas kerja anda`],
+    [`Search Configuration`, `搜索配置`, `Konfigurasi carian`],
+    [`Job Titles to Search`, `要搜索的职位`, `Jawatan untuk dicari`],
+    [`Add`, `添加`, `Tambah`],
+    [`Boost Keywords`, `加分关键词`, `Kata kunci penggalak`],
+    [`(score higher when matched)`, `（匹配时提高分数）`, `(skor lebih tinggi apabila sepadan)`],
+    [`Negative Keywords`, `降分关键词`, `Kata kunci negatif`],
+    [`(score lower when matched)`, `（匹配时降低分数）`, `(skor lebih rendah apabila sepadan)`],
+    [`Scan Preferences`, `扫描偏好`, `Tetapan imbasan`],
+    [`Min Salary (SGD/mo)`, `最低月薪 (SGD)`, `Gaji minimum (SGD/bln)`],
+    [`Max Salary (SGD/mo)`, `最高月薪 (SGD)`, `Gaji maksimum (SGD/bln)`],
+    [`Min Match Score`, `最低匹配分数`, `Skor padanan minimum`],
+    [`0 — show all`, `0 — 显示全部`, `0 — papar semua`],
+    [`100 — perfect only`, `100 — 只显示完美匹配`, `100 — padanan sempurna sahaja`],
+    [`Max Jobs per Notification`, `每封通知最多岗位数`, `Maksimum kerja setiap notifikasi`],
+    [`How many top matches to notify you about per scan.`, `每次扫描后通知你多少个最佳匹配。`, `Berapa banyak padanan terbaik untuk dimaklumkan bagi setiap imbasan.`],
+    [`Email Notifications`, `邮件通知`, `Notifikasi emel`],
+    [`Send email digest`, `发送邮件摘要`, `Hantar ringkasan emel`],
+    [`Email top matches after each scan`, `每次扫描后通过电邮发送最佳匹配`, `Hantar padanan terbaik melalui emel selepas setiap imbasan`],
+    [`Recipient Email`, `收件电邮`, `Emel penerima`],
+    [`Top matches will be emailed here after each scan.`, `每次扫描后，最佳匹配会发送到这里。`, `Padanan terbaik akan diemel ke sini selepas setiap imbasan.`],
+    [`Email sending requires`, `发送电邮需要设置`, `Penghantaran emel memerlukan`],
+    [`to be set in your environment.`, `环境变量。`, `ditetapkan dalam persekitaran anda.`],
+    [`Daily Schedule`, `每日定时扫描`, `Jadual harian`],
+    [`Run scan daily`, `每天自动扫描`, `Jalankan imbasan harian`],
+    [`Registers a Windows Task Scheduler job named "CareerJobScan"`, `会注册名为 “CareerJobScan” 的 Windows 任务计划`, `Mendaftarkan tugas Windows Task Scheduler bernama "CareerJobScan"`],
+    [`Scan Time`, `扫描时间`, `Masa imbasan`],
+    [`Save Schedule`, `保存定时设置`, `Simpan jadual`],
+    [`Billing`, `订阅与账单`, `Bil`],
+    [`Manage`, `管理`, `Urus`],
+    [`Reset History`, `重置记录`, `Tetapkan semula sejarah`],
+    [`The next scan will treat all jobs as new listings.`, `下一次扫描会把所有岗位当作新岗位。`, `Imbasan seterusnya akan menganggap semua kerja sebagai iklan baharu.`],
+    [`Clear Seen History`, `清空已看记录`, `Kosongkan sejarah dilihat`],
+    [`Delete Account`, `删除账号`, `Padam akaun`],
+    [`Permanently delete your account, all scan history, and cancel any active subscription. This cannot be undone.`, `永久删除你的账号和所有扫描记录，并取消当前有效订阅。此操作无法撤销。`, `Padam akaun anda secara kekal, semua sejarah imbasan, dan batalkan sebarang langganan aktif. Tindakan ini tidak boleh dibuat asal.`],
+    [`Delete my account`, `删除我的账号`, `Padam akaun saya`],
+    [`Save Settings`, `保存设置`, `Simpan tetapan`],
+    [`Delete your account?`, `确认删除账号？`, `Padam akaun anda?`],
+    [`This will permanently delete all your data, scan history, and cancel any active subscription. This action`, `这会永久删除你的所有数据和扫描记录，并取消任何有效订阅。此操作`, `Ini akan memadam semua data dan sejarah imbasan anda secara kekal, serta membatalkan sebarang langganan aktif. Tindakan ini`],
+    [`cannot be undone`, `无法撤销`, `tidak boleh dibuat asal`],
+    [`Enter your password to confirm`, `输入密码以确认`, `Masukkan kata laluan untuk mengesahkan`],
+    [`Type`, `输入`, `Taip`],
+    [`DELETE`, `DELETE`, `DELETE`],
+    [`to confirm`, `以确认`, `untuk mengesahkan`],
+    [`Delete account`, `删除账号`, `Padam akaun`],
+    [`Deleting…`, `正在删除…`, `Sedang memadam…`],
+    [`CareerJobScan is tailoring your resume…`, `CareerJobScan 正在定制你的简历…`, `CareerJobScan sedang menyesuaikan resume anda…`],
+    [`Tailored Summary`, `定制简介`, `Ringkasan tersuai`],
+    [`Tailored Work History`, `定制工作经历`, `Sejarah kerja tersuai`],
+    [`Skills to Highlight`, `建议突出的技能`, `Kemahiran untuk ditonjolkan`],
+    [`Tips`, `建议`, `Tip`],
+    [`Saved to Cover Notes tab. You can edit it before sending.`, `已保存到“求职说明”标签页，发送前可继续编辑。`, `Disimpan ke tab Nota iringan. Anda boleh mengeditnya sebelum menghantar.`],
+
+    [`Email verified successfully!`, `电邮验证成功！`, `Emel berjaya disahkan!`],
+    [`That verification link is invalid or expired — click "Resend email" for a fresh one.`, `验证链接无效或已过期，请点击“重新发送电邮”获取新链接。`, `Pautan pengesahan itu tidak sah atau telah luput. Klik "Hantar semula emel" untuk pautan baharu.`],
+    [`Verification email sent — check your inbox.`, `验证电邮已发送，请查看收件箱。`, `Emel pengesahan telah dihantar. Sila semak peti masuk anda.`],
+    [`Failed to send — try again later.`, `发送失败，请稍后再试。`, `Gagal dihantar. Cuba lagi kemudian.`],
+    [`Could not start checkout`, `无法打开付款页面`, `Tidak dapat memulakan pembayaran`],
+    [`Could not open billing portal`, `无法打开账单管理页面`, `Tidak dapat membuka portal bil`],
+    [`Job dismissed`, `岗位已忽略`, `Kerja diketepikan`],
+    [`Job restored`, `岗位已恢复`, `Kerja dipulihkan`],
+    [`Failed to update job`, `岗位更新失败`, `Gagal mengemas kini kerja`],
+    [`Cover note failed — please try again`, `求职说明生成失败，请再试一次`, `Nota iringan gagal dijana. Sila cuba lagi`],
+    [`Copied to clipboard`, `已复制到剪贴板`, `Disalin ke papan klip`],
+    [`Profile filled in — review and save`, `个人资料已填入，请检查后保存`, `Profil telah diisi. Semak dan simpan`],
+    [`Profile saved!`, `个人资料已保存！`, `Profil disimpan!`],
+    [`Save failed`, `保存失败`, `Gagal disimpan`],
+    [`Resume polished!`, `简历已润色！`, `Resume telah diperkemas!`],
+    [`Polish failed`, `润色失败`, `Gagal memperkemas`],
+    [`PDF generation failed`, `PDF 生成失败`, `Penjanaan PDF gagal`],
+    [`Schedule saved!`, `定时设置已保存！`, `Jadual disimpan!`],
+    [`Copied!`, `已复制！`, `Disalin!`],
+    [`Copy failed — select manually`, `复制失败，请手动选择`, `Gagal disalin. Pilih secara manual`],
+    [`Failed`, `失败`, `Gagal`],
+    [`Access denied — subscribe to continue scanning.`, `访问受限，请订阅后继续扫描。`, `Akses ditolak. Langgan untuk terus mengimbas.`],
+    [`Daily scan limit reached (3/day). Resets at midnight.`, `已达到每日扫描上限（3 次/天）。午夜重置。`, `Had imbasan harian dicapai (3/hari). Diset semula pada tengah malam.`],
+    [`Too many requests — please wait a moment.`, `请求过多，请稍等片刻。`, `Terlalu banyak permintaan. Sila tunggu sebentar.`],
+    [`Could not start scan`, `无法开始扫描`, `Tidak dapat memulakan imbasan`],
+    [`Saved!`, `已保存！`, `Disimpan!`],
+    [`Test email sent! Check your inbox.`, `测试电邮已发送，请查看收件箱。`, `Emel ujian dihantar. Sila semak peti masuk anda.`],
+    [`Failed — check your email settings.`, `发送失败，请检查电邮设置。`, `Gagal. Semak tetapan emel anda.`],
+    [`Settings saved!`, `设置已保存！`, `Tetapan disimpan!`],
+    [`Clear seen jobs history? The next scan treats all jobs as new.`, `清空已看岗位记录？下一次扫描会把所有岗位当作新岗位。`, `Kosongkan sejarah kerja dilihat? Imbasan seterusnya akan menganggap semua kerja sebagai baharu.`],
+    [`History cleared!`, `历史记录已清空！`, `Sejarah dikosongkan!`],
+    [`Generation failed`, `生成失败`, `Penjanaan gagal`],
+    [`Verification email sent!`, `验证电邮已发送！`, `Emel pengesahan dihantar!`],
+    [`Drop resume here or click to browse`, `把简历拖到这里，或点击选择文件`, `Lepaskan resume di sini atau klik untuk pilih fail`],
+    [`Parsing…`, `正在解析…`, `Sedang membaca…`],
+    [`Parse with AI`, `用 AI 解析`, `Baca dengan AI`],
+    [`Polishing…`, `正在润色…`, `Sedang memperkemas…`],
+    [`Re-polish`, `重新润色`, `Kemas semula`],
+    [`Downloads your AI-polished resume as a PDF.`, `下载 AI 润色后的 PDF 简历。`, `Muat turun resume yang diperkemas AI sebagai PDF.`],
+    [`Polish first to get the best result, or download your raw profile.`, `建议先润色以获得最佳效果，也可以直接下载原始资料。`, `Kemas dahulu untuk hasil terbaik, atau muat turun profil mentah anda.`],
+    [`Download Polished PDF`, `下载润色版 PDF`, `Muat turun PDF diperkemas`],
+    [`Download Raw PDF`, `下载原始 PDF`, `Muat turun PDF mentah`],
+    [`Free plan`, `免费方案`, `Pelan percuma`],
+    [`Pro — active subscription`, `Pro — 订阅有效`, `Pro — langganan aktif`],
+    [`Access expired`, `访问权限已过期`, `Akses telah luput`],
+    [`Payment failed`, `付款失败`, `Bayaran gagal`],
+    [`Subscription cancelled`, `订阅已取消`, `Langganan dibatalkan`],
+    [`Unlimited scans. Thank you!`, `可无限扫描。谢谢支持！`, `Imbasan tanpa had. Terima kasih!`],
+    [`Update your payment method to restore access.`, `请更新付款方式以恢复访问。`, `Kemas kini kaedah pembayaran untuk memulihkan akses.`],
+    [`Subscribe again to continue scanning.`, `请重新订阅以继续扫描。`, `Langgan semula untuk terus mengimbas.`],
+    [`Access ended — subscribe to continue scanning.`, `访问已结束，请订阅以继续扫描。`, `Akses tamat. Langgan untuk terus mengimbas.`],
+    [`Up to 10 job matches per scan.`, `每次扫描最多 10 个匹配岗位。`, `Sehingga 10 padanan kerja setiap imbasan.`],
+
+    [`Quick Setup`, `快速设置`, `Persediaan ringkas`],
+    [`Skip setup →`, `跳过设置 →`, `Langkau persediaan →`],
+    [`What jobs are you looking for?`, `你想找什么岗位？`, `Kerja apa yang anda cari?`],
+    [`Add job titles to search for. You can change these anytime in Settings.`, `添加要搜索的职位名称，之后可随时在设置中修改。`, `Tambah jawatan untuk dicari. Anda boleh ubah bila-bila masa di Tetapan.`],
+    [`Job Titles`, `职位名称`, `Jawatan`],
+    [`Suggestions — click to add:`, `建议 — 点击添加：`, `Cadangan — klik untuk tambah:`],
+    [`Boost Keywords`, `加分关键词`, `Kata kunci penggalak`],
+    [`(optional)`, `（可选）`, `(pilihan)`],
+    [`Jobs mentioning these keywords score higher.`, `提到这些关键词的岗位会获得更高分数。`, `Kerja yang menyebut kata kunci ini akan mendapat skor lebih tinggi.`],
+    [`Start scanning`, `开始扫描`, `Mula mengimbas`],
+    [`Add at least one job title`, `请至少添加一个职位名称`, `Tambah sekurang-kurangnya satu jawatan`],
+    [`Save failed — please try again`, `保存失败，请再试一次`, `Gagal disimpan. Sila cuba lagi`],
+    [`Type a job title…`, `输入职位名称…`, `Taip jawatan…`],
+    [`Type a keyword…`, `输入关键词…`, `Taip kata kunci…`],
+    [`Remove`, `移除`, `Buang`],
+
+    [`← Back to home`, `← 返回首页`, `← Kembali ke laman utama`],
+    [`Privacy Policy`, `隐私政策`, `Dasar Privasi`],
+    [`Terms of Service`, `服务条款`, `Terma Perkhidmatan`],
+    [`Last updated: June 2026`, `最后更新：2026 年 6 月`, `Dikemas kini: Jun 2026`],
+    [`1. What we collect`, `1. 我们收集哪些资料`, `1. Data yang kami kumpulkan`],
+    [`When you use CareerJobScan, we collect:`, `使用 CareerJobScan 时，我们会收集：`, `Apabila anda menggunakan CareerJobScan, kami mengumpulkan:`],
+    [`Account data`, `账号资料`, `Data akaun`],
+    [`— name, email address, and password (hashed).`, `— 姓名、电邮地址和经过哈希处理的密码。`, `— nama, alamat emel dan kata laluan (dihash).`],
+    [`Profile data`, `个人资料`, `Data profil`],
+    [`— job titles, skills, salary expectations, location preferences, and any resume you upload.`, `— 目标职位、技能、薪资期望、地点偏好，以及你上传的任何简历。`, `— jawatan, kemahiran, jangkaan gaji, lokasi pilihan dan sebarang resume yang anda muat naik.`],
+    [`Usage data`, `使用资料`, `Data penggunaan`],
+    [`— scans run, jobs viewed, applications tracked, and feature interactions.`, `— 运行过的扫描、查看过的岗位、追踪的申请和功能使用记录。`, `— imbasan yang dijalankan, kerja yang dilihat, permohonan yang dijejak dan interaksi ciri.`],
+    [`Billing data`, `账单资料`, `Data bil`],
+    [`— handled entirely by Stripe. We never store your card details.`, `— 全部由 Stripe 处理。我们不会保存你的银行卡资料。`, `— diurus sepenuhnya oleh Stripe. Kami tidak menyimpan butiran kad anda.`],
+    [`AI API keys`, `AI API 密钥`, `Kunci API AI`],
+    [`— if you provide your own AI API key, it is stored encrypted using AES-256 (Fernet).`, `— 如果你提供自己的 AI API 密钥，我们会使用 AES-256 (Fernet) 加密存储。`, `— jika anda menyediakan kunci API AI sendiri, ia disimpan secara terenkripsi menggunakan AES-256 (Fernet).`],
+    [`2. How we use your data`, `2. 我们如何使用资料`, `2. Cara kami menggunakan data anda`],
+    [`To run job scans and match listings against your profile.`, `用于运行岗位扫描，并根据你的资料匹配岗位。`, `Untuk menjalankan imbasan kerja dan memadankan iklan dengan profil anda.`],
+    [`To generate AI-powered cover notes, resume suggestions, and interview prep (via our AI engine).`, `用于通过 AI 生成求职说明、简历建议和面试准备内容。`, `Untuk menjana nota iringan, cadangan resume dan persediaan temu duga berasaskan AI.`],
+    [`To send you email digests of your top matches (Pro plan).`, `用于向你发送最佳匹配岗位的邮件摘要（Pro 方案）。`, `Untuk menghantar ringkasan emel padanan terbaik anda (pelan Pro).`],
+    [`To process subscription payments via Stripe.`, `用于通过 Stripe 处理订阅付款。`, `Untuk memproses bayaran langganan melalui Stripe.`],
+    [`To improve the accuracy of our scoring model over time.`, `用于持续提升评分模型的准确度。`, `Untuk meningkatkan ketepatan model skor kami dari semasa ke semasa.`],
+    [`We do not use your data for advertising, and we do not share it with employers, recruiters, or data brokers.`, `我们不会将你的资料用于广告，也不会分享给雇主、招聘人员或数据经纪商。`, `Kami tidak menggunakan data anda untuk pengiklanan, dan tidak berkongsi dengan majikan, perekrut atau broker data.`],
+    [`3. Third-party services`, `3. 第三方服务`, `3. Perkhidmatan pihak ketiga`],
+    [`Supabase (PostgreSQL)`, `Supabase (PostgreSQL)`, `Supabase (PostgreSQL)`],
+    [`— stores your account and profile data. Data is hosted on servers in the US and/or Singapore.`, `— 存储你的账号和个人资料。数据托管在美国和/或新加坡的服务器。`, `— menyimpan data akaun dan profil anda. Data dihoskan pada pelayan di AS dan/atau Singapura.`],
+    [`Stripe`, `Stripe`, `Stripe`],
+    [`— processes payments. Subject to Stripe's own privacy policy.`, `— 处理付款，并受 Stripe 自身隐私政策约束。`, `— memproses bayaran, tertakluk kepada dasar privasi Stripe sendiri.`],
+    [`Resend`, `Resend`, `Resend`],
+    [`— delivers transactional emails (verification, digests). Only your email address is shared.`, `— 发送交易类邮件（验证、摘要）。只会共享你的电邮地址。`, `— menghantar emel transaksi seperti pengesahan dan ringkasan. Hanya alamat emel anda dikongsi.`],
+    [`Google (AI services)`, `Google（AI 服务）`, `Google (perkhidmatan AI)`],
+    [`— processes job descriptions and your profile to generate scores, cover notes, and interview questions. No identifying personal data (name, contact info) is sent to Google.`, `— 处理岗位描述和你的资料，用于生成评分、求职说明和面试题。我们不会向 Google 发送可识别个人身份的资料（姓名、联系方式）。`, `— memproses deskripsi kerja dan profil anda untuk menjana skor, nota iringan dan soalan temu duga. Tiada data peribadi yang boleh mengenal pasti anda (nama, maklumat hubungan) dihantar kepada Google.`],
+    [`Google OAuth`, `Google OAuth`, `Google OAuth`],
+    [`— if you sign in with Google, we receive your email and display name from Google. We do not request access to any other Google data.`, `— 如果你使用 Google 登录，我们会从 Google 接收你的电邮和显示名称。我们不会请求访问其他 Google 数据。`, `— jika anda log masuk dengan Google, kami menerima emel dan nama paparan anda daripada Google. Kami tidak meminta akses kepada data Google lain.`],
+    [`4. Data retention`, `4. 数据保留`, `4. Tempoh penyimpanan data`],
+    [`Your data is retained for as long as your account is active. If you delete your account from Settings, all your personal data, profile, resume, and scan history is permanently deleted within 30 days.`, `只要你的账号处于活跃状态，我们会保留你的资料。如果你在设置中删除账号，所有个人资料、个人档案、简历和扫描记录会在 30 天内永久删除。`, `Data anda disimpan selagi akaun anda aktif. Jika anda memadam akaun melalui Tetapan, semua data peribadi, profil, resume dan sejarah imbasan akan dipadam secara kekal dalam masa 30 hari.`],
+    [`5. Your rights`, `5. 你的权利`, `5. Hak anda`],
+    [`You can access, update, or delete your profile data at any time from Settings. To request a full export or permanent deletion of your data, email us at the address below.`, `你可以随时在设置中访问、更新或删除个人资料。如需完整导出或永久删除资料，请通过下方电邮联系我们。`, `Anda boleh mengakses, mengemas kini atau memadam data profil anda pada bila-bila masa melalui Tetapan. Untuk meminta eksport penuh atau pemadaman kekal data anda, emel kami di alamat di bawah.`],
+    [`6. Cookies`, `6. Cookie`, `6. Kuki`],
+    [`We use a single session cookie to keep you logged in. We do not use advertising or tracking cookies.`, `我们使用一个会话 Cookie 来保持登录状态。我们不使用广告或追踪 Cookie。`, `Kami menggunakan satu kuki sesi untuk memastikan anda kekal log masuk. Kami tidak menggunakan kuki pengiklanan atau penjejakan.`],
+    [`7. Changes to this policy`, `7. 政策变更`, `7. Perubahan kepada dasar ini`],
+    [`We may update this policy as the service evolves. We will notify active users by email for material changes.`, `随着服务发展，我们可能会更新本政策。若有重大变更，我们会通过电邮通知活跃用户。`, `Kami mungkin mengemas kini dasar ini apabila perkhidmatan berkembang. Bagi perubahan penting, kami akan memaklumkan pengguna aktif melalui emel.`],
+    [`8. Contact`, `8. 联系方式`, `8. Hubungi kami`],
+    [`Questions about this policy? Email us at`, `如对本政策有疑问，请发送电邮至`, `Ada soalan tentang dasar ini? Emel kami di`],
+    [`1. The service`, `1. 服务内容`, `1. Perkhidmatan`],
+    [`CareerJobScan is an AI-powered job matching service for the Singapore job market. It aggregates listings from public job portals and APIs, scores them against your profile, and surfaces the best matches. It is not a recruiter or employment agency.`, `CareerJobScan 是面向新加坡求职市场的 AI 岗位匹配服务。它会汇总公开招聘平台和 API 的岗位，根据你的资料进行评分，并展示最佳匹配。CareerJobScan 不是招聘人员或职业介绍所。`, `CareerJobScan ialah perkhidmatan padanan kerja berkuasa AI untuk pasaran kerja Singapura. Ia mengumpulkan iklan daripada portal kerja awam dan API, memberi skor berdasarkan profil anda, dan memaparkan padanan terbaik. Ia bukan perekrut atau agensi pekerjaan.`],
+    [`2. Your account`, `2. 你的账号`, `2. Akaun anda`],
+    [`You must provide accurate information when creating your account.`, `创建账号时，你必须提供准确资料。`, `Anda mesti memberikan maklumat yang tepat semasa mencipta akaun.`],
+    [`You are responsible for keeping your account credentials secure.`, `你有责任妥善保管账号凭证。`, `Anda bertanggungjawab menjaga keselamatan kelayakan akaun anda.`],
+    [`You must be at least 16 years old to use this service.`, `你必须年满 16 岁才能使用本服务。`, `Anda mesti berumur sekurang-kurangnya 16 tahun untuk menggunakan perkhidmatan ini.`],
+    [`One account per person. Creating multiple accounts to circumvent free plan limits is prohibited.`, `每人限一个账号。禁止创建多个账号来规避免费方案限制。`, `Satu akaun untuk setiap orang. Mencipta beberapa akaun untuk mengelak had pelan percuma adalah dilarang.`],
+    [`3. Acceptable use`, `3. 可接受使用`, `3. Penggunaan yang dibenarkan`],
+    [`You agree not to:`, `你同意不会：`, `Anda bersetuju untuk tidak:`],
+    [`Use the service for any unlawful purpose.`, `将本服务用于任何违法目的。`, `Menggunakan perkhidmatan untuk sebarang tujuan yang menyalahi undang-undang.`],
+    [`Attempt to reverse-engineer, scrape, or extract data from the service at scale.`, `尝试逆向工程、大规模抓取或提取本服务数据。`, `Cuba melakukan kejuruteraan songsang, mengikis atau mengekstrak data daripada perkhidmatan secara besar-besaran.`],
+    [`Upload malicious files, scripts, or content.`, `上传恶意文件、脚本或内容。`, `Memuat naik fail, skrip atau kandungan berniat jahat.`],
+    [`Interfere with or disrupt the service's infrastructure.`, `干扰或破坏本服务的基础设施。`, `Mengganggu atau menjejaskan infrastruktur perkhidmatan.`],
+    [`4. Subscriptions and billing`, `4. 订阅与账单`, `4. Langganan dan bil`],
+    [`The Free plan is free forever with the stated limits.`, `免费方案在所列限制内永久免费。`, `Pelan Percuma adalah percuma selamanya dengan had yang dinyatakan.`],
+    [`The Pro plan is billed monthly via Stripe. Prices are shown in SGD inclusive of any applicable taxes.`, `Pro 方案通过 Stripe 按月收费。价格以新币显示，并包含适用税费。`, `Pelan Pro dibilkan setiap bulan melalui Stripe. Harga dipaparkan dalam SGD termasuk cukai yang berkenaan.`],
+    [`You may cancel your subscription at any time. Your Pro access continues until the end of the billing period — no partial refunds are issued for unused time.`, `你可以随时取消订阅。Pro 权限会保留到当前账单周期结束；未使用时间不提供部分退款。`, `Anda boleh membatalkan langganan pada bila-bila masa. Akses Pro berterusan sehingga akhir tempoh bil; tiada bayaran balik separa untuk masa yang tidak digunakan.`],
+    [`We reserve the right to change pricing with 30 days' notice to existing subscribers.`, `我们保留调整价格的权利，并会提前 30 天通知现有订阅用户。`, `Kami berhak mengubah harga dengan notis 30 hari kepada pelanggan sedia ada.`],
+    [`5. AI-generated content`, `5. AI 生成内容`, `5. Kandungan jana AI`],
+    [`Cover notes, resume suggestions, and interview questions are generated by AI and may not be accurate or appropriate for every situation. You are responsible for reviewing and editing any AI-generated content before using it. CareerJobScan makes no guarantees about the quality or outcome of applications made using our tools.`, `求职说明、简历建议和面试问题由 AI 生成，未必适用于所有情况。使用前，你有责任自行审阅和编辑任何 AI 生成内容。CareerJobScan 不保证通过本工具提交申请的质量或结果。`, `Nota iringan, cadangan resume dan soalan temu duga dijana oleh AI dan mungkin tidak tepat atau sesuai untuk setiap situasi. Anda bertanggungjawab menyemak dan mengedit sebarang kandungan jana AI sebelum menggunakannya. CareerJobScan tidak menjamin kualiti atau hasil permohonan yang dibuat menggunakan alat kami.`],
+    [`6. Job listings`, `6. 岗位信息`, `6. Iklan kerja`],
+    [`CareerJobScan aggregates listings from third-party sources (MyCareersFuture, Indeed, Adzuna, RemoteOK). We do not verify the accuracy, legitimacy, or availability of individual listings. Always verify a role directly on the employer's website before applying.`, `CareerJobScan 汇总来自第三方来源（MyCareersFuture、Indeed、Adzuna、RemoteOK）的岗位。我们不验证单个岗位的准确性、真实性或是否仍开放。申请前，请务必直接在雇主网站核实。`, `CareerJobScan mengumpulkan iklan daripada sumber pihak ketiga (MyCareersFuture, Indeed, Adzuna, RemoteOK). Kami tidak mengesahkan ketepatan, kesahihan atau ketersediaan setiap iklan. Sentiasa sahkan peranan secara langsung di laman web majikan sebelum memohon.`],
+    [`7. Intellectual property`, `7. 知识产权`, `7. Harta intelek`],
+    [`The CareerJobScan platform, scoring model, and UI are owned by CareerJobScan. You retain ownership of your resume and profile data. You grant CareerJobScan a limited licence to process your data solely to provide the service.`, `CareerJobScan 平台、评分模型和界面归 CareerJobScan 所有。你的简历和个人资料仍归你所有。你授予 CareerJobScan 有限许可，仅用于提供本服务而处理你的资料。`, `Platform CareerJobScan, model skor dan UI dimiliki oleh CareerJobScan. Anda kekal memiliki resume dan data profil anda. Anda memberi CareerJobScan lesen terhad untuk memproses data anda semata-mata bagi menyediakan perkhidmatan.`],
+    [`8. Limitation of liability`, `8. 责任限制`, `8. Had liabiliti`],
+    [`CareerJobScan is provided "as is." We are not liable for any direct, indirect, or consequential damages arising from your use of the service, missed job opportunities, or reliance on AI-generated content. Our total liability to you in any month is capped at the amount you paid us in that month.`, `CareerJobScan 按“现状”提供。对于因使用本服务、错失求职机会或依赖 AI 生成内容而产生的任何直接、间接或后果性损失，我们不承担责任。我们在任何月份对你的总责任以你当月向我们支付的金额为上限。`, `CareerJobScan disediakan "seadanya." Kami tidak bertanggungjawab atas sebarang kerugian langsung, tidak langsung atau berbangkit daripada penggunaan perkhidmatan, peluang kerja yang terlepas, atau pergantungan pada kandungan jana AI. Jumlah liabiliti kami kepada anda dalam mana-mana bulan dihadkan kepada jumlah yang anda bayar kepada kami pada bulan tersebut.`],
+    [`9. Service availability`, `9. 服务可用性`, `9. Ketersediaan perkhidmatan`],
+    [`We aim for high availability but do not guarantee uninterrupted service. We may suspend or terminate accounts that violate these terms without notice.`, `我们力求保持高可用性，但不保证服务不中断。对于违反本条款的账号，我们可能会在不另行通知的情况下暂停或终止。`, `Kami menyasarkan ketersediaan tinggi tetapi tidak menjamin perkhidmatan tanpa gangguan. Kami boleh menggantung atau menamatkan akaun yang melanggar terma ini tanpa notis.`],
+    [`10. Changes to these terms`, `10. 条款变更`, `10. Perubahan kepada terma ini`],
+    [`We may update these terms from time to time. We will notify active subscribers by email of material changes. Continued use of the service after the effective date constitutes acceptance of the updated terms.`, `我们可能会不时更新本条款。若有重大变更，我们会通过电邮通知活跃订阅用户。生效日期后继续使用本服务，即表示你接受更新后的条款。`, `Kami mungkin mengemas kini terma ini dari semasa ke semasa. Kami akan memaklumkan pelanggan aktif melalui emel tentang perubahan penting. Penggunaan berterusan selepas tarikh berkuat kuasa bermaksud anda menerima terma yang dikemas kini.`],
+    [`11. Governing law`, `11. 适用法律`, `11. Undang-undang yang terpakai`],
+    [`These terms are governed by the laws of Singapore. Any disputes shall be subject to the exclusive jurisdiction of the courts of Singapore.`, `本条款受新加坡法律管辖。任何争议均受新加坡法院的专属管辖。`, `Terma ini tertakluk kepada undang-undang Singapura. Sebarang pertikaian tertakluk kepada bidang kuasa eksklusif mahkamah Singapura.`],
+    [`12. Contact`, `12. 联系方式`, `12. Hubungi kami`],
+    [`Questions? Email us at`, `如有问题，请发送电邮至`, `Ada soalan? Emel kami di`],
+
+    [`Overview of users, activity, and revenue`, `用户、活跃度和收入概览`, `Gambaran pengguna, aktiviti dan hasil`],
+    [`Total Users`, `用户总数`, `Jumlah pengguna`],
+    [`Paid`, `付费`, `Berbayar`],
+    [`Est. MRR`, `预计 MRR`, `Anggaran MRR`],
+    [`New (7d)`, `新增（7 天）`, `Baharu (7 hari)`],
+    [`Jobs scanned (14 days)`, `岗位扫描（14 天）`, `Kerja diimbas (14 hari)`],
+    [`No scan data yet`, `暂无扫描数据`, `Belum ada data imbasan`],
+    [`Subscription breakdown`, `订阅分布`, `Pecahan langganan`],
+    [`At a glance`, `快速概览`, `Sepintas lalu`],
+    [`Conversion rate`, `转化率`, `Kadar penukaran`],
+    [`Avg jobs / user`, `人均岗位数`, `Purata kerja / pengguna`],
+    [`New signups (7d)`, `新增注册（7 天）`, `Pendaftaran baharu (7 hari)`],
+    [`MRR (S$8/seat)`, `MRR（S$8/席位）`, `MRR (S$8/tempat)`],
+    [`Users`, `用户`, `Pengguna`],
+    [`All statuses`, `全部状态`, `Semua status`],
+    [`Expired`, `已过期`, `Luput`],
+    [`Cancelled`, `已取消`, `Dibatalkan`],
+    [`Loading users…`, `正在加载用户…`, `Sedang memuat pengguna…`],
+    [`User`, `用户`, `Pengguna`],
+    [`Joined`, `加入时间`, `Tarikh sertai`],
+    [`Last Scan`, `上次扫描`, `Imbasan terakhir`],
+    [`Auth`, `登录方式`, `Pengesahan`],
+    [`Google`, `Google`, `Google`],
+    [`No users match your filters`, `没有用户符合筛选条件`, `Tiada pengguna sepadan dengan penapis anda`],
+    [`Search email…`, `搜索电邮…`, `Cari emel…`],
+    [`Past due`, `逾期未付`, `Tertunggak`],
+    [`Past_due`, `逾期未付`, `Tertunggak`],
+    [`Trialing`, `试用中`, `Dalam percubaan`],
+
+    [`Toggle menu`, `切换菜单`, `Togol menu`],
+    [`Add notes about this application…`, `添加这份申请的备注…`, `Tambah nota tentang permohonan ini…`],
+    [`e.g. healthcare, fnb, logistics…`, `例如 healthcare、fnb、logistics…`, `cth. healthcare, fnb, logistics…`],
+    [`Search title or company…`, `搜索职位或公司…`, `Cari jawatan atau syarikat…`],
+    [`Not interested`, `不感兴趣`, `Tidak berminat`],
+    [`Mark a job as Interview in the Jobs tab.`, `请先在“岗位”标签页将岗位标记为面试。`, `Tandakan kerja sebagai Temu duga dalam tab Kerja.`],
+    [`Jane Doe`, `Jane Doe`, `Jane Doe`],
+    [`+65 9123 4567`, `+65 9123 4567`, `+65 9123 4567`],
+    [`jane@example.com`, `jane@example.com`, `jane@example.com`],
+    [`e.g. B.Sc. Computer Science, NUS`, `例如 NUS 计算机科学学士`, `cth. B.Sc. Computer Science, NUS`],
+    [`AWS Solutions Architect, PMP, Google Analytics…`, `AWS Solutions Architect、PMP、Google Analytics…`, `AWS Solutions Architect, PMP, Google Analytics…`],
+    [`Python, SQL, Power BI, Excel, Tableau…`, `Python、SQL、Power BI、Excel、Tableau…`, `Python, SQL, Power BI, Excel, Tableau…`],
+    [`Communication, Leadership, Problem-solving…`, `沟通、领导力、解决问题…`, `Komunikasi, kepimpinan, penyelesaian masalah…`],
+    [`Brief overview of your professional background and key achievements…`, `简要介绍你的专业背景和主要成就…`, `Ringkasan latar belakang profesional dan pencapaian utama anda…`],
+    [`Job Title`, `职位名称`, `Jawatan`],
+    [`Company`, `公司`, `Syarikat`],
+    [`e.g. Jan 2022 – Present`, `例如 2022 年 1 月 – 至今`, `cth. Jan 2022 – Kini`],
+    [`Key responsibilities and achievements…`, `主要职责和成果…`, `Tanggungjawab utama dan pencapaian…`],
+    [`Project name`, `项目名称`, `Nama projek`],
+    [`What it does and your role…`, `项目内容以及你的职责…`, `Fungsi projek dan peranan anda…`],
+    [`e.g. Data Analyst`, `例如 Data Analyst`, `cth. Data Analyst`],
+    [`e.g. SQL, Python`, `例如 SQL、Python`, `cth. SQL, Python`],
+    [`e.g. senior, 5 years`, `例如 senior、5 years`, `cth. senior, 5 years`],
+    [`you@gmail.com`, `you@gmail.com`, `you@gmail.com`],
+    [`Your password`, `你的密码`, `Kata laluan anda`],
+  ];
+
+  const dictionaries = { zh: {}, ms: {} };
+  for (const [en, zh, ms] of rows) {
+    dictionaries.zh[normalize(en)] = zh;
+    dictionaries.ms[normalize(en)] = ms;
+  }
+
+  const patterns = [
+    [/^Closes in (\d+) days$/, (m, lang) => lang === 'zh' ? `${m[1]} 天后截止` : `Tutup dalam ${m[1]} hari`],
+    [/^Closes today$/, (m, lang) => lang === 'zh' ? `今天截止` : `Tutup hari ini`],
+    [/^Closes tomorrow$/, (m, lang) => lang === 'zh' ? `明天截止` : `Tutup esok`],
+    [/^Closes (.+)$/, (m, lang) => lang === 'zh' ? `截止：${m[1]}` : `Tutup pada ${m[1]}`],
+    [/^(\d+) of (\d+) users$/, (m, lang) => lang === 'zh' ? `${m[1]} / ${m[2]} 位用户` : `${m[1]} daripada ${m[2]} pengguna`],
+    [/^Mode "(.+)" created!$/, (m, lang) => lang === 'zh' ? `模式“${m[1]}”已创建！` : `Mod "${m[1]}" telah dicipta!`],
+    [/^Schedule error: (.+)$/, (m, lang) => lang === 'zh' ? `定时设置错误：${m[1]}` : `Ralat jadual: ${m[1]}`],
+    [/^(\d+) scans? left today$/, (m, lang) => lang === 'zh' ? `今天还剩 ${m[1]} 次扫描` : `Tinggal ${m[1]} imbasan hari ini`],
+  ];
+
+  const textOriginals = new WeakMap();
+  const supported = new Set(Object.keys(LANGUAGES));
+  let pageOverrideLanguage = null;
+  const attrs = ['placeholder', 'title', 'aria-label'];
+  const attrKeys = {
+    placeholder: 'i18nOriginalPlaceholder',
+    title: 'i18nOriginalTitle',
+    'aria-label': 'i18nOriginalAriaLabel',
+    content: 'i18nOriginalContent',
+  };
+  const originalDocumentTitle = document.title;
+
+  function normalize(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function preserveWhitespace(currentValue, translatedValue) {
+    const value = String(currentValue || '');
+    const prefix = value.match(/^\s*/)?.[0] || '';
+    const suffix = value.match(/\s*$/)?.[0] || '';
+    return prefix + translatedValue + suffix;
+  }
+
+  function getStoredLanguage() {
+    if (pageOverrideLanguage && supported.has(pageOverrideLanguage)) return pageOverrideLanguage;
+    const pageDefaultLanguage = document.body?.dataset.languageDefault;
+    if (pageDefaultLanguage && supported.has(pageDefaultLanguage)) return pageDefaultLanguage;
+
+    let stored = '';
+    try {
+      stored = localStorage.getItem('careerjobscan.lang') || '';
+    } catch (_) {}
+    if (!stored) {
+      stored = (document.cookie.match(/(?:^|;\s*)careerjobscan_lang=([^;]+)/) || [])[1] || '';
+    }
+    return supported.has(stored) ? stored : 'en';
+  }
+
+  function setStoredLanguage(lang) {
+    try {
+      localStorage.setItem('careerjobscan.lang', lang);
+    } catch (_) {}
+    document.cookie = `careerjobscan_lang=${lang};path=/;max-age=31536000;samesite=lax`;
+  }
+
+  function hasKnownSource(value) {
+    const key = normalize(value);
+    return Boolean(dictionaries.zh[key] || dictionaries.ms[key] || patterns.some(([pattern]) => pattern.test(key)));
+  }
+
+  function translate(value, lang) {
+    const key = normalize(value);
+    if (!key || lang === 'en') return key;
+    const exact = dictionaries[lang]?.[key];
+    if (exact) return exact;
+    for (const [pattern, fn] of patterns) {
+      const match = key.match(pattern);
+      if (match) return fn(match, lang);
+    }
+    return key;
+  }
+
+  function shouldSkipElement(element) {
+    return !element || Boolean(element.closest('[data-i18n-skip], [data-i18n-ignore], script, style, code, pre'));
+  }
+
+  function processTextNode(node, lang) {
+    if (!node.nodeValue || !node.nodeValue.trim()) return;
+    const parent = node.parentElement;
+    if (shouldSkipElement(parent)) return;
+
+    const current = node.nodeValue;
+    const previous = textOriginals.get(node);
+    let original = previous || current;
+
+    if (previous) {
+      const currentKey = normalize(current);
+      const expectedForPrevious = normalize(translate(previous, lang));
+      const previousKey = normalize(previous);
+      if (hasKnownSource(current) && currentKey !== expectedForPrevious && currentKey !== previousKey) {
+        original = current;
+      }
+    }
+
+    textOriginals.set(node, original);
+    const translated = translate(original, lang);
+    const next = preserveWhitespace(current, translated);
+    if (node.nodeValue !== next) node.nodeValue = next;
+  }
+
+  function processElementAttrs(element, lang) {
+    if (shouldSkipElement(element)) return;
+    for (const attr of attrs) {
+      if (!element.hasAttribute(attr)) continue;
+      const current = element.getAttribute(attr);
+      const dataKey = attrKeys[attr];
+      const previous = element.dataset[dataKey];
+      let original = previous || current;
+
+      if (previous) {
+        const currentKey = normalize(current);
+        const expectedForPrevious = normalize(translate(previous, lang));
+        const previousKey = normalize(previous);
+        if (hasKnownSource(current) && currentKey !== expectedForPrevious && currentKey !== previousKey) {
+          original = current;
+        }
+      }
+
+      element.dataset[dataKey] = original;
+      const translated = translate(original, lang);
+      if (current !== translated) element.setAttribute(attr, translated);
+    }
+  }
+
+  function processMeta(lang) {
+    const metas = document.querySelectorAll('meta[name="description"], meta[property="og:title"], meta[property="og:description"], meta[name="twitter:title"], meta[name="twitter:description"]');
+    metas.forEach((meta) => {
+      const current = meta.getAttribute('content') || '';
+      const previous = meta.dataset[attrKeys.content];
+      let original = previous || current;
+      if (previous && hasKnownSource(current)) original = current;
+      meta.dataset[attrKeys.content] = original;
+      const translated = translate(original, lang);
+      if (current !== translated) meta.setAttribute('content', translated);
+    });
+  }
+
+  function updateSwitchers(lang) {
+    document.querySelectorAll('[data-language-switcher]').forEach((switcher) => {
+      const current = switcher.querySelector('[data-language-current]');
+      if (current) current.textContent = LANGUAGES[lang].label;
+      const toggle = switcher.querySelector('[data-language-toggle]');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', switcher.classList.contains('is-open') ? 'true' : 'false');
+        const ariaPrefix = lang === 'zh' ? '语言' : (lang === 'ms' ? 'Bahasa' : 'Language');
+        toggle.setAttribute('aria-label', `${ariaPrefix}: ${LANGUAGES[lang].label}`);
+      }
+      switcher.querySelectorAll('[data-language-option]').forEach((option) => {
+        option.setAttribute('aria-current', option.dataset.languageOption === lang ? 'true' : 'false');
+      });
+    });
+  }
+
+  function walk(root, lang) {
+    if (!root) return;
+    if (root.nodeType === Node.TEXT_NODE) {
+      processTextNode(root, lang);
+      return;
+    }
+    if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_NODE) return;
+
+    if (root.nodeType === Node.ELEMENT_NODE) processElementAttrs(root, lang);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node.nodeType === Node.TEXT_NODE) processTextNode(node, lang);
+      else processElementAttrs(node, lang);
+    }
+  }
+
+  let applying = false;
+  function applyTranslations(root) {
+    const lang = getStoredLanguage();
+    applying = true;
+    document.documentElement.lang = LANGUAGES[lang].htmlLang;
+    document.documentElement.dataset.language = lang;
+    const translatedTitle = translate(originalDocumentTitle, lang);
+    if (document.title !== translatedTitle) document.title = translatedTitle;
+    processMeta(lang);
+    walk(root || document.body, lang);
+    updateSwitchers(lang);
+    applying = false;
+  }
+
+  function chooseLanguage(lang) {
+    if (!supported.has(lang)) return;
+    pageOverrideLanguage = lang;
+    setStoredLanguage(lang);
+    document.querySelectorAll('[data-language-switcher]').forEach((switcher) => switcher.classList.remove('is-open'));
+    applyTranslations(document.body);
+    window.dispatchEvent(new CustomEvent('careerjobscan:languagechange', { detail: { language: lang } }));
+  }
+
+  function initSwitchers() {
+    document.querySelectorAll('[data-language-switcher]').forEach((switcher) => {
+      const toggle = switcher.querySelector('[data-language-toggle]');
+      toggle?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const nextOpen = !switcher.classList.contains('is-open');
+        document.querySelectorAll('[data-language-switcher]').forEach((other) => other.classList.remove('is-open'));
+        switcher.classList.toggle('is-open', nextOpen);
+        updateSwitchers(getStoredLanguage());
+      });
+      switcher.querySelectorAll('[data-language-option]').forEach((option) => {
+        option.addEventListener('click', (event) => {
+          event.stopPropagation();
+          chooseLanguage(option.dataset.languageOption);
+        });
+      });
+    });
+  }
+
+  let observerQueued = false;
+  function queueApply() {
+    if (applying || observerQueued) return;
+    observerQueued = true;
+    requestAnimationFrame(() => {
+      observerQueued = false;
+      applyTranslations(document.body);
+    });
+  }
+
+  const nativeConfirm = window.confirm.bind(window);
+  window.confirm = function (message) {
+    return nativeConfirm(translate(message, getStoredLanguage()));
+  };
+
+  window.CareerJobScanI18n = {
+    apply: applyTranslations,
+    setLanguage: chooseLanguage,
+    getLanguage: getStoredLanguage,
+    translate: (value) => translate(value, getStoredLanguage()),
+  };
+
+  document.addEventListener('click', () => {
+    document.querySelectorAll('[data-language-switcher]').forEach((switcher) => switcher.classList.remove('is-open'));
+    updateSwitchers(getStoredLanguage());
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      document.querySelectorAll('[data-language-switcher]').forEach((switcher) => switcher.classList.remove('is-open'));
+      updateSwitchers(getStoredLanguage());
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initSwitchers();
+    applyTranslations(document.body);
+    new MutationObserver(queueApply).observe(document.body, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: attrs,
+    });
+  });
+})();
+</script>

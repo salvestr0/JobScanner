@@ -287,6 +287,10 @@
 
   <!-- ══ Main ═════════════════════════════════════════════ -->
   <main class="flex-1 overflow-y-auto bg-stone-50">
+    <div class="flex justify-end px-6 pt-4 pb-1">
+      {% set language_switcher_class = 'language-switcher--compact-sm' %}
+      {% include "_language_switcher.html" %}
+    </div>
 
     <!-- ── Billing banner ── -->
     <!-- Free plan: subtle info strip -->
@@ -2798,5 +2802,6 @@ function app() {
   };
 }
 </script>
+{% include "_i18n.html" %}
 </body>
 </html>
