@@ -7,6 +7,7 @@ full profile so the layout code is actually exercised.
 """
 import json
 from datetime import date
+from io import BytesIO
 
 import pytest
 
@@ -52,6 +53,18 @@ PROFILE = {
          "summary": "made reports"},
     ],
 }
+
+
+def test_parse_resume_rejects_legacy_doc_files(client, gemini_key):
+    _login(client)
+    resp = client.post(
+        "/api/profile/parse-resume",
+        data={"resume": (BytesIO(b"legacy doc bytes"), "resume.doc")},
+        content_type="multipart/form-data",
+    )
+
+    assert resp.status_code == 400
+    assert "Unsupported file type: .doc" in resp.get_json()["error"]
 
 
 # ── /api/resume/polish ──────────────────────────────────────────────────────────
