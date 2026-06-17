@@ -7,6 +7,8 @@ the 20-job cap, match-reason pills (both list and "|"-joined string input —
 the latter is what Job.to_dict() produces for the weekly digest), and
 Resend error handling.
 """
+from datetime import datetime as _datetime, timezone
+
 import pytest
 
 import notifier
@@ -182,6 +184,20 @@ def test_weekly_digest_renders_stats_and_dashboard_link(resend):
     assert "12 jobs scanned" in html
     assert "1 top match" in html
     assert "https://app.test/app" in html
+
+
+def test_weekly_digest_formats_date_range_without_platform_specific_strftime(resend, monkeypatch):
+    class FixedDateTime(_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 6, 16, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(notifier, "datetime", FixedDateTime)
+
+    assert send_weekly_digest("user@test.com", [_job()]) is True
+    html = resend[0]["html"]
+    assert "9 Jun" in html
+    assert "16 Jun 2026" in html
 
 
 def test_weekly_digest_renders_pills_from_db_string(resend):
