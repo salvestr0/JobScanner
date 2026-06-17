@@ -938,6 +938,10 @@ def get_applications():
 def update_application(job_id):
     data       = request.json or {}
     new_status = data.get("status", "")
+    valid_statuses = {"applied", "interview", "skip", "clear"}
+
+    if not isinstance(new_status, str) or new_status not in valid_statuses:
+        return jsonify({"error": "Unsupported application status"}), 400
 
     if new_status == "clear":
         row = db.session.get(ApplicationStatus, (current_user.id, job_id))
@@ -1554,9 +1558,9 @@ def get_schedule():
 def set_schedule():
     data = request.json or {}
     s    = _get_or_create_settings(current_user.id)
-    raw_time = data.get("time", "09:00")
-    if not re.match(r'^\d{2}:\d{2}$', raw_time):
-        return jsonify({"error": "Invalid time format — use HH:MM"}), 400
+    raw_time = data.get("time")
+    if not isinstance(raw_time, str) or not re.match(r'^(?:[01]\d|2[0-3]):[0-5]\d$', raw_time):
+        return jsonify({"error": "Invalid time format — use HH:MM (00:00-23:59)"}), 400
     s.schedule_enabled = data.get("enabled", False)
     s.schedule_time    = raw_time
     db.session.commit()
