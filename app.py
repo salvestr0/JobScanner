@@ -36,6 +36,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_migrate import Migrate
+from sqlalchemy.exc import IntegrityError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import (
@@ -504,7 +505,13 @@ def _get_or_create_settings(user_id: str) -> UserSettings:
             preferred_location=cfg.SEARCH_CONFIG.get("preferred_location", "Sengkang"),
         )
         db.session.add(s)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            s = db.session.get(UserSettings, user_id)
+            if s is None:
+                raise
     return s
 
 
