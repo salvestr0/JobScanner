@@ -1,5 +1,5 @@
 ﻿"""
-CareerJobScan Web UI — Flask backend (multi-user)
+CareerScan Web UI — Flask backend (multi-user)
 Run: python run.py
 Open: http://localhost:5000
 """
@@ -138,7 +138,7 @@ def _log_gemini_usage(endpoint: str, user_id: str, response_json: dict) -> None:
 
 def _send_email(to: str, subject: str, html: str) -> bool:
     api_key   = os.getenv("RESEND_API_KEY", "").strip()
-    from_addr = os.getenv("RESEND_FROM", "CareerJobScan <noreply@jobscanner.app>").strip()
+    from_addr = os.getenv("RESEND_FROM", "CareerScan <noreply@jobscanner.app>").strip()
     if not api_key:
         app.logger.warning("Email not sent to %s: RESEND_API_KEY not set", to)
         return False
@@ -186,13 +186,13 @@ def _verification_email_html(verify_url: str) -> str:
     </div>
     <h2 style="margin:0 0 8px;font-size:20px;color:#1e293b;font-weight:700">Verify your email</h2>
     <p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.6">
-      Thanks for signing up! Click the button below to verify your email address and get the most out of CareerJobScan.
+      Thanks for signing up! Click the button below to verify your email address and get the most out of CareerScan.
     </p>
     <a href="{verify_url}" style="display:inline-block;background:#4F46E5;color:white;font-size:14px;font-weight:600;padding:12px 24px;border-radius:10px;text-decoration:none">
       Verify email address
     </a>
     <p style="margin:24px 0 0;color:#94a3b8;font-size:12px">
-      If you didn't create a CareerJobScan account, you can safely ignore this email.
+      If you didn't create a CareerScan account, you can safely ignore this email.
     </p>
   </div>
 </body></html>"""
@@ -590,7 +590,7 @@ def auth_register():
     db.session.commit()
 
     verify_url = request.host_url.rstrip("/") + f"/verify-email?token={_make_verify_token(user.id)}"
-    _send_email(email, "Verify your CareerJobScan email", _verification_email_html(verify_url))
+    _send_email(email, "Verify your CareerScan email", _verification_email_html(verify_url))
 
     login_user(user, remember=True)
     return jsonify({"ok": True, "email": user.email, "onboarding": True})
@@ -644,7 +644,7 @@ def auth_forgot_password():
     </div>
     <h2 style="margin:0 0 8px;font-size:20px;color:#1e293b;font-weight:700">Reset your password</h2>
     <p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.6">
-      We received a request to reset the password for your CareerJobScan account.<br>
+      We received a request to reset the password for your CareerScan account.<br>
       Click the button below to choose a new password. This link expires in 1 hour.
     </p>
     <a href="{reset_url}" style="display:inline-block;background:#4F46E5;color:white;font-size:14px;font-weight:600;padding:12px 24px;border-radius:10px;text-decoration:none">
@@ -655,7 +655,7 @@ def auth_forgot_password():
     </p>
   </div>
 </body></html>"""
-        _send_email(email, "Reset your CareerJobScan password", reset_html)
+        _send_email(email, "Reset your CareerScan password", reset_html)
 
     return jsonify({"ok": True})
 
@@ -737,7 +737,7 @@ def resend_verification():
 
     # Signed token — resending no longer invalidates links from earlier emails
     verify_url = request.host_url.rstrip("/") + f"/verify-email?token={_make_verify_token(current_user.id)}"
-    sent = _send_email(current_user.email, "Verify your CareerJobScan email", _verification_email_html(verify_url))
+    sent = _send_email(current_user.email, "Verify your CareerScan email", _verification_email_html(verify_url))
     if not sent:
         return jsonify({"ok": False, "error": "Email could not be sent. Please try again later."}), 502
     return jsonify({"ok": True})
@@ -1191,7 +1191,7 @@ def test_email():
     s      = _get_or_create_settings(current_user.id)
     ok = send_email_digest(
         [], s.to_dict(),
-        subject_override="CareerJobScan — connection test",
+        subject_override="CareerScan — connection test",
     )
     return jsonify({"ok": ok})
 
@@ -2259,7 +2259,7 @@ def cron_billing_health():
             f"<h2>Billing Health — {len(past_due)} past_due account(s)</h2>"
             f"<table><tr><th>Email</th><th>Stripe Customer</th></tr>{rows}</table>"
         )
-        _send_email(admin_email, f"[CareerJobScan] {len(past_due)} past_due account(s)", html)
+        _send_email(admin_email, f"[CareerScan] {len(past_due)} past_due account(s)", html)
     return jsonify({"past_due": len(past_due), "alerted": bool(past_due and admin_email)})
 
 

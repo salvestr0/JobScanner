@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CareerJobScan</title>
+  <title>CareerScan</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/careerscan-logo.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -17,7 +18,7 @@
     /* ── Sidebar nav ── */
     .nav-item { border-left: 2px solid transparent; transition: all .15s ease; }
     .nav-item:hover:not(.active) { background: rgba(0,0,0,.04); color: #44403C; }
-    .nav-item.active { background: rgba(245,158,11,.1); color: #B45309; border-left-color: #F59E0B; }
+    .nav-item.active { background: rgba(101,125,166,.12); color: #51698f; border-left-color: #657da6; }
 
     /* ── Score badges ── */
     .score-hi  { background:#D1FAE5; color:#065F46; }
@@ -60,10 +61,10 @@
     ::-webkit-scrollbar-track   { background:transparent; }
     ::-webkit-scrollbar-thumb   { background:#CBD5E1; border-radius:99px; }
 
-    input[type=range] { accent-color:#F59E0B; }
+    input[type=range] { accent-color:#657da6; }
 
     /* Toggle */
-    .toggle-on  { background:#F59E0B; }
+    .toggle-on  { background:#657da6; }
     .toggle-off { background:#E7E5E4; }
 
     /* Toast slide */
@@ -102,9 +103,10 @@
     .modal-panel { animation: slideIn .25s ease; }
     @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/careerscan-theme.css') }}">
 </head>
 
-<body class="bg-stone-50 antialiased" x-data="app()" x-init="boot()">
+<body class="cs-app bg-stone-50 antialiased" x-data="app()" x-init="boot()">
 
 <!-- ── Toast ─────────────────────────────────────────────── -->
 <div x-show="toast.show" x-cloak
@@ -209,13 +211,9 @@
     <!-- Logo -->
     <div class="px-5 pt-6 pb-5">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/30 flex-shrink-0">
-          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
-        </div>
+        <img src="{{ url_for('static', filename='images/careerscan-logo.png') }}" alt="CareerScan logo" class="brand-logo-img brand-logo-img--sidebar">
         <div>
-          <div class="text-stone-900 font-semibold text-sm">CareerJobScan</div>
+          <div class="text-stone-900 font-semibold text-sm">CareerScan</div>
           <div class="text-stone-400 text-xs mt-0.5">Singapore</div>
         </div>
       </div>
@@ -223,7 +221,7 @@
 
     <!-- Email verification banner -->
     <div x-show="!billing.email_verified" x-cloak
-      class="mx-4 mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+      class="cs-verification-banner mx-4 mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
       <p class="text-amber-700 text-xs font-medium">Check your inbox — verify your email to secure your account.
         <button @click="resendVerification()" :disabled="verifyResending"
           class="underline font-semibold ml-1 hover:text-amber-900 disabled:opacity-50"
@@ -248,7 +246,7 @@
           <span x-text="n.label"></span>
           <span class="flex-1"></span>
           <span x-show="n.pro && billing.is_free"
-            class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 leading-none">PRO</span>
+            class="cs-pro-badge text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 leading-none">PRO</span>
         </button>
       </template>
     </nav>
@@ -291,16 +289,16 @@
     <!-- ── Billing banner ── -->
     <!-- Free plan: subtle info strip -->
     <div x-show="billing.is_free" x-cloak
-      class="sticky top-0 z-20 flex items-center justify-between px-6 py-2 bg-amber-50 border-b border-amber-100 text-amber-800 text-sm font-medium">
+      class="cs-free-plan-banner sticky top-0 z-20 flex items-center justify-between px-6 py-2 bg-amber-50 border-b border-amber-100 text-amber-800 text-sm font-medium">
       <span>Free plan — scans show up to 10 job matches</span>
       <button @click="subscribe()" :disabled="subscribing"
-        class="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0 ml-4">
+        class="cs-primary-action px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0 ml-4">
         <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
       </button>
     </div>
     <!-- Expired / payment issues: warning strip -->
     <div x-show="billing.status && !billing.has_access" x-cloak
-      class="sticky top-0 z-20 flex items-center justify-between px-6 py-2.5 text-sm font-medium"
+      class="cs-access-banner sticky top-0 z-20 flex items-center justify-between px-6 py-2.5 text-sm font-medium"
       :class="{
         'bg-red-50 border-b border-red-200 text-red-800': billing.status === 'expired' || billing.status === 'cancelled',
         'bg-red-100 border-b border-red-300 text-red-900': billing.status === 'past_due',
@@ -318,7 +316,7 @@
         </button>
         <button x-show="billing.status !== 'active'"
           @click="subscribe()" :disabled="subscribing"
-          class="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold transition-colors disabled:opacity-50">
+          class="cs-primary-action px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold transition-colors disabled:opacity-50">
           <span x-text="subscribing ? 'Redirecting…' : 'Subscribe — $8/mo'"></span>
         </button>
       </div>
@@ -514,7 +512,7 @@
               <span x-text="genning?'Generating…':'AI Generate'"></span>
             </button>
           </div>
-          <p class="text-slate-400 text-xs mt-1.5">CareerJobScan generates job titles + keywords for any industry</p>
+          <p class="text-slate-400 text-xs mt-1.5">CareerScan generates job titles + keywords for any industry</p>
         </div>
 
         <!-- Notify toggle -->
@@ -964,7 +962,7 @@
 
       <!-- Pro gate -->
       <template x-if="billing.is_free">
-        <div class="relative rounded-2xl overflow-hidden min-h-[420px] bg-white border border-slate-100 shadow-sm">
+        <div class="cs-pro-lock-card relative rounded-2xl overflow-hidden min-h-[420px] bg-white border border-slate-100 shadow-sm">
           <!-- Blurred skeleton -->
           <div class="blur-sm pointer-events-none select-none p-6 space-y-3">
             <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl"><div class="h-4 w-48 bg-slate-200 rounded"></div><div class="h-8 w-20 bg-slate-100 rounded-xl"></div></div>
@@ -972,7 +970,7 @@
             <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl"><div class="h-4 w-44 bg-slate-200 rounded"></div><div class="h-8 w-20 bg-slate-100 rounded-xl"></div></div>
           </div>
           <!-- Overlay -->
-          <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
+          <div class="cs-pro-lock-overlay absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
             <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mb-4">
               <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
@@ -981,7 +979,7 @@
             <p class="font-bold text-slate-800 text-lg mb-1">Pro Plan Only</p>
             <p class="text-slate-500 text-sm mb-5 text-center max-w-xs">AI-generated cover notes are available on the Pro plan.</p>
             <button @click="subscribe()" :disabled="subscribing"
-              class="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
+              class="cs-primary-action px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
               <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
             </button>
           </div>
@@ -1058,7 +1056,7 @@
 
       <!-- Pro gate -->
       <template x-if="billing.is_free">
-        <div class="relative rounded-2xl overflow-hidden min-h-[420px] bg-white border border-slate-100 shadow-sm">
+        <div class="cs-pro-lock-card relative rounded-2xl overflow-hidden min-h-[420px] bg-white border border-slate-100 shadow-sm">
           <!-- Blurred skeleton -->
           <div class="blur-sm pointer-events-none select-none p-6 space-y-3">
             <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl"><div class="h-4 w-48 bg-slate-200 rounded"></div><div class="h-8 w-20 bg-slate-100 rounded-xl"></div></div>
@@ -1066,7 +1064,7 @@
             <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl"><div class="h-4 w-44 bg-slate-200 rounded"></div><div class="h-8 w-20 bg-slate-100 rounded-xl"></div></div>
           </div>
           <!-- Overlay -->
-          <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
+          <div class="cs-pro-lock-overlay absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
             <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mb-4">
               <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
@@ -1075,7 +1073,7 @@
             <p class="font-bold text-slate-800 text-lg mb-1">Pro Plan Only</p>
             <p class="text-slate-500 text-sm mb-5 text-center max-w-xs">Analytics and insights are available on the Pro plan.</p>
             <button @click="subscribe()" :disabled="subscribing"
-              class="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
+              class="cs-primary-action px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
               <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
             </button>
           </div>
@@ -1161,7 +1159,7 @@
         <!-- Resume Upload -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
           <h3 class="font-bold text-slate-800 text-sm mb-1">Import from Resume</h3>
-          <p class="text-slate-400 text-xs mb-4">Upload a PDF, DOCX, or TXT file — CareerJobScan will extract and fill in your profile fields.</p>
+          <p class="text-slate-400 text-xs mb-4">Upload a PDF, DOCX, or TXT file — CareerScan will extract and fill in your profile fields.</p>
 
           <!-- Drop zone -->
           <label
@@ -1347,7 +1345,7 @@
         <!-- ── Resume Builder ── -->
         <div class="relative rounded-2xl overflow-hidden">
         <!-- Lock overlay for free users -->
-        <div x-show="billing.is_free" class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/75 backdrop-blur-sm rounded-2xl">
+        <div x-show="billing.is_free" class="cs-pro-lock-overlay absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/75 backdrop-blur-sm rounded-2xl">
           <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center mb-3">
             <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
@@ -1356,7 +1354,7 @@
           <p class="font-bold text-slate-800 mb-1">Pro Plan Only</p>
           <p class="text-slate-500 text-xs mb-4 text-center max-w-[220px]">Upgrade to build and download AI-polished resumes.</p>
           <button @click="subscribe()" :disabled="subscribing"
-            class="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors">
+            class="cs-primary-action px-5 py-2 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors">
             <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
           </button>
         </div>
@@ -1372,7 +1370,7 @@
             <div class="w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</div>
             <div class="flex-1">
               <p class="text-sm font-semibold text-slate-700 mb-1">Polish with AI</p>
-              <p class="text-xs text-slate-400 mb-3">CareerJobScan rewrites your summary, experience, and skills to sound more professional and ATS-friendly.</p>
+              <p class="text-xs text-slate-400 mb-3">CareerScan rewrites your summary, experience, and skills to sound more professional and ATS-friendly.</p>
               <button @click="polishResume()" :disabled="resumePolishing"
                 class="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
                 <svg x-show="resumePolishing" class="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
@@ -1438,12 +1436,12 @@
     <div x-show="page==='interview'" class="page-in p-8 max-w-3xl mx-auto">
       <div class="mb-8">
         <h1 class="text-2xl font-semibold text-slate-900">Interview Prep</h1>
-        <p class="text-slate-500 text-sm mt-1">Pick a job and CareerJobScan generates tailored interview questions</p>
+        <p class="text-slate-500 text-sm mt-1">Pick a job and CareerScan generates tailored interview questions</p>
       </div>
 
       <!-- Pro gate -->
       <template x-if="billing.is_free">
-        <div class="relative rounded-2xl overflow-hidden min-h-[420px] bg-white border border-slate-100 shadow-sm">
+        <div class="cs-pro-lock-card relative rounded-2xl overflow-hidden min-h-[420px] bg-white border border-slate-100 shadow-sm">
           <!-- Blurred skeleton -->
           <div class="blur-sm pointer-events-none select-none p-6 space-y-3">
             <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl"><div class="h-4 w-48 bg-slate-200 rounded"></div><div class="h-8 w-20 bg-slate-100 rounded-xl"></div></div>
@@ -1451,7 +1449,7 @@
             <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl"><div class="h-4 w-44 bg-slate-200 rounded"></div><div class="h-8 w-20 bg-slate-100 rounded-xl"></div></div>
           </div>
           <!-- Overlay -->
-          <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
+          <div class="cs-pro-lock-overlay absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
             <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mb-4">
               <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
@@ -1460,7 +1458,7 @@
             <p class="font-bold text-slate-800 text-lg mb-1">Pro Plan Only</p>
             <p class="text-slate-500 text-sm mb-5 text-center max-w-xs">AI interview prep questions are available on the Pro plan.</p>
             <button @click="subscribe()" :disabled="subscribing"
-              class="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
+              class="cs-primary-action px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
               <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
             </button>
           </div>
@@ -1722,7 +1720,7 @@
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-sm font-semibold text-slate-700">Run scan daily</div>
-                <div class="text-xs text-slate-400 mt-0.5">Registers a Windows Task Scheduler job named "CareerJobScan"</div>
+                <div class="text-xs text-slate-400 mt-0.5">Registers a Windows Task Scheduler job named "CareerScan"</div>
               </div>
               <button @click="schedule.enabled=!schedule.enabled"
                 class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
@@ -1773,7 +1771,7 @@
               </button>
               <button x-show="billing.status !== 'active'"
                 @click="subscribe()" :disabled="subscribing"
-                class="text-sm px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors">
+                class="cs-primary-action text-sm px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors">
                 <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
               </button>
             </div>
@@ -1897,7 +1895,7 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
           </svg>
-          <p class="text-slate-500 text-sm">CareerJobScan is tailoring your resume…</p>
+          <p class="text-slate-500 text-sm">CareerScan is tailoring your resume…</p>
         </div>
 
         <!-- Error -->
@@ -2392,7 +2390,7 @@ function app() {
       const a = this.analytics;
       if (!a.funnel?.total) return;
 
-      const palette = ['#6366F1','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316'];
+      const palette = ['#657da6','#10B981','#c1a477','#EF4444','#51698f','#697386','#ced5de','#354052'];
 
       // Source doughnut
       const srcCanvas = document.getElementById('chartSources');
@@ -2413,7 +2411,7 @@ function app() {
           type: 'bar',
           data: {
             labels: a.score_distribution?.labels || [],
-            datasets: [{ data: a.score_distribution?.data || [], backgroundColor: '#6366F1', borderRadius: 4, borderSkipped: false }]
+            datasets: [{ data: a.score_distribution?.data || [], backgroundColor: '#657da6', borderRadius: 4, borderSkipped: false }]
           },
           options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } }, x:{ grid:{ display:false } } } }
         });
@@ -2426,7 +2424,7 @@ function app() {
           type: 'line',
           data: {
             labels: a.weekly_trend?.labels || [],
-            datasets: [{ data: a.weekly_trend?.data || [], borderColor: '#6366F1', backgroundColor: 'rgba(99,102,241,.1)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: '#6366F1' }]
+            datasets: [{ data: a.weekly_trend?.data || [], borderColor: '#657da6', backgroundColor: 'rgba(101,125,166,.12)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: '#657da6' }]
           },
           options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } }, x:{ grid:{ display:false } } } }
         });

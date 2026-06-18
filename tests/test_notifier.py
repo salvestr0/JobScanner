@@ -91,7 +91,7 @@ def test_digest_without_recipient_returns_false(resend):
 def test_digest_empty_jobs_sends_no_matches_email(resend):
     assert send_email_digest([], SETTINGS) is True
     payload = resend[0]
-    assert payload["subject"] == "CareerJobScan: No new matches today"
+    assert payload["subject"] == "CareerScan: No new matches today"
     assert "No new matching jobs" in payload["html"]
     assert payload["to"] == ["user@test.com"]
 
@@ -99,8 +99,8 @@ def test_digest_empty_jobs_sends_no_matches_email(resend):
 def test_digest_subject_counts_matches(resend):
     send_email_digest([_job()], SETTINGS)
     send_email_digest([_job(), _job()], SETTINGS)
-    assert resend[0]["subject"] == "CareerJobScan: 1 new match today"
-    assert resend[1]["subject"] == "CareerJobScan: 2 new matches today"
+    assert resend[0]["subject"] == "CareerScan: 1 new match today"
+    assert resend[1]["subject"] == "CareerScan: 2 new matches today"
 
 
 def test_digest_renders_job_row(resend):
@@ -178,7 +178,7 @@ def test_weekly_digest_renders_stats_and_dashboard_link(resend):
     assert ok is True
     payload = resend[0]
     html = payload["html"]
-    assert payload["subject"] == "Your top job matches this week · CareerJobScan"
+    assert payload["subject"] == "Your top job matches this week · CareerScan"
     assert "12 jobs scanned" in html
     assert "1 top match" in html
     assert "https://app.test/app" in html

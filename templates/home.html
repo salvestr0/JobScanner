@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CareerJobScan — Singapore Job Matching, Done For You</title>
-  <meta name="description" content="CareerJobScan scans MyCareersFuture, Adzuna, and RemoteOK daily, scores every listing against your profile, and shows you only the matches worth applying to.">
+  <title>CareerScan — Singapore Job Matching, Done For You</title>
+  <meta name="description" content="CareerScan scans MyCareersFuture, Adzuna, and RemoteOK daily, scores every listing against your profile, and shows you only the matches worth applying to.">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="CareerJobScan — Singapore Job Matching, Done For You">
-  <meta property="og:description" content="Stop scrolling job boards. CareerJobScan finds the listings that actually match your profile.">
-  <meta property="og:site_name" content="CareerJobScan">
+  <meta property="og:title" content="CareerScan — Singapore Job Matching, Done For You">
+  <meta property="og:description" content="Stop scrolling job boards. CareerScan finds the listings that actually match your profile.">
+  <meta property="og:site_name" content="CareerScan">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="CareerJobScan — Singapore Job Matching, Done For You">
-  <meta name="twitter:description" content="Stop scrolling job boards. CareerJobScan finds the listings that actually match your profile.">
+  <meta name="twitter:title" content="CareerScan — Singapore Job Matching, Done For You">
+  <meta name="twitter:description" content="Stop scrolling job boards. CareerScan finds the listings that actually match your profile.">
 
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Crect width='24' height='24' rx='5' fill='%23F59E0B'/%3E%3Cpath d='M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0zM21 21l-4-4' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" type="image/svg+xml">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/careerscan-logo.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
@@ -23,7 +23,7 @@
     body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
     .amber-underline {
       text-decoration: underline;
-      text-decoration-color: #F59E0B;
+      text-decoration-color: #c1a477;
       text-decoration-thickness: 3px;
       text-underline-offset: 4px;
     }
@@ -43,8 +43,8 @@
       --v3-canvas: #f6f8fa;
       --v3-sage: #eef2f7;
       --v3-sage-strong: #dde5ef;
-      --v3-green: #5b6f95;
-      --v3-green-dark: #465875;
+      --v3-green: #657da6;
+      --v3-green-dark: #51698f;
       --v3-gold: #c1a477;
       --v3-gold-soft: #f2ece3;
       --v3-shadow: 0 24px 60px rgba(38, 50, 75, 0.09);
@@ -76,7 +76,7 @@
 
     a:focus-visible,
     summary:focus-visible {
-      outline: 3px solid rgba(91, 111, 149, 0.22);
+      outline: 3px solid rgba(101, 125, 166, 0.22);
       outline-offset: 4px;
       border-radius: 8px;
     }
@@ -112,13 +112,13 @@
       border-radius: 8px !important;
       color: #fff !important;
       background: var(--v3-green) !important;
-      box-shadow: 0 8px 18px rgba(91, 111, 149, 0.18);
+      box-shadow: 0 8px 18px rgba(101, 125, 166, 0.17);
       transition: transform 180ms ease, box-shadow 180ms ease;
     }
 
     nav > div > div:first-child:hover > div:first-child {
       transform: translateY(-2px) rotate(-2deg);
-      box-shadow: 0 12px 24px rgba(91, 111, 149, 0.22);
+      box-shadow: 0 12px 24px rgba(101, 125, 166, 0.20);
     }
 
     nav span.font-semibold {
@@ -162,16 +162,16 @@
       color: #fff !important;
       border: 1px solid var(--v3-green) !important;
       background:
-        linear-gradient(135deg, #60739a 0%, #526587 100%) !important;
+        linear-gradient(135deg, #7188ae 0%, #6079a4 100%) !important;
       padding: 10px 18px !important;
-      box-shadow: 0 10px 22px rgba(91, 111, 149, 0.14);
+      box-shadow: 0 10px 22px rgba(101, 125, 166, 0.13);
     }
 
     nav a[href="/register"]:hover {
       transform: translateY(-2px);
       background:
-        linear-gradient(135deg, #53678d 0%, #435574 100%) !important;
-      box-shadow: 0 14px 28px rgba(91, 111, 149, 0.18);
+        linear-gradient(135deg, #6680aa 0%, #577199 100%) !important;
+      box-shadow: 0 14px 28px rgba(101, 125, 166, 0.16);
     }
 
     nav a:active {
@@ -204,7 +204,7 @@
       border: 1px solid rgba(181, 145, 82, 0.22);
       box-shadow:
         0 0 0 54px rgba(181, 145, 82, 0.035),
-        0 0 0 108px rgba(91, 111, 149, 0.025);
+        0 0 0 108px rgba(101, 125, 166, 0.025);
       animation: v3Orbit 12s ease-in-out infinite alternate;
     }
 
@@ -312,13 +312,13 @@
       color: #fff !important;
       border: 1px solid var(--v3-green) !important;
       background: var(--v3-green) !important;
-      box-shadow: 0 14px 28px rgba(91, 111, 149, 0.15);
+      box-shadow: 0 14px 28px rgba(101, 125, 166, 0.14);
     }
 
     body > section:nth-of-type(1) a[href="/register"]:hover {
       transform: translateY(-3px);
       background: var(--v3-green-dark) !important;
-      box-shadow: 0 18px 34px rgba(91, 111, 149, 0.20);
+      box-shadow: 0 18px 34px rgba(101, 125, 166, 0.18);
     }
 
     body > section:nth-of-type(1) a[href="/login"] {
@@ -726,7 +726,7 @@
       border: 1px solid var(--v3-green) !important;
       background:
         linear-gradient(180deg, var(--v3-sage) 0 8px, #fff 8px 100%) !important;
-      box-shadow: 0 18px 44px rgba(91, 111, 149, 0.09) !important;
+      box-shadow: 0 18px 44px rgba(101, 125, 166, 0.08) !important;
     }
 
     body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) .absolute span {
@@ -896,7 +896,7 @@
       border: 1px solid var(--v3-green) !important;
       border-radius: 8px !important;
       background: var(--v3-green) !important;
-      box-shadow: 0 14px 28px rgba(91, 111, 149, 0.15);
+      box-shadow: 0 14px 28px rgba(101, 125, 166, 0.14);
       transition:
         transform 180ms ease,
         background-color 180ms ease,
@@ -906,7 +906,7 @@
     body > section:nth-of-type(8) a:hover {
       transform: translateY(-3px);
       background: var(--v3-green-dark) !important;
-      box-shadow: 0 18px 34px rgba(91, 111, 149, 0.20);
+      box-shadow: 0 18px 34px rgba(101, 125, 166, 0.18);
     }
 
     /* Footer */
@@ -1150,6 +1150,7 @@
     }
 
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/careerscan-theme.css') }}">
 </head>
 <body class="bg-white text-stone-900 antialiased">
 
@@ -1157,12 +1158,8 @@
   <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-stone-100">
     <div class="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0">
-          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
-          </svg>
-        </div>
-        <span class="font-semibold text-stone-900">CareerJobScan</span>
+        <img src="{{ url_for('static', filename='images/careerscan-logo.png') }}" alt="CareerScan logo" class="brand-logo-img brand-logo-img--nav">
+        <span class="font-semibold text-stone-900">CareerScan</span>
       </div>
       <div class="flex items-center gap-2">
         <a href="/login" class="text-stone-500 hover:text-stone-800 text-sm font-medium transition-colors px-3 py-1.5">
@@ -1190,7 +1187,7 @@
       </h1>
 
       <p class="text-stone-500 text-lg max-w-xl mx-auto mb-8 leading-relaxed">
-        CareerJobScan scans Singapore's top job boards daily, scores every listing against your skills and salary range, and surfaces only the roles worth applying to.
+        CareerScan scans Singapore's top job boards daily, scores every listing against your skills and salary range, and surfaces only the roles worth applying to.
       </p>
 
       <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -1345,7 +1342,7 @@
           <div class="w-10 h-10 bg-amber-500 text-white font-bold text-base rounded-xl flex items-center justify-center mb-4">2</div>
           <h3 class="font-semibold text-stone-900 mb-2 min-h-[3rem] flex items-center justify-center">We scan every day</h3>
           <p class="text-stone-500 text-sm leading-relaxed">
-            CareerJobScan checks MyCareersFuture, Adzuna, and RemoteOK daily and scores every new listing against your profile. 0–100.
+            CareerScan checks MyCareersFuture, Adzuna, and RemoteOK daily and scores every new listing against your profile. 0–100.
           </p>
         </div>
         <div class="text-center flex flex-col items-center">
@@ -1578,17 +1575,13 @@
   <footer class="border-t border-stone-100 py-8 px-6 bg-white">
     <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-2">
-        <div class="w-6 h-6 bg-amber-500 rounded-md flex items-center justify-center">
-          <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
-          </svg>
-        </div>
-        <span class="text-stone-500 text-sm font-medium">CareerJobScan</span>
+        <img src="{{ url_for('static', filename='images/careerscan-logo.png') }}" alt="CareerScan logo" class="brand-logo-img brand-logo-img--footer">
+        <span class="text-stone-500 text-sm font-medium">CareerScan</span>
       </div>
       <div class="flex items-center gap-5">
         <a href="/privacy" class="text-stone-400 hover:text-stone-600 text-sm transition-colors">Privacy</a>
         <a href="/terms" class="text-stone-400 hover:text-stone-600 text-sm transition-colors">Terms</a>
-        <span class="text-stone-300 text-sm">© 2026 CareerJobScan. Built for Singapore.</span>
+        <span class="text-stone-300 text-sm">© 2026 CareerScan. Built for Singapore.</span>
       </div>
     </div>
   </footer>
