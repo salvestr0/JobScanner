@@ -1,0 +1,722 @@
+:root {
+  --cs-ink: #182033;
+  --cs-ink-soft: #354052;
+  --cs-muted: #697386;
+  --cs-line: #e3e7ec;
+  --cs-line-strong: #ced5de;
+  --cs-canvas: #f6f8fa;
+  --cs-primary: #657da6;
+  --cs-primary-dark: #51698f;
+  --cs-gold: #c1a477;
+  --cs-gold-soft: #f2ece3;
+  --cs-paper: #ffffff;
+  --cs-shadow: 0 24px 60px rgba(38, 50, 75, 0.09);
+  --cs-shadow-soft: 0 12px 34px rgba(38, 50, 75, 0.07);
+  --cs-focus: 0 0 0 3px rgba(101, 125, 166, 0.22);
+}
+
+.brand-logo-img {
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.brand-logo-img--nav,
+.brand-logo-img--sidebar {
+  width: 42px;
+  height: 42px;
+}
+
+.brand-logo-img--footer {
+  width: 32px;
+  height: 32px;
+}
+
+.brand-logo-img--auth {
+  width: 66px;
+  height: 66px;
+  margin: 0 auto 16px;
+}
+
+.cs-auth,
+.cs-onboarding,
+.cs-legal,
+.cs-app,
+.cs-admin {
+  color: var(--cs-ink);
+  background:
+    linear-gradient(180deg, #ffffff 0%, var(--cs-canvas) 54%, #ffffff 100%);
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.cs-auth a,
+.cs-onboarding a,
+.cs-legal a,
+.cs-app a,
+.cs-admin a,
+.cs-auth button,
+.cs-onboarding button,
+.cs-app button,
+.cs-admin button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cs-auth a:focus-visible,
+.cs-onboarding a:focus-visible,
+.cs-legal a:focus-visible,
+.cs-app a:focus-visible,
+.cs-admin a:focus-visible,
+.cs-auth button:focus-visible,
+.cs-onboarding button:focus-visible,
+.cs-app button:focus-visible,
+.cs-admin button:focus-visible {
+  outline: none;
+  box-shadow: var(--cs-focus);
+}
+
+.cs-auth .text-stone-900,
+.cs-auth .text-slate-900,
+.cs-onboarding .text-stone-900,
+.cs-onboarding .text-slate-900,
+.cs-legal .text-stone-900,
+.cs-legal .text-slate-900,
+.cs-app .text-stone-900,
+.cs-app .text-slate-900,
+.cs-admin .text-slate-900 {
+  color: var(--cs-ink) !important;
+}
+
+.cs-auth .text-stone-800,
+.cs-auth .text-stone-700,
+.cs-auth .text-slate-800,
+.cs-auth .text-slate-700,
+.cs-onboarding .text-stone-800,
+.cs-onboarding .text-stone-700,
+.cs-onboarding .text-slate-800,
+.cs-onboarding .text-slate-700,
+.cs-legal .text-stone-800,
+.cs-legal .text-stone-700,
+.cs-legal .text-slate-800,
+.cs-legal .text-slate-700,
+.cs-app .text-stone-800,
+.cs-app .text-stone-700,
+.cs-app .text-slate-800,
+.cs-app .text-slate-700,
+.cs-admin .text-slate-800,
+.cs-admin .text-slate-700 {
+  color: var(--cs-ink-soft) !important;
+}
+
+.cs-auth .text-stone-600,
+.cs-auth .text-stone-500,
+.cs-auth .text-stone-400,
+.cs-auth .text-slate-600,
+.cs-auth .text-slate-500,
+.cs-auth .text-slate-400,
+.cs-onboarding .text-stone-600,
+.cs-onboarding .text-stone-500,
+.cs-onboarding .text-stone-400,
+.cs-onboarding .text-slate-600,
+.cs-onboarding .text-slate-500,
+.cs-onboarding .text-slate-400,
+.cs-legal .text-stone-600,
+.cs-legal .text-stone-500,
+.cs-legal .text-stone-400,
+.cs-legal .text-slate-600,
+.cs-legal .text-slate-500,
+.cs-legal .text-slate-400,
+.cs-app .text-stone-600,
+.cs-app .text-stone-500,
+.cs-app .text-stone-400,
+.cs-app .text-slate-600,
+.cs-app .text-slate-500,
+.cs-app .text-slate-400,
+.cs-admin .text-slate-600,
+.cs-admin .text-slate-500,
+.cs-admin .text-slate-400 {
+  color: var(--cs-muted) !important;
+}
+
+.cs-auth .bg-stone-50,
+.cs-auth .bg-slate-50,
+.cs-onboarding .bg-stone-50,
+.cs-onboarding .bg-slate-50,
+.cs-legal .bg-stone-50,
+.cs-legal .bg-slate-50,
+.cs-app .bg-stone-50,
+.cs-app .bg-slate-50,
+.cs-admin .bg-slate-50 {
+  background-color: var(--cs-canvas) !important;
+}
+
+.cs-auth .bg-stone-100,
+.cs-auth .bg-slate-100,
+.cs-onboarding .bg-stone-100,
+.cs-onboarding .bg-slate-100,
+.cs-legal .bg-stone-100,
+.cs-legal .bg-slate-100,
+.cs-app .bg-stone-100,
+.cs-app .bg-slate-100,
+.cs-admin .bg-slate-100 {
+  background-color: #eef2f7 !important;
+}
+
+.cs-auth .bg-stone-200,
+.cs-auth .bg-slate-200,
+.cs-onboarding .bg-stone-200,
+.cs-onboarding .bg-slate-200,
+.cs-legal .bg-stone-200,
+.cs-legal .bg-slate-200,
+.cs-app .bg-stone-200,
+.cs-app .bg-slate-200,
+.cs-admin .bg-slate-200 {
+  background-color: #d9dee6 !important;
+}
+
+.cs-auth .border-stone-100,
+.cs-auth .border-stone-200,
+.cs-auth .border-slate-100,
+.cs-auth .border-slate-200,
+.cs-onboarding .border-stone-100,
+.cs-onboarding .border-stone-200,
+.cs-onboarding .border-slate-100,
+.cs-onboarding .border-slate-200,
+.cs-legal .border-stone-100,
+.cs-legal .border-stone-200,
+.cs-legal .border-slate-100,
+.cs-legal .border-slate-200,
+.cs-app .border-stone-100,
+.cs-app .border-stone-200,
+.cs-app .border-slate-100,
+.cs-app .border-slate-200,
+.cs-admin .border-slate-100,
+.cs-admin .border-slate-200 {
+  border-color: var(--cs-line) !important;
+}
+
+.cs-auth .bg-amber-50,
+.cs-auth .bg-amber-100,
+.cs-onboarding .bg-amber-50,
+.cs-onboarding .bg-amber-100,
+.cs-legal .bg-amber-50,
+.cs-legal .bg-amber-100,
+.cs-app .bg-amber-50,
+.cs-app .bg-amber-100,
+.cs-admin .bg-amber-50,
+.cs-admin .bg-amber-100 {
+  background-color: var(--cs-gold-soft) !important;
+}
+
+.cs-auth .hover\:bg-amber-50:hover,
+.cs-auth .hover\:bg-amber-100:hover,
+.cs-onboarding .hover\:bg-amber-50:hover,
+.cs-onboarding .hover\:bg-amber-100:hover,
+.cs-legal .hover\:bg-amber-50:hover,
+.cs-legal .hover\:bg-amber-100:hover,
+.cs-app .hover\:bg-amber-50:hover,
+.cs-app .hover\:bg-amber-100:hover,
+.cs-admin .hover\:bg-amber-50:hover,
+.cs-admin .hover\:bg-amber-100:hover {
+  background-color: #ece2d2 !important;
+}
+
+.cs-auth .border-amber-100,
+.cs-auth .border-amber-200,
+.cs-auth .border-amber-300,
+.cs-auth .border-amber-400,
+.cs-onboarding .border-amber-100,
+.cs-onboarding .border-amber-200,
+.cs-onboarding .border-amber-300,
+.cs-onboarding .border-amber-400,
+.cs-legal .border-amber-100,
+.cs-legal .border-amber-200,
+.cs-legal .border-amber-300,
+.cs-legal .border-amber-400,
+.cs-app .border-amber-100,
+.cs-app .border-amber-200,
+.cs-app .border-amber-300,
+.cs-app .border-amber-400,
+.cs-admin .border-amber-100,
+.cs-admin .border-amber-200,
+.cs-admin .border-amber-300,
+.cs-admin .border-amber-400 {
+  border-color: #e4d6c2 !important;
+}
+
+.cs-auth .hover\:border-amber-300:hover,
+.cs-onboarding .hover\:border-amber-300:hover,
+.cs-legal .hover\:border-amber-300:hover,
+.cs-app .hover\:border-amber-300:hover,
+.cs-admin .hover\:border-amber-300:hover {
+  border-color: var(--cs-gold) !important;
+}
+
+.cs-auth .text-amber-500,
+.cs-auth .text-amber-600,
+.cs-auth .text-amber-700,
+.cs-auth .text-amber-800,
+.cs-auth .text-amber-900,
+.cs-onboarding .text-amber-500,
+.cs-onboarding .text-amber-600,
+.cs-onboarding .text-amber-700,
+.cs-onboarding .text-amber-800,
+.cs-onboarding .text-amber-900,
+.cs-legal .text-amber-500,
+.cs-legal .text-amber-600,
+.cs-legal .text-amber-700,
+.cs-legal .text-amber-800,
+.cs-legal .text-amber-900,
+.cs-app .text-amber-500,
+.cs-app .text-amber-600,
+.cs-app .text-amber-700,
+.cs-app .text-amber-800,
+.cs-app .text-amber-900,
+.cs-admin .text-amber-500,
+.cs-admin .text-amber-600,
+.cs-admin .text-amber-700,
+.cs-admin .text-amber-800,
+.cs-admin .text-amber-900 {
+  color: #7a623d !important;
+}
+
+.cs-auth .hover\:text-amber-500:hover,
+.cs-auth .hover\:text-amber-600:hover,
+.cs-auth .hover\:text-amber-700:hover,
+.cs-auth .hover\:text-amber-900:hover,
+.cs-onboarding .hover\:text-amber-500:hover,
+.cs-onboarding .hover\:text-amber-600:hover,
+.cs-onboarding .hover\:text-amber-700:hover,
+.cs-onboarding .hover\:text-amber-900:hover,
+.cs-legal .hover\:text-amber-500:hover,
+.cs-legal .hover\:text-amber-600:hover,
+.cs-legal .hover\:text-amber-700:hover,
+.cs-legal .hover\:text-amber-900:hover,
+.cs-app .hover\:text-amber-500:hover,
+.cs-app .hover\:text-amber-600:hover,
+.cs-app .hover\:text-amber-700:hover,
+.cs-app .hover\:text-amber-900:hover,
+.cs-admin .hover\:text-amber-500:hover,
+.cs-admin .hover\:text-amber-600:hover,
+.cs-admin .hover\:text-amber-700:hover,
+.cs-admin .hover\:text-amber-900:hover {
+  color: var(--cs-primary-dark) !important;
+}
+
+.cs-auth .bg-indigo-50,
+.cs-onboarding .bg-indigo-50,
+.cs-app .bg-indigo-50,
+.cs-admin .bg-indigo-50 {
+  background-color: #eef2f7 !important;
+}
+
+.cs-auth .text-indigo-500,
+.cs-auth .text-indigo-600,
+.cs-onboarding .text-indigo-500,
+.cs-onboarding .text-indigo-600,
+.cs-app .text-indigo-500,
+.cs-app .text-indigo-600,
+.cs-admin .text-indigo-500,
+.cs-admin .text-indigo-600 {
+  color: var(--cs-primary) !important;
+}
+
+.cs-auth .focus\:ring-indigo-500:focus,
+.cs-onboarding .focus\:ring-indigo-500:focus,
+.cs-app .focus\:ring-indigo-500:focus,
+.cs-admin .focus\:ring-indigo-500:focus {
+  --tw-ring-color: rgba(101, 125, 166, 0.24) !important;
+}
+
+.cs-auth .auth-card,
+.cs-onboarding .setup-card,
+.cs-legal main {
+  border-color: var(--cs-line) !important;
+  box-shadow: var(--cs-shadow-soft) !important;
+}
+
+.cs-auth .auth-card,
+.cs-onboarding .setup-card {
+  border-radius: 8px !important;
+}
+
+.cs-auth label,
+.cs-onboarding label,
+.cs-app label {
+  color: var(--cs-ink-soft) !important;
+}
+
+.cs-auth input,
+.cs-onboarding input,
+.cs-app input,
+.cs-app select,
+.cs-app textarea {
+  border-color: var(--cs-line) !important;
+  color: var(--cs-ink);
+}
+
+.cs-auth input::placeholder,
+.cs-onboarding input::placeholder,
+.cs-app input::placeholder,
+.cs-app textarea::placeholder {
+  color: #8b97a8;
+}
+
+.cs-auth .focus\:ring-amber-400:focus,
+.cs-onboarding .focus\:ring-amber-400:focus,
+.cs-app .focus\:ring-amber-400:focus {
+  --tw-ring-color: rgba(101, 125, 166, 0.24) !important;
+  border-color: var(--cs-primary) !important;
+}
+
+.cs-auth button.bg-amber-500,
+.cs-auth a.bg-amber-500,
+.cs-onboarding button.bg-amber-500,
+.cs-app .bg-amber-500,
+.cs-app .cs-primary-action,
+.cs-admin .bg-amber-500,
+.cs-admin .bg-indigo-600 {
+  background: linear-gradient(135deg, #7188ae 0%, #6079a4 100%) !important;
+}
+
+.cs-auth button.bg-amber-500,
+.cs-auth a.bg-amber-500,
+.cs-onboarding button.bg-amber-500,
+.cs-app button.bg-amber-500,
+.cs-app a.bg-amber-500,
+.cs-app .cs-primary-action,
+.cs-admin button.bg-amber-500,
+.cs-admin a.bg-amber-500,
+.cs-admin button.bg-indigo-600,
+.cs-admin a.bg-indigo-600 {
+  box-shadow: 0 10px 22px rgba(101, 125, 166, 0.13) !important;
+}
+
+.cs-auth button.hover\:bg-amber-400:hover,
+.cs-auth a.hover\:bg-amber-400:hover,
+.cs-onboarding button.hover\:bg-amber-400:hover,
+.cs-app .hover\:bg-amber-400:hover,
+.cs-app .cs-primary-action:hover,
+.cs-admin .hover\:bg-amber-400:hover,
+.cs-admin .hover\:bg-indigo-500:hover {
+  background: linear-gradient(135deg, #6680aa 0%, #577199 100%) !important;
+}
+
+.cs-auth button:disabled,
+.cs-onboarding button:disabled,
+.cs-app .bg-amber-500:disabled,
+.cs-app .cs-primary-action:disabled,
+.cs-admin .bg-amber-500:disabled,
+.cs-admin .bg-indigo-600:disabled {
+  box-shadow: none !important;
+}
+
+.cs-auth a.text-amber-600,
+.cs-auth a.hover\:text-amber-500:hover,
+.cs-onboarding a.text-amber-600,
+.cs-legal a.text-amber-600,
+.cs-app .cs-verification-banner button {
+  color: var(--cs-primary) !important;
+}
+
+.cs-auth a.text-amber-600:hover,
+.cs-onboarding a.text-amber-600:hover,
+.cs-legal a.text-amber-600:hover,
+.cs-app .cs-verification-banner button:hover {
+  color: var(--cs-primary-dark) !important;
+}
+
+.cs-auth [class*="shadow-amber-500"],
+.cs-onboarding [class*="shadow-amber-500"],
+.cs-app [class*="shadow-amber-500"],
+.cs-admin [class*="shadow-amber-500"] {
+  box-shadow: 0 10px 22px rgba(101, 125, 166, 0.13) !important;
+}
+
+.cs-auth .rounded-lg,
+.cs-auth .rounded-xl,
+.cs-auth .rounded-2xl,
+.cs-onboarding .rounded-lg,
+.cs-onboarding .rounded-xl,
+.cs-onboarding .rounded-2xl,
+.cs-legal .rounded-lg,
+.cs-legal .rounded-xl,
+.cs-legal .rounded-2xl,
+.cs-app .rounded-lg,
+.cs-app .rounded-xl,
+.cs-app .rounded-2xl,
+.cs-admin .rounded-lg,
+.cs-admin .rounded-xl,
+.cs-admin .rounded-2xl {
+  border-radius: 8px !important;
+}
+
+.cs-app .bg-white.rounded-xl,
+.cs-app .bg-white.rounded-2xl,
+.cs-app .job-card,
+.cs-app .stat-card,
+.cs-admin .bg-white.rounded-xl,
+.cs-admin .bg-white.rounded-2xl {
+  border-color: var(--cs-line) !important;
+  box-shadow: var(--cs-shadow-soft) !important;
+}
+
+.cs-app .bg-white.rounded-xl:hover,
+.cs-app .bg-white.rounded-2xl:hover,
+.cs-app .job-card:hover,
+.cs-admin .bg-white.rounded-xl:hover,
+.cs-admin .bg-white.rounded-2xl:hover {
+  border-color: var(--cs-line-strong) !important;
+}
+
+.cs-app .bg-amber-50 svg,
+.cs-app .bg-amber-100 svg,
+.cs-app svg.text-amber-500,
+.cs-app svg.text-amber-600,
+.cs-admin svg.text-amber-500,
+.cs-admin svg.text-amber-600 {
+  color: var(--cs-gold) !important;
+}
+
+.cs-app .bg-slate-50 svg,
+.cs-app .bg-slate-100 svg,
+.cs-app svg.text-slate-300,
+.cs-app svg.text-slate-400,
+.cs-admin svg.text-slate-300,
+.cs-admin svg.text-slate-400 {
+  color: #8b97a8 !important;
+}
+
+.cs-app .ring-amber-200,
+.cs-app .ring-amber-300,
+.cs-app .ring-amber-400,
+.cs-auth .ring-amber-200,
+.cs-auth .ring-amber-300,
+.cs-auth .ring-amber-400,
+.cs-onboarding .ring-amber-200,
+.cs-onboarding .ring-amber-300,
+.cs-onboarding .ring-amber-400 {
+  --tw-ring-color: rgba(193, 164, 119, 0.28) !important;
+}
+
+.cs-auth .auth-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--cs-line);
+}
+
+.cs-auth .auth-brand-title {
+  color: var(--cs-ink) !important;
+  font-weight: 700;
+}
+
+.cs-auth .auth-brand-subtitle {
+  color: var(--cs-muted) !important;
+}
+
+.cs-auth .auth-divider {
+  background: var(--cs-line) !important;
+}
+
+.cs-onboarding .setup-card {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--cs-line);
+}
+
+.cs-onboarding .setup-kicker {
+  color: var(--cs-gold) !important;
+}
+
+.cs-onboarding .tag {
+  background: var(--cs-gold-soft) !important;
+  border-color: #e4d6c2 !important;
+  color: #7a623d !important;
+}
+
+.cs-onboarding .tag button {
+  color: #8a7049 !important;
+}
+
+.cs-onboarding .hover\:bg-amber-50:hover {
+  background: #f7f9fb !important;
+}
+
+.cs-onboarding .hover\:border-amber-300:hover {
+  border-color: var(--cs-line-strong) !important;
+}
+
+.cs-onboarding .hover\:text-amber-700:hover {
+  color: var(--cs-primary-dark) !important;
+}
+
+.cs-legal {
+  background: var(--cs-canvas) !important;
+}
+
+.cs-legal nav {
+  border-color: rgba(24, 32, 51, 0.10) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 8px 28px rgba(38, 50, 75, 0.04);
+}
+
+.cs-legal main {
+  max-width: 860px;
+  margin-top: 48px;
+  margin-bottom: 48px;
+  padding: 52px;
+  background: var(--cs-paper);
+  border: 1px solid var(--cs-line);
+  border-radius: 8px;
+}
+
+.cs-legal h1,
+.cs-legal h2,
+.cs-legal strong {
+  color: var(--cs-ink) !important;
+}
+
+.cs-legal p,
+.cs-legal li {
+  color: var(--cs-muted) !important;
+}
+
+.cs-legal footer {
+  border-color: var(--cs-line) !important;
+  background: #fff !important;
+}
+
+.cs-app,
+.cs-admin {
+  background: var(--cs-canvas) !important;
+}
+
+.cs-app main,
+.cs-admin {
+  background: linear-gradient(180deg, #f9fbfd 0%, var(--cs-canvas) 100%) !important;
+}
+
+.cs-app aside {
+  border-color: var(--cs-line) !important;
+  box-shadow: 12px 0 32px rgba(38, 50, 75, 0.04);
+}
+
+.cs-app .hamburger {
+  border: 1px solid var(--cs-line);
+  box-shadow: 0 12px 24px rgba(38, 50, 75, 0.10) !important;
+}
+
+.cs-app .nav-item {
+  border-left-width: 3px;
+  border-radius: 8px !important;
+  color: var(--cs-muted) !important;
+}
+
+.cs-app .nav-item:hover:not(.active) {
+  background: #f7f9fb !important;
+  color: var(--cs-ink-soft) !important;
+}
+
+.cs-app .nav-item.active {
+  background: #eef2f7 !important;
+  border-left-color: var(--cs-primary) !important;
+  color: var(--cs-primary-dark) !important;
+}
+
+.cs-app input[type="range"] {
+  accent-color: var(--cs-primary);
+}
+
+.cs-app .toggle-on {
+  background: var(--cs-primary) !important;
+}
+
+.cs-app .toggle-off {
+  background: #d9dee6 !important;
+}
+
+.cs-app .cs-pro-badge {
+  background: var(--cs-gold-soft) !important;
+  border: 1px solid #e4d6c2;
+  color: #7a623d !important;
+}
+
+.cs-app .cs-verification-banner {
+  background: var(--cs-gold-soft) !important;
+  border-color: #e4d6c2 !important;
+  color: var(--cs-ink-soft) !important;
+}
+
+.cs-app .cs-verification-banner p {
+  color: var(--cs-ink-soft) !important;
+}
+
+.cs-app .cs-free-plan-banner {
+  background: #eef2f7 !important;
+  border-color: var(--cs-line) !important;
+  color: var(--cs-ink-soft) !important;
+  box-shadow: 0 8px 24px rgba(38, 50, 75, 0.05);
+}
+
+.cs-app .cs-access-banner {
+  box-shadow: 0 8px 24px rgba(38, 50, 75, 0.06);
+}
+
+.cs-app .cs-pro-lock-card {
+  border-color: var(--cs-line) !important;
+  border-radius: 8px !important;
+  box-shadow: var(--cs-shadow-soft) !important;
+}
+
+.cs-app .cs-pro-lock-overlay {
+  background: rgba(255, 255, 255, 0.88) !important;
+}
+
+.cs-app #terminal {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 36px rgba(13, 17, 23, 0.14);
+}
+
+.cs-app .modal-overlay {
+  background: rgba(24, 32, 51, 0.38) !important;
+}
+
+.cs-app .modal-panel {
+  background: #fff !important;
+  border-left: 1px solid var(--cs-line);
+}
+
+.cs-admin nav {
+  border-color: var(--cs-line) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 8px 28px rgba(38, 50, 75, 0.04);
+}
+
+.cs-admin .admin-brand-badge {
+  background: #eef2f7 !important;
+  color: var(--cs-primary-dark) !important;
+}
+
+@media (max-width: 640px) {
+  .brand-logo-img--nav,
+  .brand-logo-img--sidebar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .cs-legal main {
+    margin-top: 24px;
+    margin-bottom: 24px;
+    padding: 32px 24px;
+    border-radius: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-auth *,
+  .cs-onboarding *,
+  .cs-legal *,
+  .cs-app * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
