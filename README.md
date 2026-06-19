@@ -2,7 +2,7 @@
 
 AI-powered job scanner for Singapore. Pulls listings from multiple sources daily, scores them against your profile, and surfaces only the matches worth applying to.
 
-**Live app:** [jobscanner-m7pb.onrender.com](https://jobscanner-m7pb.onrender.com)
+**Live app:** [careerscan.onrender.com](https://careerscan.onrender.com)
 
 ---
 
