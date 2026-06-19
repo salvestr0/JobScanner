@@ -2188,6 +2188,18 @@ function app() {
         this.flash('That verification link is invalid or expired — click "Resend email" for a fresh one.', false);
         history.replaceState({}, '', '/app');
       }
+      if (params.get('billing') === 'success') {
+        // Sync straight from Stripe instead of waiting on the webhook
+        try { this.billing = await (await fetch('/api/billing/sync', { method: 'POST' })).json(); }
+        catch(_) { await this.loadBilling?.(); }
+        this.flash(this.billing?.status === 'active'
+          ? 'Subscription active — welcome to Pro!'
+          : 'Payment received — your plan will update shortly.', true);
+        history.replaceState({}, '', '/app');
+      }
+      if (params.get('billing') === 'cancel') {
+        history.replaceState({}, '', '/app');
+      }
     },
 
     async logout() {
