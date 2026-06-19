@@ -5,6 +5,7 @@ Open: http://localhost:5000
 """
 import hashlib
 import hmac
+import html
 import json
 import os
 import queue
@@ -148,6 +149,13 @@ def _decrypt_api_key(ciphertext: str) -> str:
         return ciphertext
     except Exception:
         return ciphertext
+
+
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+def _valid_email(addr: str) -> bool:
+    return bool(addr) and len(addr) <= 255 and _EMAIL_RE.match(addr) is not None
 
 
 def _log_gemini_usage(endpoint: str, user_id: str, response_json: dict) -> None:
@@ -614,6 +622,8 @@ def auth_register():
 
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
+    if not _valid_email(email):
+        return jsonify({"error": "Please enter a valid email address"}), 400
     if len(password) < 8:
         return jsonify({"error": "Password must be at least 8 characters"}), 400
     if User.query.filter_by(email=email).first():
@@ -1204,12 +1214,22 @@ def update_config():
     data = request.json or {}
     s    = _get_or_create_settings(current_user.id)
 
-    for key in ("min_salary", "max_salary", "min_score_threshold", "max_jobs_per_notification"):
+    _numeric_bounds = {
+        "min_salary":                (0, 1_000_000),
+        "max_salary":                (0, 1_000_000),
+        "min_score_threshold":       (0, 100),
+        "max_jobs_per_notification": (1, 200),
+    }
+    for key, (lo, hi) in _numeric_bounds.items():
         if key in data:
-            setattr(s, key, data[key])
+            try:
+                val = int(data[key])
+            except (TypeError, ValueError):
+                return jsonify({"error": f"{key} must be a number"}), 400
+            setattr(s, key, max(lo, min(hi, val)))
     if "email_to" in data:
         email_to = (data["email_to"] or "").strip()
-        if email_to and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email_to):
+        if email_to and not _valid_email(email_to):
             return jsonify({"error": "Invalid email address"}), 400
         s.email_to = email_to
     for key in ("email_enabled", "preferred_location"):
@@ -1249,6 +1269,10 @@ def parse_resume():
     api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
     if not api_key:
         return jsonify({"error": "AI service not configured"}), 400
+
+    allowed, quota_err = _check_ai_quota(current_user)
+    if not allowed:
+        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
 
     from resume_parser import extract_text, parse_with_gemini
     try:
@@ -1713,6 +1737,14 @@ def export_jobs():
     import csv as _csv
     import io
 
+    def _csv_safe(value):
+        # Neutralise spreadsheet formula injection: a cell that a spreadsheet
+        # would evaluate (starts with = + - @, tab or CR) is prefixed with '.
+        s = "" if value is None else str(value)
+        if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
+            return "'" + s
+        return s
+
     jobs = (Job.query
             .filter_by(user_id=current_user.id)
             .order_by(Job.score.desc())
@@ -1726,12 +1758,12 @@ def export_jobs():
                      "source", "posted_date", "closing_date", "status", "url"])
     for j in jobs:
         st = statuses.get(j.source_job_id, {}).get("status", "")
-        writer.writerow([
+        writer.writerow([_csv_safe(v) for v in (
             j.title, j.company, j.location, j.score,
             j.salary_min or "", j.salary_max or "",
             j.source, j.posted_date or "", j.closing_date or "",
             st, j.url or "",
-        ])
+        )])
 
     csv_bytes = output.getvalue().encode("utf-8-sig")
     return Response(
@@ -2077,7 +2109,10 @@ def billing_webhook():
     new_status = None
     if et in ("customer.subscription.created", "customer.subscription.updated"):
         stripe_status = obj.get("status", "")
-        new_status = "active" if stripe_status == "active" else stripe_status
+        # Normalise via the same map the cron sync uses so the two write paths
+        # can never store different strings for the same real state (e.g.
+        # "canceled" vs "cancelled"). Unknown statuses fall through unchanged.
+        new_status = _STRIPE_STATUS_MAP.get(stripe_status, stripe_status)
     elif et == "customer.subscription.deleted":
         new_status = "cancelled"
     elif et == "invoice.payment_failed":
@@ -2509,7 +2544,8 @@ def cron_billing_health():
     past_due = User.query.filter_by(subscription_status="past_due").all()
     if past_due and admin_email:
         rows = "".join(
-            f"<tr><td>{u.email}</td><td>{u.stripe_customer_id or '—'}</td></tr>"
+            f"<tr><td>{html.escape(u.email or '')}</td>"
+            f"<td>{html.escape(u.stripe_customer_id or '—')}</td></tr>"
             for u in past_due
         )
         html = (
