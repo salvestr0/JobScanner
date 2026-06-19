@@ -81,6 +81,32 @@ app.config.update(
 db.init_app(app)
 migrate = Migrate(app, db)
 
+
+def _reconcile_orphaned_scans():
+    """Mark scans stuck at 'running' as failed on boot.
+
+    Scan state lives in process memory, so at startup no scan can really be
+    running — any 'running' ScanHistory row is an orphan from a worker that
+    was killed mid-scan (e.g. SIGKILL on timeout/OOM), whose `finally` never
+    ran. Self-heals on every restart. Wrapped so a transient DB issue never
+    blocks app boot.
+    """
+    try:
+        with app.app_context():
+            orphaned = ScanHistory.query.filter_by(status="running").all()
+            for row in orphaned:
+                row.status = "failed"
+                if row.finished_at is None:
+                    row.finished_at = datetime.now(timezone.utc)
+            if orphaned:
+                db.session.commit()
+                app.logger.info("Reconciled %d orphaned 'running' scan(s) on startup", len(orphaned))
+    except Exception as exc:
+        app.logger.warning("Could not reconcile orphaned scans on startup: %s", exc)
+
+
+_reconcile_orphaned_scans()
+
 login_manager = LoginManager(app)
 login_manager.login_view = "login_page"
 login_manager.login_message = ""
@@ -1231,7 +1257,14 @@ def parse_resume():
 
     try:
         profile = parse_with_gemini(text, api_key)
-    except Exception:
+    except ValueError as e:
+        # Expected, user-actionable failures (bad key, blocked, empty response)
+        app.logger.warning("Resume parse failed for user %s: %s", current_user.id, e)
+        return jsonify({"error": str(e)}), 502
+    except Exception as e:
+        app.logger.error(
+            "Resume parse crashed for user %s: %s", current_user.id, e, exc_info=True
+        )
         return jsonify({"error": "AI parsing failed. Please try again later."}), 500
 
     return jsonify(profile)
@@ -2191,8 +2224,23 @@ def cron_cleanup():
         ScanHistory.started_at < cutoff_scans
     ).delete(synchronize_session=False)
 
+    # Backstop: fail scans stuck at 'running' >1h (startup reconciliation
+    # covers worker-kill restarts; this catches a hung thread with no restart).
+    cutoff_running = datetime.now(timezone.utc) - timedelta(hours=1)
+    stuck_scans = ScanHistory.query.filter(
+        ScanHistory.status == "running",
+        ScanHistory.started_at < cutoff_running,
+    ).update(
+        {"status": "failed", "finished_at": datetime.now(timezone.utc)},
+        synchronize_session=False,
+    )
+
     db.session.commit()
-    return jsonify({"deleted_jobs": deleted_jobs, "deleted_scan_history": deleted_scans})
+    return jsonify({
+        "deleted_jobs": deleted_jobs,
+        "deleted_scan_history": deleted_scans,
+        "failed_stuck_scans": stuck_scans,
+    })
 
 
 
