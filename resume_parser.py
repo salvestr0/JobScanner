@@ -220,14 +220,50 @@ RESUME TEXT:
         GEMINI_API_URL,
         params={"key": api_key},
         headers={"Content-Type": "application/json"},
-        json={"contents": [{"parts": [{"text": prompt}]}]},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                # gemini-2.5-flash thinks by default; for structured extraction
+                # that only burns the output budget and can leave the response
+                # with finishReason=MAX_TOKENS and no text. Disable it.
+                "thinkingConfig": {"thinkingBudget": 0},
+                "responseMimeType": "application/json",
+                "maxOutputTokens": 4096,
+            },
+        },
         timeout=30,
     )
+    if resp.status_code == 400:
+        raise ValueError("Invalid or rejected Gemini API key")
+    if resp.status_code in (401, 403):
+        raise ValueError("Gemini API key is unauthorized or expired")
+    if resp.status_code == 429:
+        raise ValueError("Gemini rate limit or quota exceeded — try again later")
     resp.raise_for_status()
 
-    raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    raw = _extract_text_from_response(resp.json())
     match = re.search(r"\{[\s\S]*\}", raw)
     if not match:
         raise ValueError("Gemini returned no JSON object")
 
     return json.loads(match.group())
+
+
+def _extract_text_from_response(body: dict) -> str:
+    """Pull the model text out of a generateContent response, with clear
+    errors for the empty/blocked cases instead of a bare KeyError."""
+    prompt_feedback = body.get("promptFeedback") or {}
+    if prompt_feedback.get("blockReason"):
+        raise ValueError(f"Resume blocked by Gemini ({prompt_feedback['blockReason']})")
+
+    candidates = body.get("candidates") or []
+    if not candidates:
+        raise ValueError("Gemini returned no candidates")
+
+    candidate = candidates[0]
+    parts = (candidate.get("content") or {}).get("parts") or []
+    text = "".join(p.get("text", "") for p in parts).strip()
+    if not text:
+        reason = candidate.get("finishReason", "unknown")
+        raise ValueError(f"Gemini returned empty response (finishReason={reason})")
+    return text
