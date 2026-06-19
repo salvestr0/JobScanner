@@ -311,7 +311,16 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
         if max_fetch:
             log(f"Free plan — fetching up to {max_fetch} candidates (showing top {max_jobs} matches)")
 
-        log("\nScanning MyCareersFuture...")
+        # Guard: no search titles means every source returns nothing. This happens
+        # when a non-prebuilt mode needs live Gemini generation and that call fails.
+        # Fail loudly with the real cause instead of blaming the network.
+        if not cfg_snapshot.get("target_titles"):
+            log(f"Could not load search titles for the '{mode}' mode.")
+            log("This usually means the AI mode generation failed — check that a valid "
+                "Gemini API key is set, or pick one of the built-in modes.")
+            raise RuntimeError(f"No target_titles for mode '{mode}'")
+
+        log("\nScanning job sources (MyCareersFuture, Adzuna, RemoteOK)...")
         all_jobs = scrape_all_sources(max_total=max_fetch)
 
         if not all_jobs:
