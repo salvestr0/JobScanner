@@ -2399,6 +2399,96 @@ def cron_stripe_sync():
     return jsonify({"synced": len(users), "updated": updated})
 
 
+@app.route("/api/admin/billing-debug", methods=["POST"])
+def admin_billing_debug():
+    """Ops diagnostic: show what Stripe actually holds, so an orphaned
+    subscription (attached to a customer the app never linked) can be found.
+    Secret-gated so it's callable via curl with X-Cron-Secret."""
+    secret = os.getenv("CRON_SECRET", "")
+    if not secret or not hmac.compare_digest(request.headers.get("X-Cron-Secret", ""), secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    import stripe as _stripe
+    from sqlalchemy import func
+    _stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+    if not _stripe.api_key:
+        return jsonify({"error": "STRIPE_SECRET_KEY not set"}), 500
+
+    email = (request.args.get("email") or (request.json or {}).get("email") or "").strip().lower()
+    out = {"query_email": email}
+
+    user = User.query.filter(func.lower(User.email) == email).first() if email else None
+    out["app_user"] = None if not user else {
+        "id": user.id,
+        "email": user.email,
+        "stripe_customer_id": user.stripe_customer_id,
+        "subscription_status": user.subscription_status,
+    }
+
+    try:
+        custs = _stripe.Customer.list(email=email, limit=20).data if email else []
+        out["stripe_customers_for_email"] = [{"id": c.id, "email": c.email} for c in custs]
+    except Exception as e:
+        out["stripe_customers_for_email_error"] = str(e)
+
+    # Recent subscriptions across the whole account — to spot an orphan whose
+    # customer email differs from the app account.
+    try:
+        recent = []
+        for s in _stripe.Subscription.list(limit=20, status="all").data:
+            cust_email = None
+            try:
+                cust_email = getattr(_stripe.Customer.retrieve(s.customer), "email", None)
+            except Exception:
+                pass
+            recent.append({
+                "sub_id": s.id,
+                "status": s.status,
+                "customer": s.customer,
+                "customer_email": cust_email,
+            })
+        out["recent_subscriptions"] = recent
+    except Exception as e:
+        out["recent_subscriptions_error"] = str(e)
+
+    return jsonify(out)
+
+
+@app.route("/api/admin/grant-pro", methods=["POST"])
+def admin_grant_pro():
+    """Ops action: force an account to active (paid but unlinked subscription,
+    comps, support). Secret-gated for curl use. Optionally link a Stripe
+    customer id at the same time so future syncs stay correct."""
+    secret = os.getenv("CRON_SECRET", "")
+    if not secret or not hmac.compare_digest(request.headers.get("X-Cron-Secret", ""), secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    from sqlalchemy import func
+    body = request.json or {}
+    email = (request.args.get("email") or body.get("email") or "").strip().lower()
+    customer_id = (request.args.get("customer_id") or body.get("customer_id") or "").strip()
+    if not email:
+        return jsonify({"error": "email required"}), 400
+
+    user = User.query.filter(func.lower(User.email) == email).first()
+    if not user:
+        return jsonify({"error": "No user with that email"}), 404
+
+    if customer_id:
+        user.stripe_customer_id = customer_id
+    user.subscription_status = "active"
+    db.session.commit()
+    app.logger.info(
+        "Admin granted Pro to %s (customer_id=%s)", user.email, user.stripe_customer_id
+    )
+    return jsonify({
+        "ok": True,
+        "email": user.email,
+        "subscription_status": user.subscription_status,
+        "stripe_customer_id": user.stripe_customer_id,
+    })
+
+
 @app.route("/api/cron/billing-health", methods=["POST"])
 def cron_billing_health():
     secret   = os.getenv("CRON_SECRET", "")
