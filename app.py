@@ -1815,6 +1815,42 @@ def _is_free_tier(user) -> bool:
     return user.subscription_status not in ("active",)
 
 
+_STRIPE_STATUS_MAP = {
+    "active":   "active",
+    "past_due": "past_due",
+    "canceled": "cancelled",
+    "unpaid":   "past_due",
+    "paused":   "past_due",
+}
+
+
+def _sync_user_subscription(user, stripe_mod) -> bool:
+    """Reconcile a user's subscription_status straight from Stripe (the source
+    of truth) and return True if it changed.
+
+    This recovers accounts that paid but never flipped to active because a
+    webhook was missed, failed signature check, or wasn't delivered. A plain
+    free user who merely has a dangling customer id (started checkout, never
+    paid) is left untouched rather than wrongly marked cancelled.
+    """
+    subs = stripe_mod.Subscription.list(
+        customer=user.stripe_customer_id, limit=1, status="all"
+    )
+    if not subs.data:
+        # No subscription on file: only downgrade someone who previously had
+        # one — never knock a plain free user back to cancelled.
+        if user.subscription_status not in ("active", "past_due"):
+            return False
+        new_status = "cancelled"
+    else:
+        new_status = _STRIPE_STATUS_MAP.get(subs.data[0].status, user.subscription_status)
+
+    if new_status != user.subscription_status:
+        user.subscription_status = new_status
+        return True
+    return False
+
+
 _AI_DAILY_LIMITS = {
     "active":    30,
     "free":       5,
@@ -1876,6 +1912,23 @@ def _billing_status(user) -> dict:
 @app.route("/api/billing/status")
 @login_required
 def billing_status():
+    return jsonify(_billing_status(current_user))
+
+
+@app.route("/api/billing/sync", methods=["POST"])
+@login_required
+def billing_sync():
+    """Reconcile the current user's subscription straight from Stripe.
+    Called when returning from Checkout so activation never depends solely on
+    webhook delivery (which can be missed, fail signature, or be undelivered)."""
+    import stripe as _stripe
+    _stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+    if _stripe.api_key and current_user.stripe_customer_id:
+        try:
+            if _sync_user_subscription(current_user, _stripe):
+                db.session.commit()
+        except Exception as e:
+            app.logger.warning("Billing sync failed for user %s: %s", current_user.id, e)
     return jsonify(_billing_status(current_user))
 
 
@@ -2265,35 +2318,15 @@ def cron_stripe_sync():
     if not _stripe.api_key:
         return jsonify({"error": "STRIPE_SECRET_KEY not set"}), 500
 
-    STATUS_MAP = {
-        "active":   "active",
-        "past_due": "past_due",
-        "canceled": "cancelled",
-        "unpaid":   "past_due",
-        "paused":   "past_due",
-    }
-
-    users = User.query.filter(
-        User.stripe_customer_id != None,  # noqa: E711
-        User.subscription_status.in_(["active", "past_due", "cancelled"]),
-    ).all()
+    # Any user who has ever reached Stripe checkout has a customer id. Check
+    # all of them — not just those already marked paid — so an account that
+    # paid but never flipped (missed/failed webhook) self-heals here.
+    users = User.query.filter(User.stripe_customer_id != None).all()  # noqa: E711
 
     updated = []
     for user in users:
         try:
-            subs = _stripe.Subscription.list(
-                customer=user.stripe_customer_id, limit=1, status="all"
-            )
-            if not subs.data:
-                if user.subscription_status != "cancelled":
-                    user.subscription_status = "cancelled"
-                    updated.append(user.email)
-                continue
-
-            sub        = subs.data[0]
-            new_status = STATUS_MAP.get(sub.status, user.subscription_status)
-            if new_status != user.subscription_status:
-                user.subscription_status = new_status
+            if _sync_user_subscription(user, _stripe):
                 updated.append(user.email)
         except Exception:
             continue
