@@ -347,7 +347,7 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
             raise RuntimeError(f"No target_titles for mode '{mode}'")
 
         log("\nScanning job sources (MyCareersFuture, Adzuna, RemoteOK)...")
-        all_jobs = scrape_all_sources(max_total=max_fetch)
+        all_jobs = scrape_all_sources(max_total=max_fetch, cfg=cfg_snapshot)
 
         if not all_jobs:
             log("No jobs found from any source. Check your internet connection.")
@@ -526,17 +526,21 @@ def _get_or_create_settings(user_id: str) -> UserSettings:
     s = db.session.get(UserSettings, user_id)
     if s is None:
         import config as cfg
+        # Snapshot under the lock — a concurrent scan rebuilds the shared
+        # SEARCH_CONFIG, so an unlocked read could seed torn/other-user values.
+        with _config_lock:
+            defaults = dict(cfg.SEARCH_CONFIG)
         s = UserSettings(
             user_id=user_id,
-            min_salary=cfg.SEARCH_CONFIG.get("min_salary", 2200),
-            max_salary=cfg.SEARCH_CONFIG.get("max_salary", 4000),
-            min_score_threshold=cfg.SEARCH_CONFIG.get("min_score_threshold", 40),
-            max_jobs_per_notification=cfg.SEARCH_CONFIG.get("max_jobs_per_notification", 20),
-            target_titles=cfg.SEARCH_CONFIG.get("target_titles", []),
-            preferred_keywords=cfg.SEARCH_CONFIG.get("preferred_keywords", []),
-            negative_keywords=cfg.SEARCH_CONFIG.get("negative_keywords", []),
-            location_keywords=cfg.SEARCH_CONFIG.get("location_keywords", []),
-            preferred_location=cfg.SEARCH_CONFIG.get("preferred_location", "Sengkang"),
+            min_salary=defaults.get("min_salary", 2200),
+            max_salary=defaults.get("max_salary", 4000),
+            min_score_threshold=defaults.get("min_score_threshold", 40),
+            max_jobs_per_notification=defaults.get("max_jobs_per_notification", 20),
+            target_titles=defaults.get("target_titles", []),
+            preferred_keywords=defaults.get("preferred_keywords", []),
+            negative_keywords=defaults.get("negative_keywords", []),
+            location_keywords=defaults.get("location_keywords", []),
+            preferred_location=defaults.get("preferred_location", "Sengkang"),
         )
         db.session.add(s)
         db.session.commit()

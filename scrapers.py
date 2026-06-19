@@ -94,9 +94,9 @@ _MCF_FALLBACKS = [
 ]
 
 
-def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
+def fetch_mcf(max_pages: int = 2, max_results: int = 0, cfg: dict | None = None) -> list:
     """Fetch jobs from MyCareersFuture API for up to 2 target titles."""
-    titles = SEARCH_CONFIG.get("target_titles") or []
+    titles = (cfg if cfg is not None else SEARCH_CONFIG).get("target_titles") or []
     if not titles:
         print("  [MCF] No target titles configured.")
         return []
@@ -226,7 +226,7 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0) -> list:
 
 # ── Adzuna ────────────────────────────────────────────────────────────────────
 
-def fetch_adzuna(max_pages: int = 1) -> list:
+def fetch_adzuna(max_pages: int = 1, cfg: dict | None = None) -> list:
     """
     Fetch Singapore jobs from Adzuna (https://developer.adzuna.com).
     Requires ADZUNA_APP_ID and ADZUNA_APP_KEY env vars (free at developer.adzuna.com).
@@ -239,7 +239,7 @@ def fetch_adzuna(max_pages: int = 1) -> list:
     jobs: list[dict] = []
     seen_ids: set = set()
 
-    for title in SEARCH_CONFIG["target_titles"]:
+    for title in (cfg if cfg is not None else SEARCH_CONFIG)["target_titles"]:
         print(f"  → Searching: {title}")
         for page in range(1, max_pages + 1):
             try:
@@ -297,7 +297,7 @@ def fetch_adzuna(max_pages: int = 1) -> list:
 
 # ── RemoteOK ──────────────────────────────────────────────────────────────────
 
-def fetch_remoteok() -> list:
+def fetch_remoteok(cfg: dict | None = None) -> list:
     """
     Fetch remote jobs from RemoteOK public API (https://remoteok.com/api).
     Filters by titles/tags matching our target roles. All jobs are remote-friendly.
@@ -336,7 +336,7 @@ def fetch_remoteok() -> list:
 
     # Build a set of significant keywords from target titles
     target_keywords: set[str] = set()
-    for t in SEARCH_CONFIG["target_titles"]:
+    for t in (cfg if cfg is not None else SEARCH_CONFIG)["target_titles"]:
         target_keywords.add(t.lower())
         for word in t.lower().split():
             if len(word) >= 5:  # skip short words like "of", "in"
@@ -386,7 +386,9 @@ def fetch_remoteok() -> list:
 _GLOBAL_JOB_CAP = 500  # Bounded for memory safety on 2GB Render across 3 sources
 
 
-def scrape_all_sources(max_total: int = 0) -> list:
+def scrape_all_sources(max_total: int = 0, cfg: dict | None = None) -> list:
+    # Pass cfg explicitly to each fetcher so concurrent scans (gthread worker)
+    # never read each other's titles via the shared module-level SEARCH_CONFIG.
     effective_cap = min(max_total, _GLOBAL_JOB_CAP) if max_total > 0 else _GLOBAL_JOB_CAP
 
     all_jobs: list[dict] = []
@@ -411,9 +413,9 @@ def scrape_all_sources(max_total: int = 0) -> list:
             all_jobs.append(j)
 
     for name, fetcher in [
-        ("MyCareersFuture", lambda: fetch_mcf(max_pages=2, max_results=effective_cap)),
-        ("Adzuna",          lambda: fetch_adzuna(max_pages=2)),
-        ("RemoteOK",        fetch_remoteok),
+        ("MyCareersFuture", lambda: fetch_mcf(max_pages=2, max_results=effective_cap, cfg=cfg)),
+        ("Adzuna",          lambda: fetch_adzuna(max_pages=2, cfg=cfg)),
+        ("RemoteOK",        lambda: fetch_remoteok(cfg=cfg)),
     ]:
         if len(all_jobs) >= effective_cap:
             break
