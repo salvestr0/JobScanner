@@ -226,7 +226,13 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0, cfg: dict | None = None)
 
 # ── Adzuna ────────────────────────────────────────────────────────────────────
 
-def fetch_adzuna(max_pages: int = 1, cfg: dict | None = None) -> list:
+# Cap titles per scan: Adzuna's free tier allows only 100 calls/day (shared
+# across all users on one app key), and breadth across titles beats depth
+# within one keyword. 3 titles keeps each scan cheap and fast.
+_ADZUNA_MAX_TITLES = 3
+
+
+def fetch_adzuna(max_pages: int = 1, max_results: int = 0, cfg: dict | None = None) -> list:
     """
     Fetch Singapore jobs from Adzuna (https://developer.adzuna.com).
     Requires ADZUNA_APP_ID and ADZUNA_APP_KEY env vars (free at developer.adzuna.com).
@@ -239,7 +245,11 @@ def fetch_adzuna(max_pages: int = 1, cfg: dict | None = None) -> list:
     jobs: list[dict] = []
     seen_ids: set = set()
 
-    for title in (cfg if cfg is not None else SEARCH_CONFIG)["target_titles"]:
+    titles = (cfg if cfg is not None else SEARCH_CONFIG)["target_titles"][:_ADZUNA_MAX_TITLES]
+    for title in titles:
+        if max_results > 0 and len(jobs) >= max_results:
+            print(f"  [Adzuna] Collected {len(jobs)} candidates — stopping early")
+            break
         print(f"  → Searching: {title}")
         for page in range(1, max_pages + 1):
             try:
@@ -414,7 +424,7 @@ def scrape_all_sources(max_total: int = 0, cfg: dict | None = None) -> list:
 
     for name, fetcher in [
         ("MyCareersFuture", lambda: fetch_mcf(max_pages=2, max_results=effective_cap, cfg=cfg)),
-        ("Adzuna",          lambda: fetch_adzuna(max_pages=2, cfg=cfg)),
+        ("Adzuna",          lambda: fetch_adzuna(max_pages=1, max_results=effective_cap, cfg=cfg)),
         ("RemoteOK",        lambda: fetch_remoteok(cfg=cfg)),
     ]:
         if len(all_jobs) >= effective_cap:
