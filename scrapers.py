@@ -1,13 +1,12 @@
 """
 Job fetchers — MyCareersFuture, Adzuna, RemoteOK.
 
-All sources use official APIs or public syndication endpoints (no HTML scraping).
+All sources use official APIs (no HTML scraping).
 LinkedIn / JobStreet / Glints HTML scraping violates their ToS — do not add them back.
 """
 
 import hashlib
 import time
-
 
 import re
 import socket
@@ -378,7 +377,7 @@ def fetch_remoteok() -> list:
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
-_GLOBAL_JOB_CAP = 500
+_GLOBAL_JOB_CAP = 500  # Bounded for memory safety on 2GB Render across 3 sources
 
 
 def scrape_all_sources(max_total: int = 0) -> list:

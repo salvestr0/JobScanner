@@ -29,7 +29,7 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | `templates/onboarding.html` | 2-step onboarding wizard (job prefs → Gemini key) |
 | `config.py` | Loads env vars, SEARCH_CONFIG defaults, Gemini mode generation |
 | `main.py` | Standalone CLI scan runner (manual/Task Scheduler use) — **not** called by `app.py`; the hosted app scans in-process |
-| `scrapers.py` | MCF API only (no scrapers — all previous ones removed) |
+| `scrapers.py` | Official APIs only: MyCareersFuture, Adzuna, RemoteOK (no HTML scraping) |
 | `scorer.py` | Job scoring engine (0–100), produces `match_reasons` and `score_breakdown` |
 | `cover_notes.py` | Gemini cover note generation |
 | `notifier.py` | Resend email digest |
@@ -121,7 +121,7 @@ python run.py                # starts Flask on http://localhost:5000
 
 ## Key Constraints
 
-- **MCF API only** — no scrapers. LinkedIn/JobStreet/Indeed scraping violates ToS. Do not add them back.
+- **Official APIs only** — three sources: MyCareersFuture, Adzuna (needs `ADZUNA_APP_ID`/`ADZUNA_APP_KEY`), and RemoteOK. No HTML scraping. LinkedIn/JobStreet/Glints/Indeed scraping violates ToS — do not add them back.
 - **No Telegram** — fully removed. Email only via Resend.
 - **Gemini API keys are encrypted** — stored with Fernet encryption using `ENCRYPTION_KEY`. If `ENCRYPTION_KEY` is not set, keys are stored plaintext (warn the user).
 - **Stripe webhook route** — `/api/stripe/webhook` (the function is named `billing_webhook` internally but the route must stay `/api/stripe/webhook`).
