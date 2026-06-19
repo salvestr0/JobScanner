@@ -50,7 +50,9 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 
 ## Deployment
 
-- **Render web service** — `gunicorn app:app`, auto-deploys from `master`
+- **Live URL** — `https://careerscan.online` (custom domain, canonical; `www` 301s to apex). Render subdomain: `https://careerscan.onrender.com`. The old `jobscanner-m7pb.onrender.com` service is suspended and must not be referenced.
+- **Render web service** — `gunicorn app:app`, auto-deploys from `master`. Lives on a Render account migrated 2026-06-19; env vars, Stripe webhook, Google OAuth redirect URI, and cron jobs are all configured for `careerscan.online`.
+- **CI smoke test** — `.github/workflows/smoke-test.yml` polls the GitHub repo variable `APP_URL` (currently `https://careerscan.onrender.com`) post-deploy.
 - **Render cron jobs** — all protected by `X-Cron-Secret` header matching `CRON_SECRET`:
   - `/api/cron/scan` — every 15 min, triggers scheduled user scans
   - `/api/cron/weekly-digest` — Mondays 08:00 SGT, sends email digests
