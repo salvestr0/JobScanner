@@ -356,6 +356,12 @@ def fetch_remoteok() -> list:
         if not any(kw in combined for kw in target_keywords):
             continue
 
+        # Strict Singapore-only: RemoteOK is a global board, so drop anything
+        # not explicitly located in Singapore (MCF/Adzuna are already SG-scoped).
+        # Worldwide/Anywhere/foreign-country remote roles are excluded.
+        if "singapore" not in (r.get("location") or "").lower():
+            continue
+
         job_url = r.get("url") or f"https://remoteok.com/remote-jobs/{r.get('id', '')}"
 
         jobs.append({
