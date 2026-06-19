@@ -1824,31 +1824,95 @@ _STRIPE_STATUS_MAP = {
 }
 
 
+_SUB_STATUS_RANK = {"active": 3, "trialing": 3, "past_due": 2, "unpaid": 2, "paused": 2}
+
+
+def _best_sub_for_customer(customer_id, stripe_mod):
+    """Return the highest-priority subscription for a Stripe customer, or None."""
+    subs = stripe_mod.Subscription.list(customer=customer_id, limit=10, status="all")
+    best = None
+    for s in subs.data:
+        if best is None or _SUB_STATUS_RANK.get(s.status, 1) > _SUB_STATUS_RANK.get(best.status, 1):
+            best = s
+    return best
+
+
+def _lookup_stripe_subscription(user, stripe_mod):
+    """Find the user's best-matching Stripe subscription and the customer it
+    belongs to, returning (subscription_or_None, customer_id_or_None).
+
+    Checks the stored customer id first; if that yields nothing, falls back to
+    searching Stripe by the user's email — this catches subscriptions that
+    landed on a duplicate/mismatched customer the app never linked back."""
+    candidate_ids = []
+    if user.stripe_customer_id:
+        candidate_ids.append(user.stripe_customer_id)
+
+    best_sub, best_cid = None, None
+    for cid in candidate_ids:
+        try:
+            sub = _best_sub_for_customer(cid, stripe_mod)
+        except Exception:
+            continue  # e.g. stored id is stale / from the wrong mode
+        if sub is not None:
+            return sub, cid
+
+    # Nothing under the stored customer — search by email as a fallback.
+    if user.email:
+        try:
+            customers = stripe_mod.Customer.list(email=user.email, limit=10).data
+        except Exception:
+            customers = []
+        for c in customers:
+            if c.id in candidate_ids:
+                continue
+            try:
+                sub = _best_sub_for_customer(c.id, stripe_mod)
+            except Exception:
+                continue
+            if sub is not None and (
+                best_sub is None
+                or _SUB_STATUS_RANK.get(sub.status, 1) > _SUB_STATUS_RANK.get(best_sub.status, 1)
+            ):
+                best_sub, best_cid = sub, c.id
+
+    return best_sub, best_cid
+
+
 def _sync_user_subscription(user, stripe_mod) -> bool:
     """Reconcile a user's subscription_status straight from Stripe (the source
-    of truth) and return True if it changed.
+    of truth) and return True if anything changed.
 
     This recovers accounts that paid but never flipped to active because a
     webhook was missed, failed signature check, or wasn't delivered. A plain
     free user who merely has a dangling customer id (started checkout, never
     paid) is left untouched rather than wrongly marked cancelled.
     """
-    subs = stripe_mod.Subscription.list(
-        customer=user.stripe_customer_id, limit=1, status="all"
-    )
-    if not subs.data:
-        # No subscription on file: only downgrade someone who previously had
-        # one — never knock a plain free user back to cancelled.
-        if user.subscription_status not in ("active", "past_due"):
-            return False
-        new_status = "cancelled"
-    else:
-        new_status = _STRIPE_STATUS_MAP.get(subs.data[0].status, user.subscription_status)
+    sub, cid = _lookup_stripe_subscription(user, stripe_mod)
+    changed = False
 
+    # Repair a missing/mismatched customer link so it can't drift again.
+    if cid and user.stripe_customer_id != cid:
+        app.logger.info(
+            "Repairing stripe_customer_id for user %s: %s -> %s",
+            user.id, user.stripe_customer_id, cid,
+        )
+        user.stripe_customer_id = cid
+        changed = True
+
+    if sub is None:
+        # No subscription anywhere: only downgrade someone who previously had
+        # one — never knock a plain free user back to cancelled.
+        if user.subscription_status in ("active", "past_due"):
+            user.subscription_status = "cancelled"
+            changed = True
+        return changed
+
+    new_status = _STRIPE_STATUS_MAP.get(sub.status, user.subscription_status)
     if new_status != user.subscription_status:
         user.subscription_status = new_status
-        return True
-    return False
+        changed = True
+    return changed
 
 
 _AI_DAILY_LIMITS = {
