@@ -1828,8 +1828,17 @@ _SUB_STATUS_RANK = {"active": 3, "trialing": 3, "past_due": 2, "unpaid": 2, "pau
 
 
 def _best_sub_for_customer(customer_id, stripe_mod):
-    """Return the highest-priority subscription for a Stripe customer, or None."""
-    subs = stripe_mod.Subscription.list(customer=customer_id, limit=10, status="all")
+    """Return the highest-priority subscription for a Stripe customer, or None
+    if the customer genuinely has none.
+
+    Only "No such customer" (a stale/wrong-mode id) is treated as no-sub.
+    Every other Stripe error (permission, auth, rate limit, network) is
+    re-raised so callers never mistake an API outage for an empty result —
+    which would otherwise wrongly downgrade active subscribers to cancelled."""
+    try:
+        subs = stripe_mod.Subscription.list(customer=customer_id, limit=10, status="all")
+    except stripe_mod.error.InvalidRequestError:
+        return None
     best = None
     for s in subs.data:
         if best is None or _SUB_STATUS_RANK.get(s.status, 1) > _SUB_STATUS_RANK.get(best.status, 1):
@@ -1843,33 +1852,27 @@ def _lookup_stripe_subscription(user, stripe_mod):
 
     Checks the stored customer id first; if that yields nothing, falls back to
     searching Stripe by the user's email — this catches subscriptions that
-    landed on a duplicate/mismatched customer the app never linked back."""
+    landed on a duplicate/mismatched customer the app never linked back.
+
+    Raises on real Stripe errors (e.g. a restricted key missing
+    subscription_read); callers must catch and skip rather than downgrade."""
     candidate_ids = []
     if user.stripe_customer_id:
         candidate_ids.append(user.stripe_customer_id)
 
-    best_sub, best_cid = None, None
     for cid in candidate_ids:
-        try:
-            sub = _best_sub_for_customer(cid, stripe_mod)
-        except Exception:
-            continue  # e.g. stored id is stale / from the wrong mode
+        sub = _best_sub_for_customer(cid, stripe_mod)
         if sub is not None:
             return sub, cid
 
     # Nothing under the stored customer — search by email as a fallback.
+    best_sub, best_cid = None, None
     if user.email:
-        try:
-            customers = stripe_mod.Customer.list(email=user.email, limit=10).data
-        except Exception:
-            customers = []
+        customers = stripe_mod.Customer.list(email=user.email, limit=10).data
         for c in customers:
             if c.id in candidate_ids:
                 continue
-            try:
-                sub = _best_sub_for_customer(c.id, stripe_mod)
-            except Exception:
-                continue
+            sub = _best_sub_for_customer(c.id, stripe_mod)
             if sub is not None and (
                 best_sub is None
                 or _SUB_STATUS_RANK.get(sub.status, 1) > _SUB_STATUS_RANK.get(best_sub.status, 1)
@@ -2387,16 +2390,22 @@ def cron_stripe_sync():
     # paid but never flipped (missed/failed webhook) self-heals here.
     users = User.query.filter(User.stripe_customer_id != None).all()  # noqa: E711
 
-    updated = []
+    updated, errors = [], []
     for user in users:
         try:
             if _sync_user_subscription(user, _stripe):
                 updated.append(user.email)
-        except Exception:
+        except Exception as e:
+            # Never let a Stripe API/permission error masquerade as a clean
+            # no-op — log it and report a count so an outage is visible.
+            errors.append(user.email)
+            app.logger.warning("stripe-sync failed for %s: %s", user.email, e)
             continue
 
     db.session.commit()
-    return jsonify({"synced": len(users), "updated": updated})
+    if errors:
+        app.logger.error("stripe-sync: %d/%d users errored", len(errors), len(users))
+    return jsonify({"synced": len(users), "updated": updated, "errors": len(errors)})
 
 
 @app.route("/api/admin/billing-debug", methods=["POST"])
