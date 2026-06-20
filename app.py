@@ -508,8 +508,9 @@ def _build_user_env(user: User) -> dict:
         "JOBSCANNER_USER_CONFIG": json.dumps(user_cfg),
         "JOBSCANNER_DATA_DIR":    data_dir,
     }
-    if _is_free_tier(user):
-        env["JOBSCANNER_MAX_JOBS"] = "10"
+    result_limit = _entitlements(user)["scan_result_limit"]
+    if result_limit is not None:
+        env["JOBSCANNER_MAX_JOBS"] = str(result_limit)
     return env
 
 
@@ -905,7 +906,6 @@ def stats():
         j["app_status"] = status.get(j["id"], {}).get("status", "")
 
     from datetime import date as _date
-    FREE_DAILY_LIMIT = 3
     scans_today = 0
     scans_remaining = None
     if _is_free_tier(current_user):
@@ -913,7 +913,7 @@ def stats():
         today = _date.today().isoformat()
         if s and s.last_scan_date == today:
             scans_today = s.daily_scan_count or 0
-        scans_remaining = max(0, FREE_DAILY_LIMIT - scans_today)
+        scans_remaining = max(0, _FREE_DAILY_SCAN_LIMIT - scans_today)
 
     return jsonify({
         "total_jobs":       len(unique),
@@ -1655,7 +1655,6 @@ def start_scan():
 
     # Daily scan limit for free plan — check before claiming the scan slot,
     # but only consume a scan once the slot is actually claimed below.
-    FREE_DAILY_LIMIT = 3
     free_tier = _is_free_tier(current_user)
     free_settings = None
     if free_tier:
@@ -1666,7 +1665,7 @@ def start_scan():
             free_settings.daily_scan_count = 0
             free_settings.last_scan_date   = today
             db.session.commit()
-        if (free_settings.daily_scan_count or 0) >= FREE_DAILY_LIMIT:
+        if (free_settings.daily_scan_count or 0) >= _FREE_DAILY_SCAN_LIMIT:
             return jsonify({"error": "daily_limit_reached", "remaining": 0}), 429
 
     with _get_scan_lock(current_user.id):
@@ -1831,20 +1830,71 @@ def delete_account():
 
 # ── Billing ───────────────────────────────────────────────────────────────────
 
-def _is_active(user) -> bool:
-    """Return True if user has access (free or active subscription)."""
+# Daily AI-call caps by subscription status. Unknown statuses fall back to 5.
+_AI_DAILY_LIMITS = {
+    "active":    30,
+    "free":       5,
+    "trialing":   5,  # legacy rows — same as free
+    "past_due":   5,
+    "cancelled":  0,
+    "expired":    0,
+}
+
+# Statuses that still grant access to the app (run scans, view results).
+_ACCESS_STATUSES = ("active", "free", "trialing", None)
+
+# Per-day scan cap for free-tier users.
+_FREE_DAILY_SCAN_LIMIT = 3
+
+
+def _entitlements(user) -> dict:
+    """Single source of truth for a user's plan and what it unlocks.
+
+    Every billing / quota / gating decision derives from this dict so the
+    rules can't drift between the UI, scan gating, and AI-quota checks.
+
+    Keys:
+      status            display status (trialing/None collapse to "free")
+      has_access        may use the app at all (run scans, view results)
+      is_paid           active subscriber (or admin) — exempt from free caps
+      is_free_tier      subject to free caps (10-result + daily-scan limit)
+      scan_result_limit per-scan result cap (10 for free, None = unlimited)
+      ai_daily_limit    daily AI-call cap (None = unlimited)
+    """
     if user.is_admin:
-        return True
-    # trialing kept for legacy rows that haven't been migrated yet
-    return user.subscription_status in ("active", "free", "trialing", None)
+        return {
+            "status":            "active",
+            "has_access":        True,
+            "is_paid":           True,
+            "is_free_tier":      False,
+            "scan_result_limit": None,
+            "ai_daily_limit":    None,
+        }
+
+    raw     = user.subscription_status
+    display = "free" if raw in (None, "trialing") else raw
+    is_paid = raw == "active"
+    # The only non-active status that still grants access is plain "free".
+    free_with_access = display == "free"
+    return {
+        "status":            display,
+        "has_access":        raw in _ACCESS_STATUSES,
+        "is_paid":           is_paid,
+        "is_free_tier":      not is_paid,
+        "scan_result_limit": 10 if free_with_access else None,
+        "ai_daily_limit":    _AI_DAILY_LIMITS.get(raw, 5),
+    }
+
+
+def _is_active(user) -> bool:
+    """True if the user may use the app (admin, active, free, or legacy trialing)."""
+    return _entitlements(user)["has_access"]
 
 
 def _is_free_tier(user) -> bool:
-    """Return True for non-paying users subject to free-tier limits
+    """True for non-paying users subject to free-tier limits
     (daily scan cap + 10-result cap). Admins and active subscribers are exempt."""
-    if user.is_admin:
-        return False
-    return user.subscription_status not in ("active",)
+    return _entitlements(user)["is_free_tier"]
 
 
 _STRIPE_STATUS_MAP = {
@@ -1950,16 +2000,6 @@ def _sync_user_subscription(user, stripe_mod) -> bool:
     return changed
 
 
-_AI_DAILY_LIMITS = {
-    "active":    30,
-    "free":       5,
-    "trialing":   5,  # legacy rows — same as free
-    "past_due":   5,
-    "cancelled":  0,
-    "expired":    0,
-}
-
-
 def _check_ai_quota(user) -> tuple[bool, str | None]:
     """Check and increment the user's daily AI call quota.
 
@@ -1975,7 +2015,9 @@ def _check_ai_quota(user) -> tuple[bool, str | None]:
         user.ai_calls_today = 0
         user.ai_calls_reset_date = today
 
-    limit = _AI_DAILY_LIMITS.get(user.subscription_status, 5)
+    limit = _entitlements(user)["ai_daily_limit"]
+    if limit is None:
+        return True, None
     if limit == 0:
         return False, "AI features are unavailable on your current plan."
     if (user.ai_calls_today or 0) >= limit:
@@ -1987,23 +2029,14 @@ def _check_ai_quota(user) -> tuple[bool, str | None]:
 
 
 def _billing_status(user) -> dict:
-    if user.is_admin:
-        return {
-            "status":     "active",
-            "has_access": True,
-            "is_free":    False,
-            "scan_limit": None,
-        }
-    status = user.subscription_status or "free"
-    if status == "trialing":
-        status = "free"  # legacy rows — no trial UI
-    is_free = status not in ("active",)
-    has_access = is_free and status not in ("expired", "cancelled", "past_due")
+    ent = _entitlements(user)
     return {
-        "status":         status,
-        "has_access":     _is_active(user),
-        "is_free":        has_access,
-        "scan_limit":     10 if has_access else None,
+        "status":         ent["status"],
+        "has_access":     ent["has_access"],
+        # "is_free" in the UI means a free-tier user who still has access
+        # (the 10-result/daily-scan banner) — not merely "not paid".
+        "is_free":        ent["has_access"] and ent["is_free_tier"],
+        "scan_limit":     ent["scan_result_limit"],
         "email_verified": bool(user.email_verified),
     }
 
