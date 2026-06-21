@@ -46,6 +46,16 @@ from models import (
 
 load_dotenv()
 
+# Singapore is the only market — user-facing dates/times are SGT (UTC+8) while
+# the server clock is UTC. Use these helpers for anything users see or schedule.
+SGT = timezone(timedelta(hours=8))
+
+
+def _sgt_today():
+    """Current calendar date in Singapore time (so daily limits reset at SGT midnight)."""
+    return datetime.now(SGT).date()
+
+
 _secret_key = os.getenv("SECRET_KEY", "").strip()
 if not _secret_key:
     raise RuntimeError(
@@ -905,12 +915,11 @@ def stats():
     for j in unique:
         j["app_status"] = status.get(j["id"], {}).get("status", "")
 
-    from datetime import date as _date
     scans_today = 0
     scans_remaining = None
     if _is_free_tier(current_user):
         s = current_user.settings
-        today = _date.today().isoformat()
+        today = _sgt_today().isoformat()
         if s and s.last_scan_date == today:
             scans_today = s.daily_scan_count or 0
         scans_remaining = max(0, _FREE_DAILY_SCAN_LIMIT - scans_today)
@@ -1658,9 +1667,8 @@ def start_scan():
     free_tier = _is_free_tier(current_user)
     free_settings = None
     if free_tier:
-        from datetime import date as _date
         free_settings = _get_or_create_settings(current_user.id)
-        today = _date.today().isoformat()
+        today = _sgt_today().isoformat()
         if free_settings.last_scan_date != today:
             free_settings.daily_scan_count = 0
             free_settings.last_scan_date   = today
@@ -2013,11 +2021,10 @@ def _check_ai_quota(user) -> tuple[bool, str | None]:
     Returns (allowed, error_message). Commits the counter increment on success.
     Admins are always allowed.
     """
-    from datetime import date as _date
     if user.is_admin:
         return True, None
 
-    today = _date.today()
+    today = _sgt_today()
     if user.ai_calls_reset_date != today:
         user.ai_calls_today = 0
         user.ai_calls_reset_date = today
@@ -2288,7 +2295,7 @@ def cron_scan():
     # Users pick schedule_time in their local Singapore time (SGT, UTC+8), so we
     # must compare against the current SGT wall-clock — not raw UTC, which would
     # fire every scheduled scan 8 hours off from what the user intended.
-    now_hm  = datetime.now(timezone(timedelta(hours=8))).strftime("%H:%M")
+    now_hm  = datetime.now(SGT).strftime("%H:%M")
     now_h   = int(now_hm.split(":")[0])
     now_m   = int(now_hm.split(":")[1])
     now_min = now_h * 60 + now_m
