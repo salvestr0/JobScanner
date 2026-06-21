@@ -1131,7 +1131,7 @@ def get_cover_note(filename):
 @login_required
 @limiter.limit("5/minute;30/hour")
 def generate_cover_note_route():
-    if not _is_active(current_user):
+    if not _is_paid(current_user):
         return jsonify({"error": "pro_required"}), 403
 
     import config as cfg
@@ -1897,6 +1897,13 @@ def _is_free_tier(user) -> bool:
     return _entitlements(user)["is_free_tier"]
 
 
+def _is_paid(user) -> bool:
+    """True only for paying subscribers (or admins) — gates Pro-only features
+    such as cover-note generation. `_is_active` is too permissive here: it also
+    returns True for free-tier users, which would let them bypass the Pro gate."""
+    return _entitlements(user)["is_paid"]
+
+
 _STRIPE_STATUS_MAP = {
     "active":   "active",
     "past_due": "past_due",
@@ -2581,11 +2588,11 @@ def cron_billing_health():
             f"<td>{html.escape(u.stripe_customer_id or '—')}</td></tr>"
             for u in past_due
         )
-        html = (
+        body_html = (
             f"<h2>Billing Health — {len(past_due)} past_due account(s)</h2>"
             f"<table><tr><th>Email</th><th>Stripe Customer</th></tr>{rows}</table>"
         )
-        _send_email(admin_email, f"[CareerScan] {len(past_due)} past_due account(s)", html)
+        _send_email(admin_email, f"[CareerScan] {len(past_due)} past_due account(s)", body_html)
     return jsonify({"past_due": len(past_due), "alerted": bool(past_due and admin_email)})
 
 
