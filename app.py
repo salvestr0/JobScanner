@@ -421,8 +421,8 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
 
                 log(f"\nResults saved: {job_count} new matched jobs")
 
-                # ── 8. Email digest (Pro plan only) ──────────────────────────────
-                if notify and not max_jobs:
+                # ── 8. Email digest (free + paid) ────────────────────────────────
+                if notify:
                     _email_to      = cfg_snapshot.get("email_to", "")
                     _email_enabled = cfg_snapshot.get("email_enabled", False)
                     if _email_enabled and _email_to and top_jobs:
@@ -2285,7 +2285,10 @@ def cron_scan():
     if not secret or not hmac.compare_digest(incoming, secret):
         return jsonify({"error": "Forbidden"}), 403
 
-    now_hm  = datetime.now(timezone.utc).strftime("%H:%M")
+    # Users pick schedule_time in their local Singapore time (SGT, UTC+8), so we
+    # must compare against the current SGT wall-clock — not raw UTC, which would
+    # fire every scheduled scan 8 hours off from what the user intended.
+    now_hm  = datetime.now(timezone(timedelta(hours=8))).strftime("%H:%M")
     now_h   = int(now_hm.split(":")[0])
     now_m   = int(now_hm.split(":")[1])
     now_min = now_h * 60 + now_m
