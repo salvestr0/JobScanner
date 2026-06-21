@@ -12,7 +12,7 @@ os.environ["ADMIN_EMAIL"] = "admin@test.com"
 
 import pytest
 import app as flask_app
-from models import db, User, Job, UserSettings, ApplicationStatus, ScanHistory
+from models import db, User, Job, ScanHistory
 
 
 def _post(client, path, data=None, **kw):
