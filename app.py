@@ -1093,6 +1093,27 @@ def _cover_notes_dir(user_id: str) -> Path:
     return Path(f"data/users/{user_id}/cover_notes")
 
 
+def _resume_versions_dir(user_id: str) -> Path:
+    return Path(f"data/users/{user_id}/resume_versions")
+
+
+def _resume_version_meta(path: Path) -> dict | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    profile = data.get("profile") or {}
+    return {
+        "id": path.stem,
+        "name": data.get("name") or "Untitled resume",
+        "source": data.get("source") or "manual",
+        "created_at": data.get("created_at") or "",
+        "job_title": data.get("job_title") or "",
+        "company": data.get("company") or "",
+        "summary": (profile.get("experience_summary") or "")[:180],
+    }
+
+
 @app.route("/api/cover-notes")
 @login_required
 def list_cover_notes():
@@ -1513,6 +1534,351 @@ Return ONLY a valid JSON object with exactly this structure:
         "job": {"title": job.title, "company": job.company},
         "tailored": tailored,
     })
+
+
+def _merge_tailored_resume_profile(base_profile: dict, resume_payload: dict) -> dict:
+    merged = dict(base_profile or {})
+    if resume_payload.get("tailored_summary"):
+        merged["experience_summary"] = resume_payload["tailored_summary"]
+
+    generated_history = resume_payload.get("work_history") or []
+    base_history = merged.get("work_history") or []
+    if generated_history:
+        next_history = []
+        if base_history:
+            for idx, original in enumerate(base_history):
+                item = dict(original) if isinstance(original, dict) else {}
+                generated = generated_history[idx] if idx < len(generated_history) else {}
+                if isinstance(generated, dict):
+                    item["title"] = generated.get("title") or item.get("title", "")
+                    item["company"] = generated.get("company") or item.get("company", "")
+                    item["period"] = generated.get("period") or item.get("period", "")
+                    bullets = generated.get("tailored_bullets") or generated.get("summary")
+                    if bullets:
+                        item["summary"] = bullets
+                next_history.append(item)
+        else:
+            for generated in generated_history:
+                if not isinstance(generated, dict):
+                    continue
+                next_history.append({
+                    "title": generated.get("title") or "",
+                    "company": generated.get("company") or "",
+                    "period": generated.get("period") or "",
+                    "summary": generated.get("tailored_bullets") or generated.get("summary") or "",
+                })
+        merged["work_history"] = next_history
+
+    skills = list(merged.get("technical_skills") or [])
+    seen = {str(s).strip().lower() for s in skills}
+    for skill in resume_payload.get("skills_to_highlight") or []:
+        label = str(skill).strip()
+        key = label.lower()
+        if label and key not in seen:
+            skills.append(label)
+            seen.add(key)
+    merged["technical_skills"] = skills
+    return merged
+
+
+def _coerce_pack_list(value) -> list:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    return []
+
+
+def _normalize_application_pack(pack: dict) -> dict:
+    if not isinstance(pack, dict):
+        pack = {}
+
+    fit_report = pack.get("fit_report")
+    if not isinstance(fit_report, dict):
+        fit_report = {}
+    fit_report["score_label"] = str(fit_report.get("score_label") or "").strip()
+    for key in ("strengths", "gaps", "missing_keywords"):
+        fit_report[key] = _coerce_pack_list(fit_report.get(key))
+
+    resume = pack.get("resume")
+    if not isinstance(resume, dict):
+        resume = {}
+    resume["tailored_summary"] = str(resume.get("tailored_summary") or "").strip()
+    resume["skills_to_highlight"] = _coerce_pack_list(resume.get("skills_to_highlight"))
+
+    work_history = []
+    for item in resume.get("work_history") or []:
+        if not isinstance(item, dict):
+            continue
+        work_history.append({
+            "title": str(item.get("title") or "").strip(),
+            "company": str(item.get("company") or "").strip(),
+            "period": str(item.get("period") or "").strip(),
+            "tailored_bullets": str(item.get("tailored_bullets") or item.get("summary") or "").strip(),
+        })
+    resume["work_history"] = work_history
+
+    interview = pack.get("interview")
+    if not isinstance(interview, dict):
+        interview = {}
+    for key in ("focus_areas", "questions", "questions_to_ask"):
+        interview[key] = _coerce_pack_list(interview.get(key))
+
+    return {
+        "fit_report": fit_report,
+        "resume": resume,
+        "cover_note": str(pack.get("cover_note") or "").strip(),
+        "interview": interview,
+        "checklist": _coerce_pack_list(pack.get("checklist")),
+        "follow_up_note": str(pack.get("follow_up_note") or "").strip(),
+    }
+
+
+@app.route("/api/application-pack/generate", methods=["POST"])
+@login_required
+@limiter.limit("3/minute;15/hour")
+def generate_application_pack():
+    if not _is_paid(current_user):
+        return jsonify({"error": "pro_required"}), 403
+
+    import config as cfg
+    import requests as _req
+
+    allowed, quota_err = _check_ai_quota(current_user)
+    if not allowed:
+        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
+
+    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    if not api_key:
+        return jsonify({"error": "AI service not configured"}), 400
+
+    data = request.json or {}
+    job_id = (data.get("job_id") or "").strip()
+    if not job_id:
+        return jsonify({"error": "job_id required"}), 400
+
+    job = Job.query.filter_by(user_id=current_user.id, source_job_id=job_id).first()
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+
+    profile = _get_or_create_profile(current_user.id).to_dict()
+    if not profile.get("email"):
+        profile["email"] = current_user.email
+
+    settings = _get_or_create_settings(current_user.id).to_dict()
+    reasons = [r.strip() for r in (job.match_reasons or "").split("|") if r.strip()]
+    profile_text = " ".join([
+        profile.get("experience_summary", ""),
+        " ".join(profile.get("technical_skills") or []),
+        " ".join(profile.get("soft_skills") or []),
+        " ".join(
+            f"{w.get('title','')} {w.get('company','')} {w.get('summary','')}"
+            for w in (profile.get("work_history") or [])
+            if isinstance(w, dict)
+        ),
+    ]).lower()
+    likely_missing = [
+        kw for kw in (settings.get("preferred_keywords") or [])
+        if kw and str(kw).lower() not in profile_text
+    ][:12]
+
+    salary = (
+        f"${job.salary_min}-{job.salary_max}/mo"
+        if job.salary_min and job.salary_max else "Not specified"
+    )
+    work_lines = "\n".join(
+        f"- {w.get('title','')} at {w.get('company','')} ({w.get('period','')}): {w.get('summary','')}"
+        for w in (profile.get("work_history") or [])
+        if isinstance(w, dict)
+    ) or "- No work history provided"
+
+    prompt = f"""You are CareerScan's Singapore job application assistant.
+
+Create a practical application pack for this candidate and job. Use only truthful information from the candidate profile. If a detail is missing, turn it into an action item instead of inventing it.
+
+Return ONLY valid JSON with this exact shape:
+{{
+  "fit_report": {{
+    "score_label": "short judgement of readiness",
+    "strengths": ["specific strength", "..."],
+    "gaps": ["specific gap or risk", "..."],
+    "missing_keywords": ["keyword", "..."]
+  }},
+  "resume": {{
+    "tailored_summary": "2-3 sentence role-specific resume summary",
+    "work_history": [
+      {{"title": "same or closest title", "company": "same company", "period": "same period", "tailored_bullets": "2-4 truthful bullets, one per line"}}
+    ],
+    "skills_to_highlight": ["skill", "..."]
+  }},
+  "cover_note": "short application note under 180 words",
+  "interview": {{
+    "focus_areas": ["topic to prepare", "..."],
+    "questions": ["likely interview question", "..."],
+    "questions_to_ask": ["smart question for interviewer", "..."]
+  }},
+  "checklist": ["concrete next step", "..."],
+  "follow_up_note": "short follow-up message for 5-7 days after applying"
+}}
+
+JOB:
+Title: {job.title or ''}
+Company: {job.company or ''}
+Location: {job.location or 'Singapore'}
+Salary: {salary}
+Source: {job.source or ''}
+Score: {job.score or 0}/100
+CareerScan match reasons: {', '.join(reasons) or 'Not available'}
+
+CANDIDATE:
+Name: {profile.get('name','')}
+Email: {profile.get('email','')}
+Phone: {profile.get('phone','')}
+Education: {profile.get('education','')}
+Summary: {profile.get('experience_summary','')}
+Technical skills: {', '.join(profile.get('technical_skills') or [])}
+Soft skills: {', '.join(profile.get('soft_skills') or [])}
+Certifications: {', '.join(profile.get('certifications') or [])}
+Work history:
+{work_lines}
+
+SEARCH CONTEXT:
+Target titles: {', '.join(settings.get('target_titles') or [])}
+Likely missing profile keywords: {', '.join(likely_missing) or 'None detected'}
+Preferred location: {settings.get('preferred_location') or 'Singapore'}
+"""
+
+    try:
+        resp = _req.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            params={"key": api_key},
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "thinkingConfig": {"thinkingBudget": 0},
+                    "responseMimeType": "application/json",
+                    "maxOutputTokens": 4096,
+                },
+            },
+            timeout=45,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        _log_gemini_usage("application_pack", str(current_user.id), body)
+        candidate = (body.get("candidates") or [{}])[0]
+        raw = "".join(
+            part.get("text", "")
+            for part in (candidate.get("content") or {}).get("parts", [])
+        ).strip()
+    except Exception:
+        return jsonify({"error": "AI request failed. Please try again later."}), 502
+
+    match = re.search(r"\{[\s\S]*\}", raw)
+    if not match:
+        return jsonify({"error": "AI returned unexpected format"}), 502
+
+    try:
+        pack = json.loads(match.group())
+    except Exception:
+        return jsonify({"error": "Could not parse AI response"}), 502
+
+    pack = _normalize_application_pack(pack)
+    pack["resume_profile"] = _merge_tailored_resume_profile(profile, pack["resume"])
+    pack["job"] = {
+        "id": job.source_job_id,
+        "title": job.title or "",
+        "company": job.company or "",
+        "score": job.score or 0,
+        "url": job.url or "",
+    }
+
+    note_text = (pack.get("cover_note") or "").strip()
+    if note_text:
+        try:
+            from cover_notes import save_cover_note
+            notes_dir = _cover_notes_dir(current_user.id)
+            notes_dir.mkdir(parents=True, exist_ok=True)
+            save_cover_note({
+                "title": job.title or "",
+                "company": job.company or "",
+                "score": job.score or 0,
+                "url": job.url or "",
+            }, note_text, str(notes_dir))
+            job.cover_note = note_text
+            db.session.commit()
+        except Exception:
+            app.logger.warning("Could not save application-pack cover note", exc_info=True)
+
+    return jsonify({"ok": True, "pack": pack})
+
+
+@app.route("/api/resume/versions", methods=["GET"])
+@login_required
+def list_resume_versions():
+    versions_dir = _resume_versions_dir(current_user.id)
+    if not versions_dir.exists():
+        return jsonify([])
+    versions = [
+        meta for meta in (_resume_version_meta(path) for path in versions_dir.glob("*.json"))
+        if meta is not None
+    ]
+    versions.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+    return jsonify(versions)
+
+
+@app.route("/api/resume/versions", methods=["POST"])
+@login_required
+def save_resume_version():
+    data = request.json or {}
+    profile = data.get("profile") or {}
+    if not isinstance(profile, dict):
+        return jsonify({"error": "profile required"}), 400
+    if not profile.get("email"):
+        profile["email"] = current_user.email
+
+    versions_dir = _resume_versions_dir(current_user.id)
+    versions_dir.mkdir(parents=True, exist_ok=True)
+
+    version_id = f"{datetime.now(SGT).strftime('%Y%m%d%H%M%S')}_{secrets.token_hex(3)}"
+    payload = {
+        "id": version_id,
+        "name": (data.get("name") or "CareerScan resume").strip()[:80],
+        "source": (data.get("source") or "manual").strip()[:40],
+        "job_title": (data.get("job_title") or "").strip()[:120],
+        "company": (data.get("company") or "").strip()[:120],
+        "created_at": datetime.now(SGT).strftime("%Y-%m-%d %H:%M"),
+        "profile": profile,
+    }
+
+    path = versions_dir / f"{version_id}.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return jsonify({"ok": True, "version": _resume_version_meta(path)})
+
+
+@app.route("/api/resume/versions/<version_id>/download", methods=["GET"])
+@login_required
+def download_resume_version(version_id):
+    from flask import make_response
+    from resume_builder import generate_pdf
+
+    safe_id = re.sub(r"[^a-zA-Z0-9_-]", "", version_id)
+    path = _resume_versions_dir(current_user.id) / f"{safe_id}.json"
+    if not path.exists():
+        return jsonify({"error": "Not found"}), 404
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    profile = data.get("profile") or {}
+    try:
+        pdf_bytes = generate_pdf(profile)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    name_slug = re.sub(r"[^a-z0-9_-]", "_", (data.get("name") or "resume").lower().replace(" ", "_"))
+    resp = make_response(pdf_bytes)
+    resp.headers["Content-Type"] = "application/pdf"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{name_slug}.pdf"'
+    return resp
 
 
 @app.route("/api/resume/download", methods=["POST"])
