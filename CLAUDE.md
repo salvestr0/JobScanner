@@ -36,7 +36,7 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | `cover_notes.py` | Gemini cover note generation |
 | `notifier.py` | Resend email digest |
 | `resume_parser.py` | PDF/DOCX → Gemini → structured profile |
-| `migrations/` | Flask-Migrate / Alembic — head: `d2c8e4a7f19b` |
+| `migrations/` | Flask-Migrate / Alembic — head: `a3f9c2e7b481` |
 
 ---
 
@@ -115,7 +115,7 @@ python -m flask db migrate -m "description"
 python -m flask db upgrade
 ```
 
-Migration chain: starts at `f7ef5236638b`, branch reconciled by merge `a8e2d5f31b7c`, current head: `d2c8e4a7f19b`
+Migration chain: starts at `f7ef5236638b`, branch reconciled by merge `a8e2d5f31b7c`, current head: `a3f9c2e7b481`
 
 ---
 

@@ -12,6 +12,7 @@ import queue
 import re
 import secrets
 import threading
+import traceback as _traceback
 import warnings
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
@@ -40,7 +41,7 @@ from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import (
-    ApplicationStatus, Job, ScanHistory, SearchMode, SeenJob, User,
+    ApplicationStatus, ErrorLog, Job, ScanHistory, SearchMode, SeenJob, User,
     UserProfile, UserSettings, db,
 )
 
@@ -301,6 +302,7 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
 
     scan       = _get_scan(user_id)
     failed     = False
+    scan_error = None
     job_count  = 0
     history_id = scan.get("history_id")
     all_jobs: list = []
@@ -468,6 +470,7 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
         log(f"ERROR: {exc}")
         app.logger.error("Scan error for user %s: %s", user_id, exc, exc_info=True)
         failed = True
+        scan_error = exc
     finally:
         with app.app_context():
             if history_id:
@@ -477,6 +480,13 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
                     row.job_count   = job_count
                     row.status      = "failed" if failed else "done"
                     db.session.commit()
+            if scan_error is not None:
+                user = db.session.get(User, user_id)
+                _log_app_error(
+                    source="scan", exc=scan_error,
+                    path=f"scan[{mode}]",
+                    user_email=user.email if user else None,
+                )
         q.put(None)
         scan["running"] = False
         scan["proc"]    = None
@@ -2972,6 +2982,108 @@ def cron_billing_health():
     return jsonify({"past_due": len(past_due), "alerted": bool(past_due and admin_email)})
 
 
+# ── Error capture ───────────────────────────────────────────────────────────────
+
+def _log_app_error(source="other", exc=None, message=None, level="error",
+                   path=None, method=None, status_code=None, user_email=None):
+    """Persist an error to the error_logs table for the admin dashboard.
+
+    Best-effort: this must NEVER raise, or it could mask the original error or
+    crash the error handler. Identical errors are de-duplicated by fingerprint —
+    a repeat bumps occurrences/last_seen on the open row instead of inserting.
+    Must be called inside an app context (request handlers have one; the scan
+    thread wraps its call in `with app.app_context()`).
+    """
+    try:
+        err_type = type(exc).__name__ if exc is not None else "Error"
+        msg = (message if message is not None else (str(exc) if exc is not None else "")) or ""
+        tb = None
+        if exc is not None:
+            tb = "".join(_traceback.format_exception(type(exc), exc, exc.__traceback__))
+        fingerprint = hashlib.sha256(
+            f"{source}|{err_type}|{msg[:200]}".encode("utf-8", "replace")
+        ).hexdigest()[:32]
+
+        # Discard any half-finished transaction from the failed operation before writing.
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+        now = datetime.now(timezone.utc)
+        existing = (ErrorLog.query
+                    .filter_by(fingerprint=fingerprint, resolved=False)
+                    .first())
+        if existing:
+            existing.occurrences = (existing.occurrences or 1) + 1
+            existing.last_seen   = now
+            existing.message     = msg[:2000]
+            if tb:
+                existing.traceback = tb[:8000]
+            existing.path        = path or existing.path
+            existing.method      = method or existing.method
+            existing.status_code = status_code or existing.status_code
+            existing.user_email  = user_email or existing.user_email
+        else:
+            db.session.add(ErrorLog(
+                fingerprint=fingerprint,
+                level=level,
+                source=source,
+                error_type=err_type,
+                message=msg[:2000],
+                traceback=(tb[:8000] if tb else None),
+                path=(path[:255] if path else None),
+                method=(method[:8] if method else None),
+                status_code=status_code,
+                user_email=(user_email[:255] if user_email else None),
+                first_seen=now,
+                last_seen=now,
+            ))
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        try:
+            app.logger.warning("Failed to persist error log", exc_info=True)
+        except Exception:
+            pass
+
+
+@app.errorhandler(Exception)
+def _handle_uncaught_exception(e):
+    """Capture unhandled exceptions to the error dashboard, then respond.
+
+    HTTP 4xx (404/403/redirects/etc.) pass through untouched — only server-side
+    failures (unhandled exceptions and 5xx HTTPExceptions) are logged.
+    """
+    from werkzeug.exceptions import HTTPException
+
+    email = None
+    try:
+        if getattr(current_user, "is_authenticated", False):
+            email = current_user.email
+    except Exception:
+        pass
+
+    if isinstance(e, HTTPException):
+        if e.code and e.code >= 500:
+            _log_app_error(source="request", exc=e, path=request.path,
+                           method=request.method, status_code=e.code, user_email=email)
+        return e  # preserve normal 4xx/redirect behaviour
+
+    _log_app_error(source="request", exc=e, path=request.path,
+                   method=request.method, status_code=500, user_email=email)
+    app.logger.error("Unhandled exception on %s %s", request.method, request.path, exc_info=True)
+
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Internal server error"}), 500
+    return ("<h1>Something went wrong</h1>"
+            "<p>An unexpected error occurred. We've logged it and will look into it.</p>"
+            "<p><a href='/app'>Back to app</a></p>"), 500
+
+
 # ── Admin ─────────────────────────────────────────────────────────────────────
 
 def _is_admin(user) -> bool:
@@ -3074,6 +3186,63 @@ def admin_users():
             "google_auth": bool(u.google_id),
         })
     return jsonify(result)
+
+
+@app.route("/api/admin/errors")
+@login_required
+def admin_errors():
+    if not _is_admin(current_user):
+        return jsonify({"error": "Forbidden"}), 403
+
+    from sqlalchemy import func
+
+    show = request.args.get("filter", "open")  # open | resolved | all
+    q = ErrorLog.query
+    if show == "open":
+        q = q.filter_by(resolved=False)
+    elif show == "resolved":
+        q = q.filter_by(resolved=True)
+    errors = q.order_by(ErrorLog.last_seen.desc()).limit(200).all()
+
+    day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+    open_count   = ErrorLog.query.filter_by(resolved=False).count()
+    occ_24h      = (db.session.query(func.coalesce(func.sum(ErrorLog.occurrences), 0))
+                    .filter(ErrorLog.last_seen >= day_ago).scalar())
+    by_source    = dict(db.session.query(ErrorLog.source, func.count(ErrorLog.id))
+                        .filter_by(resolved=False).group_by(ErrorLog.source).all())
+
+    return jsonify({
+        "errors": [e.to_dict() for e in errors],
+        "summary": {
+            "open":      open_count,
+            "last_24h":  int(occ_24h or 0),
+            "by_source": by_source,
+        },
+    })
+
+
+@app.route("/api/admin/errors/<error_id>/resolve", methods=["POST"])
+@login_required
+def admin_resolve_error(error_id):
+    if not _is_admin(current_user):
+        return jsonify({"error": "Forbidden"}), 403
+    row = db.session.get(ErrorLog, error_id)
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+    data = request.get_json(silent=True) or {}
+    row.resolved = bool(data.get("resolved", True))
+    db.session.commit()
+    return jsonify({"ok": True, "resolved": row.resolved})
+
+
+@app.route("/api/admin/errors/clear-resolved", methods=["POST"])
+@login_required
+def admin_clear_resolved_errors():
+    if not _is_admin(current_user):
+        return jsonify({"error": "Forbidden"}), 403
+    deleted = ErrorLog.query.filter_by(resolved=True).delete()
+    db.session.commit()
+    return jsonify({"ok": True, "deleted": deleted})
 
 
 # Entry point is run.py — do not run app.py directly.

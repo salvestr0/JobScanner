@@ -260,3 +260,48 @@ class SearchMode(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=_now)
 
     user = db.relationship("User", back_populates="modes")
+
+
+class ErrorLog(db.Model):
+    """An application error captured for the admin error dashboard.
+
+    Identical errors are de-duplicated by `fingerprint`: a repeat bumps
+    `occurrences` and `last_seen` on the existing open row instead of inserting
+    a new one, so a flood of the same exception can't grow the table unbounded.
+    `user_email` is stored as a snapshot (no FK) so rows survive user deletion.
+    """
+    __tablename__ = "error_logs"
+
+    id          = db.Column(db.String(36), primary_key=True, default=_uuid)
+    fingerprint = db.Column(db.String(64), index=True)
+    level       = db.Column(db.String(16), default="error")    # error | warning
+    source      = db.Column(db.String(32), default="request")  # request | scan | cron | other
+    error_type  = db.Column(db.String(128))
+    message     = db.Column(db.Text)
+    traceback   = db.Column(db.Text, nullable=True)
+    path        = db.Column(db.String(255), nullable=True)
+    method      = db.Column(db.String(8), nullable=True)
+    status_code = db.Column(db.Integer, nullable=True)
+    user_email  = db.Column(db.String(255), nullable=True)
+    occurrences = db.Column(db.Integer, default=1)
+    resolved    = db.Column(db.Boolean, default=False, index=True)
+    first_seen  = db.Column(db.DateTime(timezone=True), default=_now)
+    last_seen   = db.Column(db.DateTime(timezone=True), default=_now, index=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id":          self.id,
+            "level":       self.level or "error",
+            "source":      self.source or "other",
+            "error_type":  self.error_type or "",
+            "message":     self.message or "",
+            "traceback":   self.traceback or "",
+            "path":        self.path or "",
+            "method":      self.method or "",
+            "status_code": self.status_code,
+            "user_email":  self.user_email or "",
+            "occurrences": self.occurrences or 1,
+            "resolved":    bool(self.resolved),
+            "first_seen":  self.first_seen.strftime("%Y-%m-%d %H:%M") if self.first_seen else "",
+            "last_seen":   self.last_seen.strftime("%Y-%m-%d %H:%M") if self.last_seen else "",
+        }

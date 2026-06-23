@@ -138,6 +138,78 @@
 
     </div>
 
+    <!-- Errors -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center gap-3">
+          <h2 class="font-bold text-slate-800">Errors</h2>
+          <span x-show="errorSummary.open > 0"
+            class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-200"
+            x-text="errorSummary.open + ' open'"></span>
+          <span x-show="errorSummary.open === 0 && !errorsLoading"
+            class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">All clear</span>
+          <span class="text-slate-400 text-xs mono" x-text="(errorSummary.last_24h ?? 0) + ' events / 24h'"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <select x-model="errorFilter" @change="loadErrors()"
+            class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            <option value="open">Open</option>
+            <option value="resolved">Resolved</option>
+            <option value="all">All</option>
+          </select>
+          <button @click="loadErrors()" class="text-sm text-slate-500 hover:text-slate-800 font-medium px-2 py-2">↻ Refresh</button>
+          <button @click="clearResolved()" x-show="errorFilter !== 'open'"
+            class="text-sm text-red-500 hover:text-red-700 font-medium px-2 py-2">Clear resolved</button>
+        </div>
+      </div>
+
+      <div x-show="errorsLoading" class="py-12 text-center text-slate-400 text-sm">Loading errors…</div>
+
+      <div x-show="!errorsLoading && errors.length === 0" class="py-12 text-center text-slate-400 text-sm">
+        No errors to show. 🎉
+      </div>
+
+      <div x-show="!errorsLoading && errors.length" class="divide-y divide-slate-50">
+        <template x-for="e in errors" :key="e.id">
+          <div class="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0 flex-1 cursor-pointer" @click="expanded === e.id ? expanded = null : expanded = e.id">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
+                    :class="{
+                      'bg-indigo-50 text-indigo-600': e.source === 'request',
+                      'bg-amber-50 text-amber-700': e.source === 'scan',
+                      'bg-purple-50 text-purple-700': e.source === 'cron',
+                      'bg-slate-100 text-slate-600': !['request','scan','cron'].includes(e.source),
+                    }" x-text="e.source"></span>
+                  <span class="font-semibold text-slate-800 text-sm mono truncate" x-text="e.error_type"></span>
+                  <span x-show="e.occurrences > 1"
+                    class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700"
+                    x-text="'×' + e.occurrences"></span>
+                  <span x-show="e.status_code" class="text-[10px] font-bold text-slate-400 mono" x-text="e.status_code"></span>
+                </div>
+                <p class="text-sm text-slate-600 mt-1 truncate" x-text="e.message || '(no message)'"></p>
+                <div class="flex items-center gap-3 mt-1 text-[11px] text-slate-400 mono">
+                  <span x-show="e.path" x-text="(e.method ? e.method + ' ' : '') + e.path"></span>
+                  <span x-show="e.user_email" x-text="e.user_email"></span>
+                  <span x-text="'last: ' + e.last_seen"></span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button x-show="!e.resolved" @click="resolveError(e, true)"
+                  class="text-xs font-semibold text-emerald-600 hover:text-emerald-800 border border-emerald-200 rounded-lg px-2.5 py-1">Resolve</button>
+                <button x-show="e.resolved" @click="resolveError(e, false)"
+                  class="text-xs font-semibold text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg px-2.5 py-1">Reopen</button>
+              </div>
+            </div>
+            <pre x-show="expanded === e.id" x-cloak
+              class="mono text-[11px] leading-relaxed text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-3 mt-3 overflow-x-auto whitespace-pre-wrap"
+              x-text="e.traceback || 'No traceback captured.'"></pre>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <!-- Users table -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -228,6 +300,11 @@ function admin() {
     userSearch: '',
     userFilter: '',
     chart: null,
+    errors: [],
+    errorSummary: {},
+    errorsLoading: true,
+    errorFilter: 'open',
+    expanded: null,
 
     get filteredUsers() {
       return this.users.filter(u => {
@@ -251,7 +328,36 @@ function admin() {
     },
 
     async boot() {
-      await Promise.all([this.loadStats(), this.loadUsers()]);
+      await Promise.all([this.loadStats(), this.loadUsers(), this.loadErrors()]);
+    },
+
+    async loadErrors() {
+      this.errorsLoading = true;
+      try {
+        const data = await (await fetch('/api/admin/errors?filter=' + this.errorFilter)).json();
+        this.errors = data.errors || [];
+        this.errorSummary = data.summary || {};
+      } catch(_) {}
+      this.errorsLoading = false;
+    },
+
+    async resolveError(e, resolved) {
+      try {
+        await fetch(`/api/admin/errors/${e.id}/resolve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resolved }),
+        });
+        await this.loadErrors();
+      } catch(_) {}
+    },
+
+    async clearResolved() {
+      if (!confirm('Permanently delete all resolved errors?')) return;
+      try {
+        await fetch('/api/admin/errors/clear-resolved', { method: 'POST' });
+        await this.loadErrors();
+      } catch(_) {}
     },
 
     async loadStats() {
