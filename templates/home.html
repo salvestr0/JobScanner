@@ -1152,7 +1152,7 @@
   </style>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/careerscan-theme.css') }}">
 </head>
-<body class="bg-white text-stone-900 antialiased">
+<body class="bg-white text-stone-900 antialiased" data-language-default="en">
 
   <!-- ── Nav ── -->
   <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-stone-100">
@@ -1162,6 +1162,8 @@
         <span class="font-semibold text-stone-900">CareerScan</span>
       </div>
       <div class="flex items-center gap-2">
+        {% set language_switcher_class = 'language-switcher--compact-sm' %}
+        {% include "_language_switcher.html" %}
         <a href="/login" class="text-stone-500 hover:text-stone-800 text-sm font-medium transition-colors px-3 py-1.5">
           Sign in
         </a>
@@ -1586,5 +1588,6 @@
     </div>
   </footer>
 
+  {% include "_i18n.html" %}
 </body>
 </html>

@@ -30,7 +30,11 @@
         <img src="{{ url_for('static', filename='images/careerscan-logo.png') }}" alt="CareerScan logo" class="brand-logo-img brand-logo-img--nav">
         <span class="text-stone-900 font-semibold text-sm">CareerScan</span>
       </a>
-      <a href="/app" class="text-stone-400 hover:text-stone-600 text-xs font-medium transition-colors">Skip setup →</a>
+      <div class="flex items-center gap-2">
+        {% set language_switcher_class = 'language-switcher--compact-sm' %}
+        {% include "_language_switcher.html" %}
+        <a href="/app" class="text-stone-400 hover:text-stone-600 text-xs font-medium transition-colors">Skip setup →</a>
+      </div>
     </div>
   </div>
 
@@ -183,5 +187,6 @@ function wizard() {
   };
 }
 </script>
+{% include "_i18n.html" %}
 </body>
 </html>

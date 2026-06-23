@@ -28,9 +28,13 @@
       <span class="text-slate-300 text-sm">/</span>
       <span class="admin-brand-badge text-sm font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">Admin</span>
     </div>
-    <a href="/app" class="text-sm text-slate-500 hover:text-slate-800 font-medium transition-colors flex items-center gap-1">
-      ← Back to app
-    </a>
+    <div class="flex items-center gap-3">
+      {% set language_switcher_class = 'language-switcher--compact-sm' %}
+      {% include "_language_switcher.html" %}
+      <a href="/app" class="text-sm text-slate-500 hover:text-slate-800 font-medium transition-colors flex items-center gap-1">
+        ← Back to app
+      </a>
+    </div>
   </nav>
 
   <div class="max-w-7xl mx-auto px-6 py-8">
@@ -296,5 +300,6 @@ function admin() {
   };
 }
 </script>
+{% include "_i18n.html" %}
 </body>
 </html>

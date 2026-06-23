@@ -1,0 +1,26 @@
+<div class="language-switcher {{ language_switcher_class|default('') }}" data-language-switcher data-i18n-skip>
+  <button type="button" class="language-switcher__button" data-language-toggle aria-haspopup="true" aria-expanded="false">
+    <svg class="language-switcher__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.75" stroke-width="1.7"/>
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M3.25 12h17.5M12 3.25c2.18 2.3 3.25 5.2 3.25 8.75S14.18 18.45 12 20.75M12 3.25C9.82 5.55 8.75 8.45 8.75 12S9.82 18.45 12 20.75M5.75 7.5h12.5M5.75 16.5h12.5"/>
+    </svg>
+    <span class="language-switcher__label" data-language-current>English</span>
+    <svg class="language-switcher__chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
+    </svg>
+  </button>
+  <div class="language-switcher__menu" data-language-menu>
+    <button type="button" class="language-switcher__option" data-language-option="en">
+      <span>English</span>
+      <span class="language-switcher__check" data-language-check="en">✓</span>
+    </button>
+    <button type="button" class="language-switcher__option" data-language-option="zh">
+      <span>中文</span>
+      <span class="language-switcher__check" data-language-check="zh">✓</span>
+    </button>
+    <button type="button" class="language-switcher__option" data-language-option="ms">
+      <span>Bahasa Malaysia</span>
+      <span class="language-switcher__check" data-language-check="ms">✓</span>
+    </button>
+  </div>
+</div>
