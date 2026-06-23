@@ -2,7 +2,7 @@
 
 AI-powered job scanner for Singapore. Pulls listings from multiple sources daily, scores them against your profile, and surfaces only the matches worth applying to.
 
-**Live app:** [jobscanner-m7pb.onrender.com](https://jobscanner-m7pb.onrender.com)
+**Live app:** [careerscan.onrender.com](https://careerscan.onrender.com)
 
 ---
 
@@ -26,12 +26,11 @@ AI-powered job scanner for Singapore. Pulls listings from multiple sources daily
 
 | Source | Type | Notes |
 |--------|------|-------|
-| **MyCareersFuture** | Singapore govt API | Official, most comprehensive |
-| **Indeed** | Public RSS feed | Singapore listings, sorted by date |
+| **MyCareersFuture** | Singapore govt API | Official, most comprehensive Singapore listings |
 | **Adzuna** | REST API | Requires free API key at [developer.adzuna.com](https://developer.adzuna.com) |
 | **RemoteOK** | Public JSON API | Remote-friendly roles worldwide |
 
-All sources use official APIs or public syndication endpoints. No HTML scraping.
+All sources use official APIs. No HTML scraping.
 
 ---
 

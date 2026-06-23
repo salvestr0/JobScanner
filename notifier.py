@@ -28,7 +28,7 @@ def send_email_digest(jobs: list, settings: dict, subject_override: str = "") ->
     Requires RESEND_API_KEY and RESEND_FROM env vars.
     """
     api_key   = os.getenv("RESEND_API_KEY", "").strip()
-    from_addr = os.getenv("RESEND_FROM", "CareerJobScan <noreply@jobscanner.app>").strip()
+    from_addr = os.getenv("RESEND_FROM", "CareerScan <noreply@jobscanner.app>").strip()
     to_email  = settings.get("email_to", "").strip()
 
     if not api_key:
@@ -39,8 +39,8 @@ def send_email_digest(jobs: list, settings: dict, subject_override: str = "") ->
         return False
 
     subject = subject_override or (
-        f"CareerJobScan: {len(jobs)} new match{'es' if len(jobs) != 1 else ''} today"
-        if jobs else "CareerJobScan: No new matches today"
+        f"CareerScan: {len(jobs)} new match{'es' if len(jobs) != 1 else ''} today"
+        if jobs else "CareerScan: No new matches today"
     )
 
     if not jobs:
@@ -116,7 +116,7 @@ def send_email_digest(jobs: list, settings: dict, subject_override: str = "") ->
           <tbody>{rows}</tbody>
         </table>
         <p style="margin:16px 0 0;color:#94a3b8;font-size:12px">
-          Log in to CareerJobScan to view all matches and track your applications.
+          Log in to CareerScan to view all matches and track your applications.
         </p>"""
 
     html_body = f"""<!DOCTYPE html>
@@ -158,7 +158,7 @@ def send_weekly_digest(to_email: str, jobs: list, base_url: str = "", week_total
     Called by /api/cron/weekly-digest every Monday morning.
     """
     api_key   = os.getenv("RESEND_API_KEY", "").strip()
-    from_addr = os.getenv("RESEND_FROM", "CareerJobScan <noreply@jobscanner.app>").strip()
+    from_addr = os.getenv("RESEND_FROM", "CareerScan <noreply@jobscanner.app>").strip()
 
     if not api_key:
         print("  [Weekly] RESEND_API_KEY not set")
@@ -167,9 +167,12 @@ def send_weekly_digest(to_email: str, jobs: list, base_url: str = "", week_total
         return False
 
     now     = datetime.now(timezone.utc)
-    week_start = (now - timedelta(days=7)).strftime("%-d %b")
-    week_end   = now.strftime("%-d %b %Y")
-    subject = "Your top job matches this week · CareerJobScan"
+    # Day-of-month without a leading zero, portably (%-d is glibc-only and
+    # raises ValueError on Windows).
+    _wk_start  = now - timedelta(days=7)
+    week_start = f"{_wk_start.day} {_wk_start.strftime('%b')}"
+    week_end   = f"{now.day} {now.strftime('%b %Y')}"
+    subject = "Your top job matches this week · CareerScan"
     dashboard_url = _html.escape(f"{base_url}/app") if base_url else "#"
 
     stat_parts = []

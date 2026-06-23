@@ -113,6 +113,8 @@ def generate_pdf(profile: dict) -> bytes:
     if work:
         story += _section("Work Experience", s)
         for job in work:
+            if not isinstance(job, dict):
+                continue
             title   = (job.get("title") or "").strip()
             company = (job.get("company") or "").strip()
             period  = (job.get("period") or "").strip()
@@ -150,6 +152,8 @@ def generate_pdf(profile: dict) -> bytes:
     if projects:
         story += _section("Projects", s)
         for proj in projects:
+            if not isinstance(proj, dict):
+                continue
             pname = (proj.get("name") or "").strip()
             pdesc = (proj.get("description") or "").strip()
             if pname:

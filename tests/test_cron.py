@@ -18,8 +18,13 @@ from models import ApplicationStatus, Job, ScanHistory, User, UserSettings, db
 CRON_HEADERS = {"X-Cron-Secret": "test-cron-secret-xyz"}
 
 
+# Users pick schedule_time in Singapore time (SGT, UTC+8) and the cron matches
+# against the current SGT wall-clock, so derive test times from SGT too.
+_SGT = timezone(timedelta(hours=8))
+
+
 def _hhmm(offset_min: int = 0) -> str:
-    return (datetime.now(timezone.utc) + timedelta(minutes=offset_min)).strftime("%H:%M")
+    return (datetime.now(_SGT) + timedelta(minutes=offset_min)).strftime("%H:%M")
 
 
 @pytest.fixture

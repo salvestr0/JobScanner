@@ -1,10 +1,11 @@
 ﻿"""
-CareerJobScan Web UI — Flask backend (multi-user)
+CareerScan Web UI — Flask backend (multi-user)
 Run: python run.py
 Open: http://localhost:5000
 """
 import hashlib
 import hmac
+import html
 import json
 import os
 import queue
@@ -45,6 +46,16 @@ from models import (
 
 load_dotenv()
 
+# Singapore is the only market — user-facing dates/times are SGT (UTC+8) while
+# the server clock is UTC. Use these helpers for anything users see or schedule.
+SGT = timezone(timedelta(hours=8))
+
+
+def _sgt_today():
+    """Current calendar date in Singapore time (so daily limits reset at SGT midnight)."""
+    return datetime.now(SGT).date()
+
+
 _secret_key = os.getenv("SECRET_KEY", "").strip()
 if not _secret_key:
     raise RuntimeError(
@@ -80,6 +91,32 @@ app.config.update(
 
 db.init_app(app)
 migrate = Migrate(app, db)
+
+
+def _reconcile_orphaned_scans():
+    """Mark scans stuck at 'running' as failed on boot.
+
+    Scan state lives in process memory, so at startup no scan can really be
+    running — any 'running' ScanHistory row is an orphan from a worker that
+    was killed mid-scan (e.g. SIGKILL on timeout/OOM), whose `finally` never
+    ran. Self-heals on every restart. Wrapped so a transient DB issue never
+    blocks app boot.
+    """
+    try:
+        with app.app_context():
+            orphaned = ScanHistory.query.filter_by(status="running").all()
+            for row in orphaned:
+                row.status = "failed"
+                if row.finished_at is None:
+                    row.finished_at = datetime.now(timezone.utc)
+            if orphaned:
+                db.session.commit()
+                app.logger.info("Reconciled %d orphaned 'running' scan(s) on startup", len(orphaned))
+    except Exception as exc:
+        app.logger.warning("Could not reconcile orphaned scans on startup: %s", exc)
+
+
+_reconcile_orphaned_scans()
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login_page"
@@ -124,6 +161,13 @@ def _decrypt_api_key(ciphertext: str) -> str:
         return ciphertext
 
 
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+def _valid_email(addr: str) -> bool:
+    return bool(addr) and len(addr) <= 255 and _EMAIL_RE.match(addr) is not None
+
+
 def _log_gemini_usage(endpoint: str, user_id: str, response_json: dict) -> None:
     usage = response_json.get("usageMetadata", {})
     app.logger.info(
@@ -138,7 +182,7 @@ def _log_gemini_usage(endpoint: str, user_id: str, response_json: dict) -> None:
 
 def _send_email(to: str, subject: str, html: str) -> bool:
     api_key   = os.getenv("RESEND_API_KEY", "").strip()
-    from_addr = os.getenv("RESEND_FROM", "CareerJobScan <noreply@jobscanner.app>").strip()
+    from_addr = os.getenv("RESEND_FROM", "CareerScan <noreply@jobscanner.app>").strip()
     if not api_key:
         app.logger.warning("Email not sent to %s: RESEND_API_KEY not set", to)
         return False
@@ -186,13 +230,13 @@ def _verification_email_html(verify_url: str) -> str:
     </div>
     <h2 style="margin:0 0 8px;font-size:20px;color:#1e293b;font-weight:700">Verify your email</h2>
     <p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.6">
-      Thanks for signing up! Click the button below to verify your email address and get the most out of CareerJobScan.
+      Thanks for signing up! Click the button below to verify your email address and get the most out of CareerScan.
     </p>
     <a href="{verify_url}" style="display:inline-block;background:#4F46E5;color:white;font-size:14px;font-weight:600;padding:12px 24px;border-radius:10px;text-decoration:none">
       Verify email address
     </a>
     <p style="margin:24px 0 0;color:#94a3b8;font-size:12px">
-      If you didn't create a CareerJobScan account, you can safely ignore this email.
+      If you didn't create a CareerScan account, you can safely ignore this email.
     </p>
   </div>
 </body></html>"""
@@ -311,8 +355,17 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
         if max_fetch:
             log(f"Free plan — fetching up to {max_fetch} candidates (showing top {max_jobs} matches)")
 
-        log("\nScanning MyCareersFuture...")
-        all_jobs = scrape_all_sources(max_total=max_fetch)
+        # Guard: no search titles means every source returns nothing. This happens
+        # when a non-prebuilt mode needs live Gemini generation and that call fails.
+        # Fail loudly with the real cause instead of blaming the network.
+        if not cfg_snapshot.get("target_titles"):
+            log(f"Could not load search titles for the '{mode}' mode.")
+            log("This usually means the AI mode generation failed — check that a valid "
+                "Gemini API key is set, or pick one of the built-in modes.")
+            raise RuntimeError(f"No target_titles for mode '{mode}'")
+
+        log("\nScanning job sources (MyCareersFuture, Adzuna, RemoteOK)...")
+        all_jobs = scrape_all_sources(max_total=max_fetch, cfg=cfg_snapshot)
 
         if not all_jobs:
             log("No jobs found from any source. Check your internet connection.")
@@ -378,8 +431,8 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
 
                 log(f"\nResults saved: {job_count} new matched jobs")
 
-                # ── 8. Email digest (Pro plan only) ──────────────────────────────
-                if notify and not max_jobs:
+                # ── 8. Email digest (free + paid) ────────────────────────────────
+                if notify:
                     _email_to      = cfg_snapshot.get("email_to", "")
                     _email_enabled = cfg_snapshot.get("email_enabled", False)
                     if _email_enabled and _email_to and top_jobs:
@@ -465,8 +518,9 @@ def _build_user_env(user: User) -> dict:
         "JOBSCANNER_USER_CONFIG": json.dumps(user_cfg),
         "JOBSCANNER_DATA_DIR":    data_dir,
     }
-    if _is_free_tier(user):
-        env["JOBSCANNER_MAX_JOBS"] = "10"
+    result_limit = _entitlements(user)["scan_result_limit"]
+    if result_limit is not None:
+        env["JOBSCANNER_MAX_JOBS"] = str(result_limit)
     return env
 
 
@@ -491,17 +545,21 @@ def _get_or_create_settings(user_id: str) -> UserSettings:
     s = db.session.get(UserSettings, user_id)
     if s is None:
         import config as cfg
+        # Snapshot under the lock — a concurrent scan rebuilds the shared
+        # SEARCH_CONFIG, so an unlocked read could seed torn/other-user values.
+        with _config_lock:
+            defaults = dict(cfg.SEARCH_CONFIG)
         s = UserSettings(
             user_id=user_id,
-            min_salary=cfg.SEARCH_CONFIG.get("min_salary", 2200),
-            max_salary=cfg.SEARCH_CONFIG.get("max_salary", 4000),
-            min_score_threshold=cfg.SEARCH_CONFIG.get("min_score_threshold", 40),
-            max_jobs_per_notification=cfg.SEARCH_CONFIG.get("max_jobs_per_notification", 20),
-            target_titles=cfg.SEARCH_CONFIG.get("target_titles", []),
-            preferred_keywords=cfg.SEARCH_CONFIG.get("preferred_keywords", []),
-            negative_keywords=cfg.SEARCH_CONFIG.get("negative_keywords", []),
-            location_keywords=cfg.SEARCH_CONFIG.get("location_keywords", []),
-            preferred_location=cfg.SEARCH_CONFIG.get("preferred_location", "Sengkang"),
+            min_salary=defaults.get("min_salary", 2200),
+            max_salary=defaults.get("max_salary", 4000),
+            min_score_threshold=defaults.get("min_score_threshold", 40),
+            max_jobs_per_notification=defaults.get("max_jobs_per_notification", 20),
+            target_titles=defaults.get("target_titles", []),
+            preferred_keywords=defaults.get("preferred_keywords", []),
+            negative_keywords=defaults.get("negative_keywords", []),
+            location_keywords=defaults.get("location_keywords", []),
+            preferred_location=defaults.get("preferred_location", "Sengkang"),
         )
         db.session.add(s)
         db.session.commit()
@@ -575,6 +633,8 @@ def auth_register():
 
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
+    if not _valid_email(email):
+        return jsonify({"error": "Please enter a valid email address"}), 400
     if len(password) < 8:
         return jsonify({"error": "Password must be at least 8 characters"}), 400
     if User.query.filter_by(email=email).first():
@@ -590,7 +650,7 @@ def auth_register():
     db.session.commit()
 
     verify_url = request.host_url.rstrip("/") + f"/verify-email?token={_make_verify_token(user.id)}"
-    _send_email(email, "Verify your CareerJobScan email", _verification_email_html(verify_url))
+    _send_email(email, "Verify your CareerScan email", _verification_email_html(verify_url))
 
     login_user(user, remember=True)
     return jsonify({"ok": True, "email": user.email, "onboarding": True})
@@ -644,7 +704,7 @@ def auth_forgot_password():
     </div>
     <h2 style="margin:0 0 8px;font-size:20px;color:#1e293b;font-weight:700">Reset your password</h2>
     <p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.6">
-      We received a request to reset the password for your CareerJobScan account.<br>
+      We received a request to reset the password for your CareerScan account.<br>
       Click the button below to choose a new password. This link expires in 1 hour.
     </p>
     <a href="{reset_url}" style="display:inline-block;background:#4F46E5;color:white;font-size:14px;font-weight:600;padding:12px 24px;border-radius:10px;text-decoration:none">
@@ -655,7 +715,7 @@ def auth_forgot_password():
     </p>
   </div>
 </body></html>"""
-        _send_email(email, "Reset your CareerJobScan password", reset_html)
+        _send_email(email, "Reset your CareerScan password", reset_html)
 
     return jsonify({"ok": True})
 
@@ -737,7 +797,7 @@ def resend_verification():
 
     # Signed token — resending no longer invalidates links from earlier emails
     verify_url = request.host_url.rstrip("/") + f"/verify-email?token={_make_verify_token(current_user.id)}"
-    sent = _send_email(current_user.email, "Verify your CareerJobScan email", _verification_email_html(verify_url))
+    sent = _send_email(current_user.email, "Verify your CareerScan email", _verification_email_html(verify_url))
     if not sent:
         return jsonify({"ok": False, "error": "Email could not be sent. Please try again later."}), 502
     return jsonify({"ok": True})
@@ -855,16 +915,14 @@ def stats():
     for j in unique:
         j["app_status"] = status.get(j["id"], {}).get("status", "")
 
-    from datetime import date as _date
-    FREE_DAILY_LIMIT = 3
     scans_today = 0
     scans_remaining = None
     if _is_free_tier(current_user):
         s = current_user.settings
-        today = _date.today().isoformat()
+        today = _sgt_today().isoformat()
         if s and s.last_scan_date == today:
             scans_today = s.daily_scan_count or 0
-        scans_remaining = max(0, FREE_DAILY_LIMIT - scans_today)
+        scans_remaining = max(0, _FREE_DAILY_SCAN_LIMIT - scans_today)
 
     return jsonify({
         "total_jobs":       len(unique),
@@ -938,6 +996,10 @@ def get_applications():
 def update_application(job_id):
     data       = request.json or {}
     new_status = data.get("status", "")
+    valid_statuses = {"applied", "interview", "skip", "clear"}
+
+    if not isinstance(new_status, str) or new_status not in valid_statuses:
+        return jsonify({"error": "Unsupported application status"}), 400
 
     if new_status == "clear":
         row = db.session.get(ApplicationStatus, (current_user.id, job_id))
@@ -1031,6 +1093,27 @@ def _cover_notes_dir(user_id: str) -> Path:
     return Path(f"data/users/{user_id}/cover_notes")
 
 
+def _resume_versions_dir(user_id: str) -> Path:
+    return Path(f"data/users/{user_id}/resume_versions")
+
+
+def _resume_version_meta(path: Path) -> dict | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    profile = data.get("profile") or {}
+    return {
+        "id": path.stem,
+        "name": data.get("name") or "Untitled resume",
+        "source": data.get("source") or "manual",
+        "created_at": data.get("created_at") or "",
+        "job_title": data.get("job_title") or "",
+        "company": data.get("company") or "",
+        "summary": (profile.get("experience_summary") or "")[:180],
+    }
+
+
 @app.route("/api/cover-notes")
 @login_required
 def list_cover_notes():
@@ -1078,7 +1161,7 @@ def get_cover_note(filename):
 @login_required
 @limiter.limit("5/minute;30/hour")
 def generate_cover_note_route():
-    if not _is_active(current_user):
+    if not _is_paid(current_user):
         return jsonify({"error": "pro_required"}), 403
 
     import config as cfg
@@ -1161,12 +1244,22 @@ def update_config():
     data = request.json or {}
     s    = _get_or_create_settings(current_user.id)
 
-    for key in ("min_salary", "max_salary", "min_score_threshold", "max_jobs_per_notification"):
+    _numeric_bounds = {
+        "min_salary":                (0, 1_000_000),
+        "max_salary":                (0, 1_000_000),
+        "min_score_threshold":       (0, 100),
+        "max_jobs_per_notification": (1, 200),
+    }
+    for key, (lo, hi) in _numeric_bounds.items():
         if key in data:
-            setattr(s, key, data[key])
+            try:
+                val = int(data[key])
+            except (TypeError, ValueError):
+                return jsonify({"error": f"{key} must be a number"}), 400
+            setattr(s, key, max(lo, min(hi, val)))
     if "email_to" in data:
         email_to = (data["email_to"] or "").strip()
-        if email_to and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email_to):
+        if email_to and not _valid_email(email_to):
             return jsonify({"error": "Invalid email address"}), 400
         s.email_to = email_to
     for key in ("email_enabled", "preferred_location"):
@@ -1187,7 +1280,7 @@ def test_email():
     s      = _get_or_create_settings(current_user.id)
     ok = send_email_digest(
         [], s.to_dict(),
-        subject_override="CareerJobScan — connection test",
+        subject_override="CareerScan — connection test",
     )
     return jsonify({"ok": ok})
 
@@ -1207,6 +1300,10 @@ def parse_resume():
     if not api_key:
         return jsonify({"error": "AI service not configured"}), 400
 
+    allowed, quota_err = _check_ai_quota(current_user)
+    if not allowed:
+        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
+
     from resume_parser import extract_text, parse_with_gemini
     try:
         text = extract_text(file.read(), file.filename)
@@ -1218,7 +1315,14 @@ def parse_resume():
 
     try:
         profile = parse_with_gemini(text, api_key)
-    except Exception:
+    except ValueError as e:
+        # Expected, user-actionable failures (bad key, blocked, empty response)
+        app.logger.warning("Resume parse failed for user %s: %s", current_user.id, e)
+        return jsonify({"error": str(e)}), 502
+    except Exception as e:
+        app.logger.error(
+            "Resume parse crashed for user %s: %s", current_user.id, e, exc_info=True
+        )
         return jsonify({"error": "AI parsing failed. Please try again later."}), 500
 
     return jsonify(profile)
@@ -1432,6 +1536,351 @@ Return ONLY a valid JSON object with exactly this structure:
     })
 
 
+def _merge_tailored_resume_profile(base_profile: dict, resume_payload: dict) -> dict:
+    merged = dict(base_profile or {})
+    if resume_payload.get("tailored_summary"):
+        merged["experience_summary"] = resume_payload["tailored_summary"]
+
+    generated_history = resume_payload.get("work_history") or []
+    base_history = merged.get("work_history") or []
+    if generated_history:
+        next_history = []
+        if base_history:
+            for idx, original in enumerate(base_history):
+                item = dict(original) if isinstance(original, dict) else {}
+                generated = generated_history[idx] if idx < len(generated_history) else {}
+                if isinstance(generated, dict):
+                    item["title"] = generated.get("title") or item.get("title", "")
+                    item["company"] = generated.get("company") or item.get("company", "")
+                    item["period"] = generated.get("period") or item.get("period", "")
+                    bullets = generated.get("tailored_bullets") or generated.get("summary")
+                    if bullets:
+                        item["summary"] = bullets
+                next_history.append(item)
+        else:
+            for generated in generated_history:
+                if not isinstance(generated, dict):
+                    continue
+                next_history.append({
+                    "title": generated.get("title") or "",
+                    "company": generated.get("company") or "",
+                    "period": generated.get("period") or "",
+                    "summary": generated.get("tailored_bullets") or generated.get("summary") or "",
+                })
+        merged["work_history"] = next_history
+
+    skills = list(merged.get("technical_skills") or [])
+    seen = {str(s).strip().lower() for s in skills}
+    for skill in resume_payload.get("skills_to_highlight") or []:
+        label = str(skill).strip()
+        key = label.lower()
+        if label and key not in seen:
+            skills.append(label)
+            seen.add(key)
+    merged["technical_skills"] = skills
+    return merged
+
+
+def _coerce_pack_list(value) -> list:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    return []
+
+
+def _normalize_application_pack(pack: dict) -> dict:
+    if not isinstance(pack, dict):
+        pack = {}
+
+    fit_report = pack.get("fit_report")
+    if not isinstance(fit_report, dict):
+        fit_report = {}
+    fit_report["score_label"] = str(fit_report.get("score_label") or "").strip()
+    for key in ("strengths", "gaps", "missing_keywords"):
+        fit_report[key] = _coerce_pack_list(fit_report.get(key))
+
+    resume = pack.get("resume")
+    if not isinstance(resume, dict):
+        resume = {}
+    resume["tailored_summary"] = str(resume.get("tailored_summary") or "").strip()
+    resume["skills_to_highlight"] = _coerce_pack_list(resume.get("skills_to_highlight"))
+
+    work_history = []
+    for item in resume.get("work_history") or []:
+        if not isinstance(item, dict):
+            continue
+        work_history.append({
+            "title": str(item.get("title") or "").strip(),
+            "company": str(item.get("company") or "").strip(),
+            "period": str(item.get("period") or "").strip(),
+            "tailored_bullets": str(item.get("tailored_bullets") or item.get("summary") or "").strip(),
+        })
+    resume["work_history"] = work_history
+
+    interview = pack.get("interview")
+    if not isinstance(interview, dict):
+        interview = {}
+    for key in ("focus_areas", "questions", "questions_to_ask"):
+        interview[key] = _coerce_pack_list(interview.get(key))
+
+    return {
+        "fit_report": fit_report,
+        "resume": resume,
+        "cover_note": str(pack.get("cover_note") or "").strip(),
+        "interview": interview,
+        "checklist": _coerce_pack_list(pack.get("checklist")),
+        "follow_up_note": str(pack.get("follow_up_note") or "").strip(),
+    }
+
+
+@app.route("/api/application-pack/generate", methods=["POST"])
+@login_required
+@limiter.limit("3/minute;15/hour")
+def generate_application_pack():
+    if not _is_paid(current_user):
+        return jsonify({"error": "pro_required"}), 403
+
+    import config as cfg
+    import requests as _req
+
+    allowed, quota_err = _check_ai_quota(current_user)
+    if not allowed:
+        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
+
+    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    if not api_key:
+        return jsonify({"error": "AI service not configured"}), 400
+
+    data = request.json or {}
+    job_id = (data.get("job_id") or "").strip()
+    if not job_id:
+        return jsonify({"error": "job_id required"}), 400
+
+    job = Job.query.filter_by(user_id=current_user.id, source_job_id=job_id).first()
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+
+    profile = _get_or_create_profile(current_user.id).to_dict()
+    if not profile.get("email"):
+        profile["email"] = current_user.email
+
+    settings = _get_or_create_settings(current_user.id).to_dict()
+    reasons = [r.strip() for r in (job.match_reasons or "").split("|") if r.strip()]
+    profile_text = " ".join([
+        profile.get("experience_summary", ""),
+        " ".join(profile.get("technical_skills") or []),
+        " ".join(profile.get("soft_skills") or []),
+        " ".join(
+            f"{w.get('title','')} {w.get('company','')} {w.get('summary','')}"
+            for w in (profile.get("work_history") or [])
+            if isinstance(w, dict)
+        ),
+    ]).lower()
+    likely_missing = [
+        kw for kw in (settings.get("preferred_keywords") or [])
+        if kw and str(kw).lower() not in profile_text
+    ][:12]
+
+    salary = (
+        f"${job.salary_min}-{job.salary_max}/mo"
+        if job.salary_min and job.salary_max else "Not specified"
+    )
+    work_lines = "\n".join(
+        f"- {w.get('title','')} at {w.get('company','')} ({w.get('period','')}): {w.get('summary','')}"
+        for w in (profile.get("work_history") or [])
+        if isinstance(w, dict)
+    ) or "- No work history provided"
+
+    prompt = f"""You are CareerScan's Singapore job application assistant.
+
+Create a practical application pack for this candidate and job. Use only truthful information from the candidate profile. If a detail is missing, turn it into an action item instead of inventing it.
+
+Return ONLY valid JSON with this exact shape:
+{{
+  "fit_report": {{
+    "score_label": "short judgement of readiness",
+    "strengths": ["specific strength", "..."],
+    "gaps": ["specific gap or risk", "..."],
+    "missing_keywords": ["keyword", "..."]
+  }},
+  "resume": {{
+    "tailored_summary": "2-3 sentence role-specific resume summary",
+    "work_history": [
+      {{"title": "same or closest title", "company": "same company", "period": "same period", "tailored_bullets": "2-4 truthful bullets, one per line"}}
+    ],
+    "skills_to_highlight": ["skill", "..."]
+  }},
+  "cover_note": "short application note under 180 words",
+  "interview": {{
+    "focus_areas": ["topic to prepare", "..."],
+    "questions": ["likely interview question", "..."],
+    "questions_to_ask": ["smart question for interviewer", "..."]
+  }},
+  "checklist": ["concrete next step", "..."],
+  "follow_up_note": "short follow-up message for 5-7 days after applying"
+}}
+
+JOB:
+Title: {job.title or ''}
+Company: {job.company or ''}
+Location: {job.location or 'Singapore'}
+Salary: {salary}
+Source: {job.source or ''}
+Score: {job.score or 0}/100
+CareerScan match reasons: {', '.join(reasons) or 'Not available'}
+
+CANDIDATE:
+Name: {profile.get('name','')}
+Email: {profile.get('email','')}
+Phone: {profile.get('phone','')}
+Education: {profile.get('education','')}
+Summary: {profile.get('experience_summary','')}
+Technical skills: {', '.join(profile.get('technical_skills') or [])}
+Soft skills: {', '.join(profile.get('soft_skills') or [])}
+Certifications: {', '.join(profile.get('certifications') or [])}
+Work history:
+{work_lines}
+
+SEARCH CONTEXT:
+Target titles: {', '.join(settings.get('target_titles') or [])}
+Likely missing profile keywords: {', '.join(likely_missing) or 'None detected'}
+Preferred location: {settings.get('preferred_location') or 'Singapore'}
+"""
+
+    try:
+        resp = _req.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            params={"key": api_key},
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "thinkingConfig": {"thinkingBudget": 0},
+                    "responseMimeType": "application/json",
+                    "maxOutputTokens": 4096,
+                },
+            },
+            timeout=45,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        _log_gemini_usage("application_pack", str(current_user.id), body)
+        candidate = (body.get("candidates") or [{}])[0]
+        raw = "".join(
+            part.get("text", "")
+            for part in (candidate.get("content") or {}).get("parts", [])
+        ).strip()
+    except Exception:
+        return jsonify({"error": "AI request failed. Please try again later."}), 502
+
+    match = re.search(r"\{[\s\S]*\}", raw)
+    if not match:
+        return jsonify({"error": "AI returned unexpected format"}), 502
+
+    try:
+        pack = json.loads(match.group())
+    except Exception:
+        return jsonify({"error": "Could not parse AI response"}), 502
+
+    pack = _normalize_application_pack(pack)
+    pack["resume_profile"] = _merge_tailored_resume_profile(profile, pack["resume"])
+    pack["job"] = {
+        "id": job.source_job_id,
+        "title": job.title or "",
+        "company": job.company or "",
+        "score": job.score or 0,
+        "url": job.url or "",
+    }
+
+    note_text = (pack.get("cover_note") or "").strip()
+    if note_text:
+        try:
+            from cover_notes import save_cover_note
+            notes_dir = _cover_notes_dir(current_user.id)
+            notes_dir.mkdir(parents=True, exist_ok=True)
+            save_cover_note({
+                "title": job.title or "",
+                "company": job.company or "",
+                "score": job.score or 0,
+                "url": job.url or "",
+            }, note_text, str(notes_dir))
+            job.cover_note = note_text
+            db.session.commit()
+        except Exception:
+            app.logger.warning("Could not save application-pack cover note", exc_info=True)
+
+    return jsonify({"ok": True, "pack": pack})
+
+
+@app.route("/api/resume/versions", methods=["GET"])
+@login_required
+def list_resume_versions():
+    versions_dir = _resume_versions_dir(current_user.id)
+    if not versions_dir.exists():
+        return jsonify([])
+    versions = [
+        meta for meta in (_resume_version_meta(path) for path in versions_dir.glob("*.json"))
+        if meta is not None
+    ]
+    versions.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+    return jsonify(versions)
+
+
+@app.route("/api/resume/versions", methods=["POST"])
+@login_required
+def save_resume_version():
+    data = request.json or {}
+    profile = data.get("profile") or {}
+    if not isinstance(profile, dict):
+        return jsonify({"error": "profile required"}), 400
+    if not profile.get("email"):
+        profile["email"] = current_user.email
+
+    versions_dir = _resume_versions_dir(current_user.id)
+    versions_dir.mkdir(parents=True, exist_ok=True)
+
+    version_id = f"{datetime.now(SGT).strftime('%Y%m%d%H%M%S')}_{secrets.token_hex(3)}"
+    payload = {
+        "id": version_id,
+        "name": (data.get("name") or "CareerScan resume").strip()[:80],
+        "source": (data.get("source") or "manual").strip()[:40],
+        "job_title": (data.get("job_title") or "").strip()[:120],
+        "company": (data.get("company") or "").strip()[:120],
+        "created_at": datetime.now(SGT).strftime("%Y-%m-%d %H:%M"),
+        "profile": profile,
+    }
+
+    path = versions_dir / f"{version_id}.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return jsonify({"ok": True, "version": _resume_version_meta(path)})
+
+
+@app.route("/api/resume/versions/<version_id>/download", methods=["GET"])
+@login_required
+def download_resume_version(version_id):
+    from flask import make_response
+    from resume_builder import generate_pdf
+
+    safe_id = re.sub(r"[^a-zA-Z0-9_-]", "", version_id)
+    path = _resume_versions_dir(current_user.id) / f"{safe_id}.json"
+    if not path.exists():
+        return jsonify({"error": "Not found"}), 404
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    profile = data.get("profile") or {}
+    try:
+        pdf_bytes = generate_pdf(profile)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    name_slug = re.sub(r"[^a-z0-9_-]", "_", (data.get("name") or "resume").lower().replace(" ", "_"))
+    resp = make_response(pdf_bytes)
+    resp.headers["Content-Type"] = "application/pdf"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{name_slug}.pdf"'
+    return resp
+
+
 @app.route("/api/resume/download", methods=["POST"])
 @login_required
 def resume_download():
@@ -1554,9 +2003,9 @@ def get_schedule():
 def set_schedule():
     data = request.json or {}
     s    = _get_or_create_settings(current_user.id)
-    raw_time = data.get("time", "09:00")
-    if not re.match(r'^\d{2}:\d{2}$', raw_time):
-        return jsonify({"error": "Invalid time format — use HH:MM"}), 400
+    raw_time = data.get("time")
+    if not isinstance(raw_time, str) or not re.match(r'^(?:[01]\d|2[0-3]):[0-5]\d$', raw_time):
+        return jsonify({"error": "Invalid time format — use HH:MM (00:00-23:59)"}), 400
     s.schedule_enabled = data.get("enabled", False)
     s.schedule_time    = raw_time
     db.session.commit()
@@ -1581,18 +2030,16 @@ def start_scan():
 
     # Daily scan limit for free plan — check before claiming the scan slot,
     # but only consume a scan once the slot is actually claimed below.
-    FREE_DAILY_LIMIT = 3
     free_tier = _is_free_tier(current_user)
     free_settings = None
     if free_tier:
-        from datetime import date as _date
         free_settings = _get_or_create_settings(current_user.id)
-        today = _date.today().isoformat()
+        today = _sgt_today().isoformat()
         if free_settings.last_scan_date != today:
             free_settings.daily_scan_count = 0
             free_settings.last_scan_date   = today
             db.session.commit()
-        if (free_settings.daily_scan_count or 0) >= FREE_DAILY_LIMIT:
+        if (free_settings.daily_scan_count or 0) >= _FREE_DAILY_SCAN_LIMIT:
             return jsonify({"error": "daily_limit_reached", "remaining": 0}), 429
 
     with _get_scan_lock(current_user.id):
@@ -1663,6 +2110,14 @@ def export_jobs():
     import csv as _csv
     import io
 
+    def _csv_safe(value):
+        # Neutralise spreadsheet formula injection: a cell that a spreadsheet
+        # would evaluate (starts with = + - @, tab or CR) is prefixed with '.
+        s = "" if value is None else str(value)
+        if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
+            return "'" + s
+        return s
+
     jobs = (Job.query
             .filter_by(user_id=current_user.id)
             .order_by(Job.score.desc())
@@ -1676,12 +2131,12 @@ def export_jobs():
                      "source", "posted_date", "closing_date", "status", "url"])
     for j in jobs:
         st = statuses.get(j.source_job_id, {}).get("status", "")
-        writer.writerow([
+        writer.writerow([_csv_safe(v) for v in (
             j.title, j.company, j.location, j.score,
             j.salary_min or "", j.salary_max or "",
             j.source, j.posted_date or "", j.closing_date or "",
             st, j.url or "",
-        ])
+        )])
 
     csv_bytes = output.getvalue().encode("utf-8-sig")
     return Response(
@@ -1749,22 +2204,7 @@ def delete_account():
 
 # ── Billing ───────────────────────────────────────────────────────────────────
 
-def _is_active(user) -> bool:
-    """Return True if user has access (free or active subscription)."""
-    if user.is_admin:
-        return True
-    # trialing kept for legacy rows that haven't been migrated yet
-    return user.subscription_status in ("active", "free", "trialing", None)
-
-
-def _is_free_tier(user) -> bool:
-    """Return True for non-paying users subject to free-tier limits
-    (daily scan cap + 10-result cap). Admins and active subscribers are exempt."""
-    if user.is_admin:
-        return False
-    return user.subscription_status not in ("active",)
-
-
+# Daily AI-call caps by subscription status. Unknown statuses fall back to 5.
 _AI_DAILY_LIMITS = {
     "active":    30,
     "free":       5,
@@ -1774,6 +2214,172 @@ _AI_DAILY_LIMITS = {
     "expired":    0,
 }
 
+# Statuses that still grant access to the app (run scans, view results).
+_ACCESS_STATUSES = ("active", "free", "trialing", None)
+
+# Per-day scan cap for free-tier users.
+_FREE_DAILY_SCAN_LIMIT = 3
+
+
+def _entitlements(user) -> dict:
+    """Single source of truth for a user's plan and what it unlocks.
+
+    Every billing / quota / gating decision derives from this dict so the
+    rules can't drift between the UI, scan gating, and AI-quota checks.
+
+    Keys:
+      status            display status (trialing/None collapse to "free")
+      has_access        may use the app at all (run scans, view results)
+      is_paid           active subscriber (or admin) — exempt from free caps
+      is_free_tier      subject to free caps (10-result + daily-scan limit)
+      scan_result_limit per-scan result cap (10 for free, None = unlimited)
+      ai_daily_limit    daily AI-call cap (None = unlimited)
+    """
+    if user.is_admin:
+        return {
+            "status":            "active",
+            "has_access":        True,
+            "is_paid":           True,
+            "is_free_tier":      False,
+            "scan_result_limit": None,
+            "ai_daily_limit":    None,
+        }
+
+    raw     = user.subscription_status
+    display = "free" if raw in (None, "trialing") else raw
+    is_paid = raw == "active"
+    # The only non-active status that still grants access is plain "free".
+    free_with_access = display == "free"
+    return {
+        "status":            display,
+        "has_access":        raw in _ACCESS_STATUSES,
+        "is_paid":           is_paid,
+        "is_free_tier":      not is_paid,
+        "scan_result_limit": 10 if free_with_access else None,
+        "ai_daily_limit":    _AI_DAILY_LIMITS.get(raw, 5),
+    }
+
+
+def _is_active(user) -> bool:
+    """True if the user may use the app (admin, active, free, or legacy trialing)."""
+    return _entitlements(user)["has_access"]
+
+
+def _is_free_tier(user) -> bool:
+    """True for non-paying users subject to free-tier limits
+    (daily scan cap + 10-result cap). Admins and active subscribers are exempt."""
+    return _entitlements(user)["is_free_tier"]
+
+
+def _is_paid(user) -> bool:
+    """True only for paying subscribers (or admins) — gates Pro-only features
+    such as cover-note generation. `_is_active` is too permissive here: it also
+    returns True for free-tier users, which would let them bypass the Pro gate."""
+    return _entitlements(user)["is_paid"]
+
+
+_STRIPE_STATUS_MAP = {
+    "active":   "active",
+    "past_due": "past_due",
+    "canceled": "cancelled",
+    "unpaid":   "past_due",
+    "paused":   "past_due",
+}
+
+
+_SUB_STATUS_RANK = {"active": 3, "trialing": 3, "past_due": 2, "unpaid": 2, "paused": 2}
+
+
+def _best_sub_for_customer(customer_id, stripe_mod):
+    """Return the highest-priority subscription for a Stripe customer, or None
+    if the customer genuinely has none.
+
+    Only "No such customer" (a stale/wrong-mode id) is treated as no-sub.
+    Every other Stripe error (permission, auth, rate limit, network) is
+    re-raised so callers never mistake an API outage for an empty result —
+    which would otherwise wrongly downgrade active subscribers to cancelled."""
+    try:
+        subs = stripe_mod.Subscription.list(customer=customer_id, limit=10, status="all")
+    except stripe_mod.error.InvalidRequestError:
+        return None
+    best = None
+    for s in subs.data:
+        if best is None or _SUB_STATUS_RANK.get(s.status, 1) > _SUB_STATUS_RANK.get(best.status, 1):
+            best = s
+    return best
+
+
+def _lookup_stripe_subscription(user, stripe_mod):
+    """Find the user's best-matching Stripe subscription and the customer it
+    belongs to, returning (subscription_or_None, customer_id_or_None).
+
+    Checks the stored customer id first; if that yields nothing, falls back to
+    searching Stripe by the user's email — this catches subscriptions that
+    landed on a duplicate/mismatched customer the app never linked back.
+
+    Raises on real Stripe errors (e.g. a restricted key missing
+    subscription_read); callers must catch and skip rather than downgrade."""
+    candidate_ids = []
+    if user.stripe_customer_id:
+        candidate_ids.append(user.stripe_customer_id)
+
+    for cid in candidate_ids:
+        sub = _best_sub_for_customer(cid, stripe_mod)
+        if sub is not None:
+            return sub, cid
+
+    # Nothing under the stored customer — search by email as a fallback.
+    best_sub, best_cid = None, None
+    if user.email:
+        customers = stripe_mod.Customer.list(email=user.email, limit=10).data
+        for c in customers:
+            if c.id in candidate_ids:
+                continue
+            sub = _best_sub_for_customer(c.id, stripe_mod)
+            if sub is not None and (
+                best_sub is None
+                or _SUB_STATUS_RANK.get(sub.status, 1) > _SUB_STATUS_RANK.get(best_sub.status, 1)
+            ):
+                best_sub, best_cid = sub, c.id
+
+    return best_sub, best_cid
+
+
+def _sync_user_subscription(user, stripe_mod) -> bool:
+    """Reconcile a user's subscription_status straight from Stripe (the source
+    of truth) and return True if anything changed.
+
+    This recovers accounts that paid but never flipped to active because a
+    webhook was missed, failed signature check, or wasn't delivered. A plain
+    free user who merely has a dangling customer id (started checkout, never
+    paid) is left untouched rather than wrongly marked cancelled.
+    """
+    sub, cid = _lookup_stripe_subscription(user, stripe_mod)
+    changed = False
+
+    # Repair a missing/mismatched customer link so it can't drift again.
+    if cid and user.stripe_customer_id != cid:
+        app.logger.info(
+            "Repairing stripe_customer_id for user %s: %s -> %s",
+            user.id, user.stripe_customer_id, cid,
+        )
+        user.stripe_customer_id = cid
+        changed = True
+
+    if sub is None:
+        # No subscription anywhere: only downgrade someone who previously had
+        # one — never knock a plain free user back to cancelled.
+        if user.subscription_status in ("active", "past_due"):
+            user.subscription_status = "cancelled"
+            changed = True
+        return changed
+
+    new_status = _STRIPE_STATUS_MAP.get(sub.status, user.subscription_status)
+    if new_status != user.subscription_status:
+        user.subscription_status = new_status
+        changed = True
+    return changed
+
 
 def _check_ai_quota(user) -> tuple[bool, str | None]:
     """Check and increment the user's daily AI call quota.
@@ -1781,16 +2387,17 @@ def _check_ai_quota(user) -> tuple[bool, str | None]:
     Returns (allowed, error_message). Commits the counter increment on success.
     Admins are always allowed.
     """
-    from datetime import date as _date
     if user.is_admin:
         return True, None
 
-    today = _date.today()
+    today = _sgt_today()
     if user.ai_calls_reset_date != today:
         user.ai_calls_today = 0
         user.ai_calls_reset_date = today
 
-    limit = _AI_DAILY_LIMITS.get(user.subscription_status, 5)
+    limit = _entitlements(user)["ai_daily_limit"]
+    if limit is None:
+        return True, None
     if limit == 0:
         return False, "AI features are unavailable on your current plan."
     if (user.ai_calls_today or 0) >= limit:
@@ -1802,23 +2409,14 @@ def _check_ai_quota(user) -> tuple[bool, str | None]:
 
 
 def _billing_status(user) -> dict:
-    if user.is_admin:
-        return {
-            "status":     "active",
-            "has_access": True,
-            "is_free":    False,
-            "scan_limit": None,
-        }
-    status = user.subscription_status or "free"
-    if status == "trialing":
-        status = "free"  # legacy rows — no trial UI
-    is_free = status not in ("active",)
-    has_access = is_free and status not in ("expired", "cancelled", "past_due")
+    ent = _entitlements(user)
     return {
-        "status":         status,
-        "has_access":     _is_active(user),
-        "is_free":        has_access,
-        "scan_limit":     10 if has_access else None,
+        "status":         ent["status"],
+        "has_access":     ent["has_access"],
+        # "is_free" in the UI means a free-tier user who still has access
+        # (the 10-result/daily-scan banner) — not merely "not paid".
+        "is_free":        ent["has_access"] and ent["is_free_tier"],
+        "scan_limit":     ent["scan_result_limit"],
         "email_verified": bool(user.email_verified),
     }
 
@@ -1826,6 +2424,23 @@ def _billing_status(user) -> dict:
 @app.route("/api/billing/status")
 @login_required
 def billing_status():
+    return jsonify(_billing_status(current_user))
+
+
+@app.route("/api/billing/sync", methods=["POST"])
+@login_required
+def billing_sync():
+    """Reconcile the current user's subscription straight from Stripe.
+    Called when returning from Checkout so activation never depends solely on
+    webhook delivery (which can be missed, fail signature, or be undelivered)."""
+    import stripe as _stripe
+    _stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+    if _stripe.api_key and current_user.stripe_customer_id:
+        try:
+            if _sync_user_subscription(current_user, _stripe):
+                db.session.commit()
+        except Exception as e:
+            app.logger.warning("Billing sync failed for user %s: %s", current_user.id, e)
     return jsonify(_billing_status(current_user))
 
 
@@ -1907,7 +2522,10 @@ def billing_webhook():
     new_status = None
     if et in ("customer.subscription.created", "customer.subscription.updated"):
         stripe_status = obj.get("status", "")
-        new_status = "active" if stripe_status == "active" else stripe_status
+        # Normalise via the same map the cron sync uses so the two write paths
+        # can never store different strings for the same real state (e.g.
+        # "canceled" vs "cancelled"). Unknown statuses fall through unchanged.
+        new_status = _STRIPE_STATUS_MAP.get(stripe_status, stripe_status)
     elif et == "customer.subscription.deleted":
         new_status = "cancelled"
     elif et == "invoice.payment_failed":
@@ -2040,7 +2658,10 @@ def cron_scan():
     if not secret or not hmac.compare_digest(incoming, secret):
         return jsonify({"error": "Forbidden"}), 403
 
-    now_hm  = datetime.now(timezone.utc).strftime("%H:%M")
+    # Users pick schedule_time in their local Singapore time (SGT, UTC+8), so we
+    # must compare against the current SGT wall-clock — not raw UTC, which would
+    # fire every scheduled scan 8 hours off from what the user intended.
+    now_hm  = datetime.now(SGT).strftime("%H:%M")
     now_h   = int(now_hm.split(":")[0])
     now_m   = int(now_hm.split(":")[1])
     now_min = now_h * 60 + now_m
@@ -2178,8 +2799,23 @@ def cron_cleanup():
         ScanHistory.started_at < cutoff_scans
     ).delete(synchronize_session=False)
 
+    # Backstop: fail scans stuck at 'running' >1h (startup reconciliation
+    # covers worker-kill restarts; this catches a hung thread with no restart).
+    cutoff_running = datetime.now(timezone.utc) - timedelta(hours=1)
+    stuck_scans = ScanHistory.query.filter(
+        ScanHistory.status == "running",
+        ScanHistory.started_at < cutoff_running,
+    ).update(
+        {"status": "failed", "finished_at": datetime.now(timezone.utc)},
+        synchronize_session=False,
+    )
+
     db.session.commit()
-    return jsonify({"deleted_jobs": deleted_jobs, "deleted_scan_history": deleted_scans})
+    return jsonify({
+        "deleted_jobs": deleted_jobs,
+        "deleted_scan_history": deleted_scans,
+        "failed_stuck_scans": stuck_scans,
+    })
 
 
 
@@ -2200,41 +2836,117 @@ def cron_stripe_sync():
     if not _stripe.api_key:
         return jsonify({"error": "STRIPE_SECRET_KEY not set"}), 500
 
-    STATUS_MAP = {
-        "active":   "active",
-        "past_due": "past_due",
-        "canceled": "cancelled",
-        "unpaid":   "past_due",
-        "paused":   "past_due",
-    }
+    # Any user who has ever reached Stripe checkout has a customer id. Check
+    # all of them — not just those already marked paid — so an account that
+    # paid but never flipped (missed/failed webhook) self-heals here.
+    users = User.query.filter(User.stripe_customer_id != None).all()  # noqa: E711
 
-    users = User.query.filter(
-        User.stripe_customer_id != None,  # noqa: E711
-        User.subscription_status.in_(["active", "past_due", "cancelled"]),
-    ).all()
-
-    updated = []
+    updated, errors = [], []
     for user in users:
         try:
-            subs = _stripe.Subscription.list(
-                customer=user.stripe_customer_id, limit=1, status="all"
-            )
-            if not subs.data:
-                if user.subscription_status != "cancelled":
-                    user.subscription_status = "cancelled"
-                    updated.append(user.email)
-                continue
-
-            sub        = subs.data[0]
-            new_status = STATUS_MAP.get(sub.status, user.subscription_status)
-            if new_status != user.subscription_status:
-                user.subscription_status = new_status
+            if _sync_user_subscription(user, _stripe):
                 updated.append(user.email)
-        except Exception:
+        except Exception as e:
+            # Never let a Stripe API/permission error masquerade as a clean
+            # no-op — log it and report a count so an outage is visible.
+            errors.append(user.email)
+            app.logger.warning("stripe-sync failed for %s: %s", user.email, e)
             continue
 
     db.session.commit()
-    return jsonify({"synced": len(users), "updated": updated})
+    if errors:
+        app.logger.error("stripe-sync: %d/%d users errored", len(errors), len(users))
+    return jsonify({"synced": len(users), "updated": updated, "errors": len(errors)})
+
+
+@app.route("/api/admin/billing-debug", methods=["POST"])
+def admin_billing_debug():
+    """Ops diagnostic: show what Stripe actually holds, so an orphaned
+    subscription (attached to a customer the app never linked) can be found.
+    Secret-gated so it's callable via curl with X-Cron-Secret."""
+    secret = os.getenv("CRON_SECRET", "")
+    if not secret or not hmac.compare_digest(request.headers.get("X-Cron-Secret", ""), secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    import stripe as _stripe
+    from sqlalchemy import func
+    _stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+    if not _stripe.api_key:
+        return jsonify({"error": "STRIPE_SECRET_KEY not set"}), 500
+
+    email = (request.args.get("email") or (request.json or {}).get("email") or "").strip().lower()
+    out = {"query_email": email}
+
+    user = User.query.filter(func.lower(User.email) == email).first() if email else None
+    out["app_user"] = None if not user else {
+        "id": user.id,
+        "email": user.email,
+        "stripe_customer_id": user.stripe_customer_id,
+        "subscription_status": user.subscription_status,
+    }
+
+    try:
+        custs = _stripe.Customer.list(email=email, limit=20).data if email else []
+        out["stripe_customers_for_email"] = [{"id": c.id, "email": c.email} for c in custs]
+    except Exception as e:
+        out["stripe_customers_for_email_error"] = str(e)
+
+    # Recent subscriptions across the whole account — to spot an orphan whose
+    # customer email differs from the app account.
+    try:
+        recent = []
+        for s in _stripe.Subscription.list(limit=20, status="all").data:
+            cust_email = None
+            try:
+                cust_email = getattr(_stripe.Customer.retrieve(s.customer), "email", None)
+            except Exception:
+                pass
+            recent.append({
+                "sub_id": s.id,
+                "status": s.status,
+                "customer": s.customer,
+                "customer_email": cust_email,
+            })
+        out["recent_subscriptions"] = recent
+    except Exception as e:
+        out["recent_subscriptions_error"] = str(e)
+
+    return jsonify(out)
+
+
+@app.route("/api/admin/grant-pro", methods=["POST"])
+def admin_grant_pro():
+    """Ops action: force an account to active (paid but unlinked subscription,
+    comps, support). Secret-gated for curl use. Optionally link a Stripe
+    customer id at the same time so future syncs stay correct."""
+    secret = os.getenv("CRON_SECRET", "")
+    if not secret or not hmac.compare_digest(request.headers.get("X-Cron-Secret", ""), secret):
+        return jsonify({"error": "Forbidden"}), 403
+
+    from sqlalchemy import func
+    body = request.json or {}
+    email = (request.args.get("email") or body.get("email") or "").strip().lower()
+    customer_id = (request.args.get("customer_id") or body.get("customer_id") or "").strip()
+    if not email:
+        return jsonify({"error": "email required"}), 400
+
+    user = User.query.filter(func.lower(User.email) == email).first()
+    if not user:
+        return jsonify({"error": "No user with that email"}), 404
+
+    if customer_id:
+        user.stripe_customer_id = customer_id
+    user.subscription_status = "active"
+    db.session.commit()
+    app.logger.info(
+        "Admin granted Pro to %s (customer_id=%s)", user.email, user.stripe_customer_id
+    )
+    return jsonify({
+        "ok": True,
+        "email": user.email,
+        "subscription_status": user.subscription_status,
+        "stripe_customer_id": user.stripe_customer_id,
+    })
 
 
 @app.route("/api/cron/billing-health", methods=["POST"])
@@ -2248,14 +2960,15 @@ def cron_billing_health():
     past_due = User.query.filter_by(subscription_status="past_due").all()
     if past_due and admin_email:
         rows = "".join(
-            f"<tr><td>{u.email}</td><td>{u.stripe_customer_id or '—'}</td></tr>"
+            f"<tr><td>{html.escape(u.email or '')}</td>"
+            f"<td>{html.escape(u.stripe_customer_id or '—')}</td></tr>"
             for u in past_due
         )
-        html = (
+        body_html = (
             f"<h2>Billing Health — {len(past_due)} past_due account(s)</h2>"
             f"<table><tr><th>Email</th><th>Stripe Customer</th></tr>{rows}</table>"
         )
-        _send_email(admin_email, f"[CareerJobScan] {len(past_due)} past_due account(s)", html)
+        _send_email(admin_email, f"[CareerScan] {len(past_due)} past_due account(s)", body_html)
     return jsonify({"past_due": len(past_due), "alerted": bool(past_due and admin_email)})
 
 

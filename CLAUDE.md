@@ -27,9 +27,11 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | `models.py` | User, UserProfile, UserSettings, Job, ApplicationStatus, SeenJob, SearchMode |
 | `templates/index.html` | Main SPA (Alpine.js) — all pages except login/register/onboarding |
 | `templates/onboarding.html` | 2-step onboarding wizard (job prefs → Gemini key) |
-| `config.py` | Loads env vars, SEARCH_CONFIG defaults, Gemini mode generation |
+| `config.py` | Loads env vars, SEARCH_CONFIG defaults, Gemini mode generation; loads pre-built modes from `prebuilt_modes.json` then overlays runtime cache |
+| `prebuilt_modes.json` | Committed seed of the built-in scan modes (fnb, healthcare, etc.) so they work without Gemini and survive deploys (`data/` is gitignored + ephemeral) |
+| `gunicorn.conf.py` | Prod server config — auto-loaded by `gunicorn app:app`. Single worker + gthread + 300s timeout (see Deployment) |
 | `main.py` | Standalone CLI scan runner (manual/Task Scheduler use) — **not** called by `app.py`; the hosted app scans in-process |
-| `scrapers.py` | MCF API only (no scrapers — all previous ones removed) |
+| `scrapers.py` | Official APIs only, Singapore-only: MyCareersFuture, Adzuna (`sg` endpoint), RemoteOK (filtered to SG). No HTML scraping. Scan config is passed in explicitly (not read from global SEARCH_CONFIG) |
 | `scorer.py` | Job scoring engine (0–100), produces `match_reasons` and `score_breakdown` |
 | `cover_notes.py` | Gemini cover note generation |
 | `notifier.py` | Resend email digest |
@@ -46,15 +48,24 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 4. Matched jobs + seen IDs are written **directly** to the `jobs` / `seen_jobs` DB tables
 5. Progress is streamed to the UI via `/api/scan/stream` (SSE); `ScanHistory` records the run
 
+> **Scan state is in process memory** (`_scans` queue + thread in `app.py`). The scan
+> runs as a daemon thread inside the gunicorn worker, and the SSE stream is held by
+> that same worker — so the app **must run a single worker** (see `gunicorn.conf.py`).
+> If a worker is killed mid-scan, `_reconcile_orphaned_scans()` marks the orphaned
+> `running` ScanHistory row failed on the next boot.
+
 ---
 
 ## Deployment
 
-- **Render web service** — `gunicorn app:app`, auto-deploys from `master`
+- **Live URL** — `https://careerscan.online` (custom domain, canonical; `www` 301s to apex). Render subdomain: `https://careerscan.onrender.com`. The old `jobscanner-m7pb.onrender.com` service is suspended and must not be referenced.
+- **Render web service** — `gunicorn app:app`, auto-deploys from `master`. Lives on a Render account migrated 2026-06-19; env vars, Stripe webhook, Google OAuth redirect URI, and cron jobs are all configured for `careerscan.online`.
+- **Gunicorn config** — `gunicorn.conf.py` is auto-loaded from the repo root. It sets `workers=1` (**required** — in-memory scan queue, see Data Flow), `worker_class=gthread`, and `timeout=300` (long scans exceed the default 30s and were getting the worker SIGKILLed). **Keep the Render start command as bare `gunicorn app:app`** — any `--workers`/`--timeout` CLI flag overrides the config file and breaks this.
+- **CI smoke test** — `.github/workflows/smoke-test.yml` polls the GitHub repo variable `APP_URL` (currently `https://careerscan.onrender.com`) post-deploy.
 - **Render cron jobs** — all protected by `X-Cron-Secret` header matching `CRON_SECRET`:
   - `/api/cron/scan` — every 15 min, triggers scheduled user scans
   - `/api/cron/weekly-digest` — Mondays 08:00 SGT, sends email digests
-  - `/api/cron/cleanup` — daily, deletes jobs >60 days old (keeps tracked), scan_history >90 days
+  - `/api/cron/cleanup` — daily, deletes jobs >60 days old (keeps tracked), scan_history >90 days, and fails scans stuck `running` >1h
   - `/api/cron/stripe-sync` — daily, syncs Stripe subscription status to fix missed webhooks
 - **Supabase** — Session Pooler connection (IPv4 compatible), port 5432
 - **Stripe webhook** — endpoint: `/api/stripe/webhook` (not `/api/billing/webhook`)
@@ -121,7 +132,9 @@ python run.py                # starts Flask on http://localhost:5000
 
 ## Key Constraints
 
-- **MCF API only** — no scrapers. LinkedIn/JobStreet/Indeed scraping violates ToS. Do not add them back.
+- **Official APIs only, Singapore-only** — three sources: MyCareersFuture, Adzuna (needs `ADZUNA_APP_ID`/`ADZUNA_APP_KEY`; capped to `_ADZUNA_MAX_TITLES`=3 titles/scan to conserve the 100/day free tier shared across all users), and RemoteOK (filtered to SG-located postings). No HTML scraping. LinkedIn/JobStreet/Glints/Indeed scraping violates ToS — do not add them back.
+- **Single gunicorn worker required** — scan state lives in process memory (see Data Flow + `gunicorn.conf.py`). Scaling past one worker needs scan state moved to Redis/DB first.
+- **Pre-built modes are committed** — in `prebuilt_modes.json` (not Gemini-dependent). `data/modes_cache.json` only holds runtime-generated custom modes and is gitignored + ephemeral on Render.
 - **No Telegram** — fully removed. Email only via Resend.
 - **Gemini API keys are encrypted** — stored with Fernet encryption using `ENCRYPTION_KEY`. If `ENCRYPTION_KEY` is not set, keys are stored plaintext (warn the user).
 - **Stripe webhook route** — `/api/stripe/webhook` (the function is named `billing_webhook` internally but the route must stay `/api/stripe/webhook`).
@@ -130,9 +143,9 @@ python run.py                # starts Flask on http://localhost:5000
 
 ---
 
-## Feature Status (as of 2026-06-08)
+## Feature Status (as of 2026-06-19)
 
-- [x] MCF API job fetching
+- [x] Job fetching from 3 SG sources (MyCareersFuture, Adzuna, RemoteOK)
 - [x] Gemini job scoring + match reasons
 - [x] Cover note generation
 - [x] Multi-user auth (email + Google OAuth)

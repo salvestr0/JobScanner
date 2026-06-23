@@ -98,7 +98,12 @@ COVER_NOTES_DIR = f"{DATA_DIR}/cover_notes"
 # DYNAMIC SEARCH MODES
 # ============================================================
 
+# Runtime cache (writable, ephemeral on Render) — holds Gemini-generated custom modes.
 _MODES_CACHE_FILE = "data/modes_cache.json"
+# Seed of pre-built modes, committed to the repo so they ALWAYS work without Gemini
+# and survive deploys (Render's data/ disk is ephemeral and wiped on each deploy).
+# Anchored to this file's dir so it resolves regardless of the process CWD.
+_MODES_SEED_FILE = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "prebuilt_modes.json")
 
 _MODE_DEFAULTS = {
     "min_salary": 2200,
@@ -113,10 +118,16 @@ import requests as _requests
 
 
 def _load_modes_cache() -> dict:
-    if _os.path.exists(_MODES_CACHE_FILE):
-        with open(_MODES_CACHE_FILE) as f:
-            return _json.load(f)
-    return {}
+    """Pre-built seed modes (committed) overlaid with any runtime-cached custom modes."""
+    cache: dict = {}
+    for path in (_MODES_SEED_FILE, _MODES_CACHE_FILE):
+        if _os.path.exists(path):
+            try:
+                with open(path) as f:
+                    cache.update(_json.load(f))
+            except Exception as e:
+                print(f"  [modes] Could not read {path}: {e}")
+    return cache
 
 
 def _save_modes_cache(cache: dict):

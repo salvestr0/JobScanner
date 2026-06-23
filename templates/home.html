@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CareerJobScan — Singapore Job Matching, Done For You</title>
-  <meta name="description" content="CareerJobScan scans MyCareersFuture, Indeed, Adzuna, and RemoteOK daily, scores every listing against your profile, and shows you only the matches worth applying to.">
+  <title>CareerScan — Singapore Job Matching, Done For You</title>
+  <meta name="description" content="CareerScan scans MyCareersFuture, Adzuna, and RemoteOK daily, scores every listing against your profile, and shows you only the matches worth applying to.">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="CareerJobScan — Singapore Job Matching, Done For You">
-  <meta property="og:description" content="Stop scrolling job boards. CareerJobScan finds the listings that actually match your profile.">
-  <meta property="og:site_name" content="CareerJobScan">
+  <meta property="og:title" content="CareerScan — Singapore Job Matching, Done For You">
+  <meta property="og:description" content="Stop scrolling job boards. CareerScan finds the listings that actually match your profile.">
+  <meta property="og:site_name" content="CareerScan">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="CareerJobScan — Singapore Job Matching, Done For You">
-  <meta name="twitter:description" content="Stop scrolling job boards. CareerJobScan finds the listings that actually match your profile.">
+  <meta name="twitter:title" content="CareerScan — Singapore Job Matching, Done For You">
+  <meta name="twitter:description" content="Stop scrolling job boards. CareerScan finds the listings that actually match your profile.">
 
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Crect width='24' height='24' rx='5' fill='%23F59E0B'/%3E%3Cpath d='M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0zM21 21l-4-4' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" type="image/svg+xml">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/careerscan-logo.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
@@ -23,11 +23,1134 @@
     body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
     .amber-underline {
       text-decoration: underline;
-      text-decoration-color: #F59E0B;
+      text-decoration-color: #c1a477;
       text-decoration-thickness: 3px;
       text-underline-offset: 4px;
     }
+  
+    /* ─────────────────────────────────────────────────────────────
+       Landing Page Design V3 — Pearl Slate Executive Minimal
+       Visual-only redesign. Existing copy, links, routes, and
+       backend-related structure remain unchanged.
+    ───────────────────────────────────────────────────────────── */
+    :root {
+      --v3-ink: #182033;
+      --v3-ink-soft: #354052;
+      --v3-muted: #697386;
+      --v3-line: #e3e7ec;
+      --v3-line-strong: #ced5de;
+      --v3-paper: #ffffff;
+      --v3-canvas: #f6f8fa;
+      --v3-sage: #eef2f7;
+      --v3-sage-strong: #dde5ef;
+      --v3-green: #657da6;
+      --v3-green-dark: #51698f;
+      --v3-gold: #c1a477;
+      --v3-gold-soft: #f2ece3;
+      --v3-shadow: 0 24px 60px rgba(38, 50, 75, 0.09);
+      --v3-shadow-soft: 0 12px 34px rgba(38, 50, 75, 0.07);
+      --v3-width: 1180px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--v3-canvas);
+    }
+
+    body {
+      color: var(--v3-ink) !important;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #f7f9fb 38%, #ffffff 72%, #f4f7fa 100%) !important;
+      font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+      overflow-x: hidden;
+    }
+
+    ::selection {
+      color: var(--v3-ink);
+      background: var(--v3-gold-soft);
+    }
+
+    a, summary {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    a:focus-visible,
+    summary:focus-visible {
+      outline: 3px solid rgba(101, 125, 166, 0.22);
+      outline-offset: 4px;
+      border-radius: 8px;
+    }
+
+    /* Navigation */
+    nav {
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 9999 !important;
+      width: 100%;
+      border-bottom: 1px solid rgba(24, 32, 51, 0.10) !important;
+      background: rgba(255, 255, 255, 0.98) !important;
+      box-shadow: 0 8px 28px rgba(38, 50, 75, 0.04);
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    nav > div {
+      max-width: var(--v3-width) !important;
+      height: 76px !important;
+      padding-left: 24px !important;
+      padding-right: 24px !important;
+    }
+
+    nav > div > div:first-child {
+      gap: 12px !important;
+    }
+
+    nav > div > div:first-child > div:first-child,
+    footer > div > div:first-child > div:first-child {
+      width: 34px !important;
+      height: 34px !important;
+      border-radius: 8px !important;
+      color: #fff !important;
+      background: var(--v3-green) !important;
+      box-shadow: 0 8px 18px rgba(101, 125, 166, 0.17);
+      transition: transform 180ms ease, box-shadow 180ms ease;
+    }
+
+    nav > div > div:first-child:hover > div:first-child {
+      transform: translateY(-2px) rotate(-2deg);
+      box-shadow: 0 12px 24px rgba(101, 125, 166, 0.20);
+    }
+
+    nav span.font-semibold {
+      color: var(--v3-ink) !important;
+      font-size: 1rem;
+      font-weight: 700 !important;
+      letter-spacing: -0.02em;
+    }
+
+    nav > div > div:last-child {
+      gap: 10px !important;
+    }
+
+    nav a {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px !important;
+      transition:
+        transform 180ms ease,
+        border-color 180ms ease,
+        background-color 180ms ease,
+        color 180ms ease,
+        box-shadow 180ms ease !important;
+    }
+
+    nav a[href="/login"] {
+      color: var(--v3-ink-soft) !important;
+      border: 1px solid transparent;
+      padding: 10px 15px !important;
+    }
+
+    nav a[href="/login"]:hover {
+      color: var(--v3-green) !important;
+      border-color: var(--v3-line);
+      background: #fff !important;
+    }
+
+    nav a[href="/register"] {
+      color: #fff !important;
+      border: 1px solid var(--v3-green) !important;
+      background:
+        linear-gradient(135deg, #7188ae 0%, #6079a4 100%) !important;
+      padding: 10px 18px !important;
+      box-shadow: 0 10px 22px rgba(101, 125, 166, 0.13);
+    }
+
+    nav a[href="/register"]:hover {
+      transform: translateY(-2px);
+      background:
+        linear-gradient(135deg, #6680aa 0%, #577199 100%) !important;
+      box-shadow: 0 14px 28px rgba(101, 125, 166, 0.16);
+    }
+
+    nav a:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    /* Hero — editorial, spacious, and intentionally card-free */
+    body > section:nth-of-type(1) {
+      position: relative;
+      min-height: 660px;
+      display: flex;
+      align-items: center;
+      padding: 100px 24px 90px !important;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, rgba(226, 232, 240, 0.62) 0 1px, transparent 1px),
+        linear-gradient(rgba(226, 232, 240, 0.50) 0 1px, transparent 1px),
+        linear-gradient(180deg, #ffffff 0%, #f7f9fb 100%) !important;
+      background-size: 82px 82px, 82px 82px, auto !important;
+    }
+
+    body > section:nth-of-type(1)::before {
+      content: "";
+      position: absolute;
+      width: 460px;
+      height: 460px;
+      right: -180px;
+      top: -150px;
+      border-radius: 50%;
+      border: 1px solid rgba(181, 145, 82, 0.22);
+      box-shadow:
+        0 0 0 54px rgba(181, 145, 82, 0.035),
+        0 0 0 108px rgba(101, 125, 166, 0.025);
+      animation: v3Orbit 12s ease-in-out infinite alternate;
+    }
+
+    body > section:nth-of-type(1)::after {
+      content: "";
+      position: absolute;
+      left: max(24px, calc((100vw - var(--v3-width)) / 2 + 24px));
+      bottom: 46px;
+      width: 92px;
+      height: 3px;
+      background: var(--v3-gold);
+      transform-origin: left center;
+      animation: v3Rule 1.1s ease both;
+    }
+
+    body > section:nth-of-type(1) > div {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: var(--v3-width) !important;
+      margin: 0 auto;
+      text-align: left !important;
+    }
+
+    body > section:nth-of-type(1) .inline-flex:first-child {
+      margin-bottom: 28px !important;
+      padding: 8px 12px !important;
+      border: 1px solid var(--v3-line) !important;
+      border-radius: 6px !important;
+      color: var(--v3-green) !important;
+      background: rgba(255,255,255,0.86) !important;
+      box-shadow: none !important;
+    }
+
+    body > section:nth-of-type(1) .inline-flex:first-child span:first-child {
+      width: 6px !important;
+      height: 6px !important;
+      background: var(--v3-gold) !important;
+      box-shadow: 0 0 0 4px rgba(181, 145, 82, 0.11);
+    }
+
+    body > section:nth-of-type(1) .inline-flex:first-child span:last-child {
+      color: var(--v3-green) !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.02em;
+    }
+
+    body > section:nth-of-type(1) h1 {
+      max-width: 860px;
+      margin: 0 0 28px !important;
+      color: var(--v3-ink) !important;
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif !important;
+      font-size: clamp(3.5rem, 7.2vw, 6.8rem) !important;
+      line-height: 1.08 !important;
+      letter-spacing: -0.055em;
+      text-wrap: balance;
+      animation: v3FadeUp 720ms ease both;
+    }
+
+    .amber-underline {
+      display: inline;
+      color: var(--v3-green) !important;
+      text-decoration: none !important;
+      background:
+        linear-gradient(180deg, transparent 78%, rgba(181, 145, 82, 0.24) 78%);
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    body > section:nth-of-type(1) p {
+      max-width: 640px !important;
+      margin: 0 0 36px !important;
+      color: var(--v3-muted) !important;
+      font-size: clamp(1.05rem, 1.8vw, 1.22rem) !important;
+      line-height: 1.72 !important;
+      animation: v3FadeUp 720ms 90ms ease both;
+    }
+
+    body > section:nth-of-type(1) .flex.flex-col {
+      width: fit-content;
+      max-width: 100%;
+      margin: 0 !important;
+      justify-content: flex-start !important;
+      align-items: stretch !important;
+      gap: 12px !important;
+      animation: v3FadeUp 720ms 160ms ease both;
+    }
+
+    body > section:nth-of-type(1) a {
+      min-height: 52px;
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px !important;
+      padding: 14px 24px !important;
+      transition:
+        transform 180ms ease,
+        box-shadow 180ms ease,
+        background-color 180ms ease,
+        border-color 180ms ease,
+        color 180ms ease !important;
+    }
+
+    body > section:nth-of-type(1) a[href="/register"] {
+      color: #fff !important;
+      border: 1px solid var(--v3-green) !important;
+      background: var(--v3-green) !important;
+      box-shadow: 0 14px 28px rgba(101, 125, 166, 0.14);
+    }
+
+    body > section:nth-of-type(1) a[href="/register"]:hover {
+      transform: translateY(-3px);
+      background: var(--v3-green-dark) !important;
+      box-shadow: 0 18px 34px rgba(101, 125, 166, 0.18);
+    }
+
+    body > section:nth-of-type(1) a[href="/login"] {
+      color: var(--v3-ink-soft) !important;
+      border: 1px solid var(--v3-line-strong) !important;
+      background: #fff !important;
+      box-shadow: none;
+    }
+
+    body > section:nth-of-type(1) a[href="/login"]:hover {
+      transform: translateY(-3px);
+      color: var(--v3-green) !important;
+      border-color: var(--v3-green) !important;
+      box-shadow: var(--v3-shadow-soft);
+    }
+
+    body > section:nth-of-type(1) a:active {
+      transform: translateY(0) scale(0.985) !important;
+    }
+
+    /* Source band */
+    body > section:nth-of-type(2) {
+      padding: 0 24px !important;
+      border: 0 !important;
+      background: var(--v3-canvas) !important;
+    }
+
+    body > section:nth-of-type(2) > div {
+      max-width: var(--v3-width) !important;
+      min-height: 94px;
+      display: grid;
+      grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
+      align-items: center;
+      gap: 28px;
+      padding: 22px 0;
+      border-top: 1px solid var(--v3-line);
+      border-bottom: 1px solid var(--v3-line);
+    }
+
+    body > section:nth-of-type(2) p {
+      margin: 0 !important;
+      text-align: left !important;
+      color: var(--v3-muted) !important;
+      font-size: 0.72rem !important;
+      letter-spacing: 0.16em !important;
+    }
+
+    body > section:nth-of-type(2) > div > div {
+      justify-content: flex-end !important;
+      gap: 10px !important;
+    }
+
+    body > section:nth-of-type(2) span {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--v3-ink-soft) !important;
+      border: 1px solid var(--v3-line) !important;
+      border-radius: 7px !important;
+      background: #fff !important;
+      box-shadow: none;
+      transition:
+        transform 180ms ease,
+        border-color 180ms ease,
+        color 180ms ease,
+        box-shadow 180ms ease !important;
+    }
+
+    body > section:nth-of-type(2) span:hover {
+      transform: translateY(-3px);
+      color: var(--v3-green) !important;
+      border-color: var(--v3-sage-strong) !important;
+      box-shadow: var(--v3-shadow-soft);
+    }
+
+    /* Shared section typography */
+    body > section:nth-of-type(3) h2,
+    body > section:nth-of-type(4) h2,
+    body > section:nth-of-type(5) h2,
+    body > section:nth-of-type(6) h2,
+    body > section:nth-of-type(7) h2,
+    body > section:nth-of-type(8) h2 {
+      color: var(--v3-ink) !important;
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif !important;
+      font-size: clamp(2.35rem, 4.4vw, 4.35rem) !important;
+      line-height: 1 !important;
+      letter-spacing: -0.045em;
+      text-wrap: balance;
+    }
+
+    body > section:nth-of-type(3) p,
+    body > section:nth-of-type(4) p,
+    body > section:nth-of-type(5) p,
+    body > section:nth-of-type(6) p,
+    body > section:nth-of-type(7) p,
+    body > section:nth-of-type(8) p {
+      color: var(--v3-muted) !important;
+    }
+
+    /* Product showcase */
+    body > section:nth-of-type(3) {
+      padding: 110px 24px 120px !important;
+      background: var(--v3-paper) !important;
+    }
+
+    body > section:nth-of-type(3) > div {
+      max-width: var(--v3-width) !important;
+    }
+
+    body > section:nth-of-type(3) > div > div:first-child {
+      max-width: 760px;
+      margin: 0 0 48px !important;
+      text-align: left !important;
+    }
+
+    body > section:nth-of-type(3) > div > div:first-child p {
+      max-width: 560px;
+      margin-top: 14px !important;
+      line-height: 1.65 !important;
+    }
+
+    body > section:nth-of-type(3) > div > div:nth-child(2) {
+      border: 1px solid var(--v3-line) !important;
+      border-radius: 10px !important;
+      background: #fff !important;
+      box-shadow: var(--v3-shadow);
+      overflow: hidden;
+      transition: transform 240ms ease, box-shadow 240ms ease;
+    }
+
+    body > section:nth-of-type(3) > div > div:nth-child(2):hover {
+      transform: translateY(-5px);
+      box-shadow: 0 32px 72px rgba(38, 50, 75, 0.11);
+    }
+
+    body > section:nth-of-type(3) > div > div:nth-child(2) > div:first-child {
+      border-bottom: 1px solid var(--v3-line) !important;
+      background: var(--v3-canvas) !important;
+    }
+
+    body > section:nth-of-type(3) > div > div:nth-child(2) > div:first-child > div:first-child > div {
+      background: var(--v3-line-strong) !important;
+    }
+
+    body > section:nth-of-type(3) > div > div:nth-child(2) > div:first-child > div:nth-child(2) {
+      color: var(--v3-muted) !important;
+      border-color: var(--v3-line) !important;
+      background: #fff !important;
+    }
+
+    body > section:nth-of-type(3) > div > div:nth-child(2) > div:nth-child(2) {
+      height: 430px !important;
+      background: #f8fafc !important;
+    }
+
+    body > section:nth-of-type(3) .w-44 {
+      border-color: var(--v3-line) !important;
+      background: #fff !important;
+    }
+
+    body > section:nth-of-type(3) .w-44 .bg-amber-50 {
+      color: var(--v3-green) !important;
+      border-color: var(--v3-sage-strong) !important;
+      background: var(--v3-sage) !important;
+    }
+
+    body > section:nth-of-type(3) .w-44 .bg-amber-500 {
+      background: var(--v3-green) !important;
+    }
+
+    body > section:nth-of-type(3) .flex-1.p-4 > div {
+      border-color: var(--v3-line) !important;
+      border-radius: 8px !important;
+      background: #fff !important;
+      box-shadow: none !important;
+      transition:
+        transform 180ms ease,
+        border-color 180ms ease,
+        box-shadow 180ms ease !important;
+    }
+
+    body > section:nth-of-type(3) .flex-1.p-4 > div:hover {
+      transform: translateX(4px);
+      border-color: var(--v3-sage-strong) !important;
+      box-shadow: 0 10px 24px rgba(38, 50, 75, 0.06) !important;
+    }
+
+    body > section:nth-of-type(3) .bg-emerald-50 {
+      color: var(--v3-green) !important;
+      border-color: var(--v3-sage-strong) !important;
+      background: var(--v3-sage) !important;
+    }
+
+    body > section:nth-of-type(3) .bg-amber-50:not(.w-44 *) {
+      color: #7a6240 !important;
+      border-color: #e7dac7 !important;
+      background: #f7f2ea !important;
+    }
+
+    body > section:nth-of-type(3) .bg-stone-100 {
+      color: var(--v3-muted) !important;
+      background: #f1f4f7 !important;
+    }
+
+    /* How it works — no cards, just a clean executive process row */
+    body > section:nth-of-type(4) {
+      padding: 112px 24px !important;
+      border: 0 !important;
+      background: var(--v3-canvas) !important;
+    }
+
+    body > section:nth-of-type(4) > div {
+      max-width: var(--v3-width) !important;
+    }
+
+    body > section:nth-of-type(4) > div > div:first-child {
+      max-width: 700px;
+      margin: 0 0 56px !important;
+      text-align: left !important;
+    }
+
+    body > section:nth-of-type(4) > div > div.grid {
+      gap: 0 !important;
+      align-items: stretch !important;
+      border-top: 1px solid var(--v3-line-strong);
+      border-bottom: 1px solid var(--v3-line-strong);
+    }
+
+    body > section:nth-of-type(4) > div > div.grid > div {
+      position: relative;
+      min-height: 290px;
+      align-items: flex-start !important;
+      text-align: left !important;
+      padding: 34px 34px 38px !important;
+      border-right: 1px solid var(--v3-line);
+      transition: background-color 200ms ease, transform 200ms ease;
+    }
+
+    body > section:nth-of-type(4) > div > div.grid > div:last-child {
+      border-right: 0;
+    }
+
+    body > section:nth-of-type(4) > div > div.grid > div:hover {
+      transform: translateY(-4px);
+      background: rgba(255,255,255,0.72);
+    }
+
+    body > section:nth-of-type(4) > div > div.grid > div > div:first-child {
+      width: 42px !important;
+      height: 42px !important;
+      margin-bottom: 38px !important;
+      border: 1px solid var(--v3-green) !important;
+      border-radius: 50% !important;
+      color: var(--v3-green) !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      transition:
+        color 180ms ease,
+        background-color 180ms ease,
+        transform 180ms ease !important;
+    }
+
+    body > section:nth-of-type(4) > div > div.grid > div:hover > div:first-child {
+      color: #fff !important;
+      background: var(--v3-green) !important;
+      transform: scale(1.06);
+    }
+
+    body > section:nth-of-type(4) h3 {
+      min-height: 52px !important;
+      justify-content: flex-start !important;
+      color: var(--v3-ink) !important;
+      font-size: 1.05rem !important;
+      line-height: 1.35 !important;
+      letter-spacing: -0.01em;
+    }
+
+    body > section:nth-of-type(4) p {
+      text-align: left !important;
+      line-height: 1.72 !important;
+    }
+
+    /* Features — editorial list rather than SaaS cards */
+    body > section:nth-of-type(5) {
+      padding: 116px 24px !important;
+      background: var(--v3-paper) !important;
+    }
+
+    body > section:nth-of-type(5) > div {
+      max-width: var(--v3-width) !important;
+    }
+
+    body > section:nth-of-type(5) > div > div:first-child {
+      max-width: 720px;
+      margin: 0 0 52px !important;
+      text-align: left !important;
+    }
+
+    body > section:nth-of-type(5) > div > div.grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 0 !important;
+      border-top: 1px solid var(--v3-line-strong);
+    }
+
+    body > section:nth-of-type(5) > div > div.grid > div {
+      min-height: 210px;
+      display: grid;
+      grid-template-columns: 50px minmax(0, 1fr);
+      align-content: start;
+      column-gap: 22px;
+      padding: 34px 34px 36px !important;
+      border: 0 !important;
+      border-right: 1px solid var(--v3-line) !important;
+      border-bottom: 1px solid var(--v3-line) !important;
+      border-radius: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      transition: background-color 200ms ease, padding-left 200ms ease !important;
+    }
+
+    body > section:nth-of-type(5) > div > div.grid > div:nth-child(even) {
+      border-right: 0 !important;
+    }
+
+    body > section:nth-of-type(5) > div > div.grid > div:hover {
+      padding-left: 40px !important;
+      background: var(--v3-canvas) !important;
+    }
+
+    body > section:nth-of-type(5) > div > div.grid > div > div:first-child {
+      grid-row: 1 / span 2;
+      width: 46px !important;
+      height: 46px !important;
+      margin: 0 !important;
+      border: 1px solid var(--v3-line-strong) !important;
+      border-radius: 50% !important;
+      background: #fff !important;
+      box-shadow: none !important;
+      transition:
+        transform 180ms ease,
+        border-color 180ms ease,
+        background-color 180ms ease !important;
+    }
+
+    body > section:nth-of-type(5) > div > div.grid > div:hover > div:first-child {
+      transform: rotate(-5deg) scale(1.06);
+      border-color: var(--v3-green) !important;
+      background: var(--v3-sage) !important;
+    }
+
+    body > section:nth-of-type(5) svg {
+      color: var(--v3-green) !important;
+    }
+
+    body > section:nth-of-type(5) h3 {
+      color: var(--v3-ink) !important;
+      font-size: 1.05rem !important;
+      line-height: 1.35 !important;
+    }
+
+    body > section:nth-of-type(5) p {
+      line-height: 1.7 !important;
+    }
+
+    /* Pricing */
+    body > section:nth-of-type(6) {
+      padding: 112px 24px !important;
+      border: 0 !important;
+      background: var(--v3-canvas) !important;
+    }
+
+    body > section:nth-of-type(6) > div {
+      max-width: 1020px !important;
+    }
+
+    body > section:nth-of-type(6) > div > div:first-child {
+      margin-bottom: 50px !important;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid {
+      gap: 18px !important;
+      align-items: stretch;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div {
+      border: 1px solid var(--v3-line) !important;
+      border-radius: 10px !important;
+      background: #fff !important;
+      box-shadow: none !important;
+      transition:
+        transform 200ms ease,
+        border-color 200ms ease,
+        box-shadow 200ms ease !important;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:hover {
+      transform: translateY(-5px);
+      border-color: var(--v3-line-strong) !important;
+      box-shadow: var(--v3-shadow);
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) {
+      color: var(--v3-ink) !important;
+      border: 1px solid var(--v3-green) !important;
+      background:
+        linear-gradient(180deg, var(--v3-sage) 0 8px, #fff 8px 100%) !important;
+      box-shadow: 0 18px 44px rgba(101, 125, 166, 0.08) !important;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) .absolute span {
+      color: #fff !important;
+      background: var(--v3-green) !important;
+      box-shadow: none !important;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) .inline-flex {
+      color: var(--v3-green) !important;
+      background: var(--v3-sage) !important;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) .text-white,
+    body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) li,
+    body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) strong {
+      color: var(--v3-ink-soft) !important;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) .text-amber-100 {
+      color: var(--v3-muted) !important;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) svg {
+      color: var(--v3-green) !important;
+    }
+
+    body > section:nth-of-type(6) a {
+      min-height: 48px;
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px !important;
+      transition:
+        transform 180ms ease,
+        border-color 180ms ease,
+        color 180ms ease,
+        background-color 180ms ease !important;
+    }
+
+    body > section:nth-of-type(6) a:hover {
+      transform: translateY(-2px);
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:first-child a {
+      color: var(--v3-ink-soft) !important;
+      border-color: var(--v3-line-strong) !important;
+      background: #fff !important;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:first-child a:hover {
+      color: var(--v3-green) !important;
+      border-color: var(--v3-green) !important;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) a {
+      color: #fff !important;
+      background: var(--v3-green) !important;
+      box-shadow: none !important;
+    }
+
+    body > section:nth-of-type(6) > div > div.grid > div:nth-child(2) a:hover {
+      background: var(--v3-green-dark) !important;
+    }
+
+    /* FAQ — clean rule-based accordion */
+    body > section:nth-of-type(7) {
+      padding: 112px 24px !important;
+      background: var(--v3-paper) !important;
+    }
+
+    body > section:nth-of-type(7) > div {
+      max-width: 900px !important;
+    }
+
+    body > section:nth-of-type(7) > div > div:first-child {
+      text-align: left !important;
+      margin-bottom: 36px !important;
+    }
+
+    body > section:nth-of-type(7) > div > div.space-y-2 {
+      border-top: 1px solid var(--v3-line-strong);
+    }
+
+    body > section:nth-of-type(7) details {
+      margin: 0 !important;
+      border: 0 !important;
+      border-bottom: 1px solid var(--v3-line) !important;
+      border-radius: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      transition: background-color 180ms ease !important;
+    }
+
+    body > section:nth-of-type(7) details:hover,
+    body > section:nth-of-type(7) details[open] {
+      background: var(--v3-canvas) !important;
+    }
+
+    body > section:nth-of-type(7) summary {
+      min-height: 64px;
+      padding: 20px 6px !important;
+      background: transparent !important;
+    }
+
+    body > section:nth-of-type(7) summary span {
+      color: var(--v3-ink) !important;
+      font-size: 0.98rem !important;
+    }
+
+    body > section:nth-of-type(7) summary svg {
+      color: var(--v3-green) !important;
+      transition: transform 180ms ease, color 180ms ease !important;
+    }
+
+    body > section:nth-of-type(7) details[open] summary svg {
+      transform: rotate(180deg);
+    }
+
+    body > section:nth-of-type(7) details > div {
+      color: var(--v3-muted) !important;
+      padding: 0 40px 22px 6px !important;
+      border: 0 !important;
+      background: transparent !important;
+    }
+
+    /* CTA */
+    body > section:nth-of-type(8) {
+      padding: 30px 24px 110px !important;
+      border: 0 !important;
+      background: var(--v3-paper) !important;
+    }
+
+    body > section:nth-of-type(8) > div {
+      position: relative;
+      max-width: var(--v3-width) !important;
+      padding: 72px 36px;
+      border-top: 1px solid var(--v3-line-strong);
+      border-bottom: 1px solid var(--v3-line-strong);
+      background: var(--v3-canvas);
+      overflow: hidden;
+    }
+
+    body > section:nth-of-type(8) > div::before {
+      content: "";
+      position: absolute;
+      width: 180px;
+      height: 180px;
+      left: -90px;
+      top: -90px;
+      border-radius: 50%;
+      border: 1px solid rgba(181, 145, 82, 0.32);
+      box-shadow: 0 0 0 34px rgba(181, 145, 82, 0.04);
+      transition: transform 500ms ease;
+    }
+
+    body > section:nth-of-type(8) > div:hover::before {
+      transform: translate(24px, 18px) scale(1.08);
+    }
+
+    body > section:nth-of-type(8) a {
+      min-height: 52px;
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      color: #fff !important;
+      border: 1px solid var(--v3-green) !important;
+      border-radius: 8px !important;
+      background: var(--v3-green) !important;
+      box-shadow: 0 14px 28px rgba(101, 125, 166, 0.14);
+      transition:
+        transform 180ms ease,
+        background-color 180ms ease,
+        box-shadow 180ms ease !important;
+    }
+
+    body > section:nth-of-type(8) a:hover {
+      transform: translateY(-3px);
+      background: var(--v3-green-dark) !important;
+      box-shadow: 0 18px 34px rgba(101, 125, 166, 0.18);
+    }
+
+    /* Footer */
+    footer {
+      padding: 28px 24px !important;
+      border-top: 1px solid var(--v3-line) !important;
+      background: var(--v3-canvas) !important;
+    }
+
+    footer > div {
+      max-width: var(--v3-width) !important;
+    }
+
+    footer span,
+    footer a {
+      color: var(--v3-muted) !important;
+    }
+
+    footer a {
+      position: relative;
+    }
+
+    footer a::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 100%;
+      bottom: -3px;
+      height: 1px;
+      background: var(--v3-green);
+      transition: right 180ms ease;
+    }
+
+    footer a:hover {
+      color: var(--v3-green) !important;
+    }
+
+    footer a:hover::after {
+      right: 0;
+    }
+
+    /* Motion */
+    @keyframes v3FadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes v3Rule {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
+
+    @keyframes v3Orbit {
+      from { transform: translate3d(0, 0, 0) scale(0.96); }
+      to { transform: translate3d(-22px, 18px, 0) scale(1.04); }
+    }
+
+    /* Tablet */
+    @media (max-width: 1023px) {
+      body > section:nth-of-type(1) h1 {
+        max-width: 760px;
+      }
+
+      body > section:nth-of-type(5) > div > div.grid > div {
+        padding-left: 26px !important;
+        padding-right: 26px !important;
+      }
+
+      body > section:nth-of-type(5) > div > div.grid > div:hover {
+        padding-left: 30px !important;
+      }
+    }
+
+    /* Mobile */
+    @media (max-width: 767px) {
+      nav > div {
+        height: 66px !important;
+        padding-left: 14px !important;
+        padding-right: 10px !important;
+      }
+
+      nav span.font-semibold {
+        font-size: 0.9rem;
+      }
+
+      nav a[href="/login"] {
+        display: none;
+      }
+
+      nav a[href="/register"] {
+        min-height: 40px;
+        padding: 8px 12px !important;
+        font-size: 0.76rem !important;
+      }
+
+      body > section:nth-of-type(1) {
+        min-height: auto;
+        padding: 80px 18px 82px !important;
+        background-size: 52px 52px, 52px 52px, auto !important;
+      }
+
+      body > section:nth-of-type(1)::before {
+        width: 250px;
+        height: 250px;
+        right: -130px;
+        top: -90px;
+      }
+
+      body > section:nth-of-type(1)::after {
+        left: 18px;
+        bottom: 34px;
+        width: 62px;
+      }
+
+      body > section:nth-of-type(1) h1 {
+        font-size: clamp(3rem, 15vw, 4.6rem) !important;
+        line-height: 1.1 !important;
+      }
+
+      body > section:nth-of-type(1) p {
+        font-size: 1rem !important;
+        line-height: 1.65 !important;
+      }
+
+      body > section:nth-of-type(1) .flex.flex-col {
+        width: 100%;
+      }
+
+      body > section:nth-of-type(1) a {
+        width: 100% !important;
+      }
+
+      body > section:nth-of-type(2) {
+        padding-left: 18px !important;
+        padding-right: 18px !important;
+      }
+
+      body > section:nth-of-type(2) > div {
+        grid-template-columns: 1fr;
+        gap: 14px;
+        padding: 22px 0;
+      }
+
+      body > section:nth-of-type(2) p {
+        text-align: center !important;
+      }
+
+      body > section:nth-of-type(2) > div > div {
+        justify-content: center !important;
+      }
+
+      body > section:nth-of-type(3),
+      body > section:nth-of-type(4),
+      body > section:nth-of-type(5),
+      body > section:nth-of-type(6),
+      body > section:nth-of-type(7),
+      body > section:nth-of-type(8) {
+        padding-left: 18px !important;
+        padding-right: 18px !important;
+      }
+
+      body > section:nth-of-type(3),
+      body > section:nth-of-type(4),
+      body > section:nth-of-type(5),
+      body > section:nth-of-type(6),
+      body > section:nth-of-type(7) {
+        padding-top: 78px !important;
+        padding-bottom: 78px !important;
+      }
+
+      body > section:nth-of-type(3) > div > div:nth-child(2) > div:nth-child(2) {
+        height: 405px !important;
+      }
+
+      body > section:nth-of-type(4) > div > div.grid {
+        border-bottom: 0;
+      }
+
+      body > section:nth-of-type(4) > div > div.grid > div {
+        min-height: auto;
+        padding: 28px 4px 30px !important;
+        border-right: 0;
+        border-bottom: 1px solid var(--v3-line);
+      }
+
+      body > section:nth-of-type(4) > div > div.grid > div:hover {
+        transform: none;
+        background: transparent;
+      }
+
+      body > section:nth-of-type(5) > div > div.grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      body > section:nth-of-type(5) > div > div.grid > div {
+        grid-template-columns: 46px minmax(0, 1fr);
+        min-height: auto;
+        padding: 28px 4px 30px !important;
+        border-right: 0 !important;
+      }
+
+      body > section:nth-of-type(5) > div > div.grid > div:hover {
+        padding-left: 4px !important;
+      }
+
+      body > section:nth-of-type(6) > div > div.grid > div {
+        padding: 28px !important;
+      }
+
+      body > section:nth-of-type(8) {
+        padding-top: 10px !important;
+        padding-bottom: 78px !important;
+      }
+
+      body > section:nth-of-type(8) > div {
+        padding: 58px 18px;
+      }
+
+      footer {
+        padding-left: 18px !important;
+        padding-right: 18px !important;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/careerscan-theme.css') }}">
 </head>
 <body class="bg-white text-stone-900 antialiased" data-language-default="en">
 
@@ -35,12 +1158,8 @@
   <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-stone-100">
     <div class="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0">
-          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
-          </svg>
-        </div>
-        <span class="font-semibold text-stone-900">CareerJobScan</span>
+        <img src="{{ url_for('static', filename='images/careerscan-logo.png') }}" alt="CareerScan logo" class="brand-logo-img brand-logo-img--nav">
+        <span class="font-semibold text-stone-900">CareerScan</span>
       </div>
       <div class="flex items-center gap-2">
         {% set language_switcher_class = 'language-switcher--compact-sm' %}
@@ -70,7 +1189,7 @@
       </h1>
 
       <p class="text-stone-500 text-lg max-w-xl mx-auto mb-8 leading-relaxed">
-        CareerJobScan scans Singapore's top job boards daily, scores every listing against your skills and salary range, and surfaces only the roles worth applying to.
+        CareerScan scans Singapore's top job boards daily, scores every listing against your skills and salary range, and surfaces only the roles worth applying to.
       </p>
 
       <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -92,7 +1211,6 @@
       <p class="text-center text-stone-400 text-xs font-medium uppercase tracking-widest mb-5">Scans these boards daily</p>
       <div class="flex flex-wrap items-center justify-center gap-3">
         <span class="bg-white border border-stone-200 text-stone-700 text-sm font-semibold px-5 py-2 rounded-full">MyCareersFuture</span>
-        <span class="bg-white border border-stone-200 text-stone-700 text-sm font-semibold px-5 py-2 rounded-full">Indeed</span>
         <span class="bg-white border border-stone-200 text-stone-700 text-sm font-semibold px-5 py-2 rounded-full">Adzuna</span>
         <span class="bg-white border border-stone-200 text-stone-700 text-sm font-semibold px-5 py-2 rounded-full">RemoteOK</span>
       </div>
@@ -142,10 +1260,10 @@
                 <svg class="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>MCF
               </div>
               <div class="text-stone-500 text-xs px-3 py-1.5 flex items-center gap-2">
-                <svg class="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>Indeed
+                <svg class="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>Adzuna
               </div>
               <div class="text-stone-500 text-xs px-3 py-1.5 flex items-center gap-2">
-                <svg class="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>Adzuna
+                <svg class="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>RemoteOK
               </div>
             </div>
           </div>
@@ -197,7 +1315,7 @@
               <div class="flex flex-wrap gap-1.5">
                 <span class="bg-amber-50 text-amber-700 text-[11px] px-2 py-0.5 rounded-full border border-amber-200">SQL</span>
                 <span class="bg-stone-100 text-stone-500 text-[11px] px-2 py-0.5 rounded-full">S$3.5k–4.5k/mo</span>
-                <span class="bg-stone-100 text-stone-500 text-[11px] px-2 py-0.5 rounded-full">Indeed</span>
+                <span class="bg-stone-100 text-stone-500 text-[11px] px-2 py-0.5 rounded-full">Adzuna</span>
               </div>
             </div>
 
@@ -226,7 +1344,7 @@
           <div class="w-10 h-10 bg-amber-500 text-white font-bold text-base rounded-xl flex items-center justify-center mb-4">2</div>
           <h3 class="font-semibold text-stone-900 mb-2 min-h-[3rem] flex items-center justify-center">We scan every day</h3>
           <p class="text-stone-500 text-sm leading-relaxed">
-            CareerJobScan checks MCF, Indeed, Adzuna, and RemoteOK daily and scores every new listing against your profile. 0–100.
+            CareerScan checks MyCareersFuture, Adzuna, and RemoteOK daily and scores every new listing against your profile. 0–100.
           </p>
         </div>
         <div class="text-center flex flex-col items-center">
@@ -459,17 +1577,13 @@
   <footer class="border-t border-stone-100 py-8 px-6 bg-white">
     <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-2">
-        <div class="w-6 h-6 bg-amber-500 rounded-md flex items-center justify-center">
-          <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
-          </svg>
-        </div>
-        <span class="text-stone-500 text-sm font-medium">CareerJobScan</span>
+        <img src="{{ url_for('static', filename='images/careerscan-logo.png') }}" alt="CareerScan logo" class="brand-logo-img brand-logo-img--footer">
+        <span class="text-stone-500 text-sm font-medium">CareerScan</span>
       </div>
       <div class="flex items-center gap-5">
         <a href="/privacy" class="text-stone-400 hover:text-stone-600 text-sm transition-colors">Privacy</a>
         <a href="/terms" class="text-stone-400 hover:text-stone-600 text-sm transition-colors">Terms</a>
-        <span class="text-stone-300 text-sm">© 2026 CareerJobScan. Built for Singapore.</span>
+        <span class="text-stone-300 text-sm">© 2026 CareerScan. Built for Singapore.</span>
       </div>
     </div>
   </footer>

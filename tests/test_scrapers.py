@@ -173,6 +173,9 @@ def test_fetch_mcf_max_results_stops_before_second_title(monkeypatch):
 def test_scrape_all_sources_dedupes_across_results(monkeypatch):
     monkeypatch.setattr(scrapers, "fetch_mcf",
                         lambda **k: [{"id": "x"}, {"id": "x"}, {"id": "y"}])
+    # Isolate the dedup logic from the other live sources (no real HTTP).
+    monkeypatch.setattr(scrapers, "fetch_adzuna", lambda **k: [])
+    monkeypatch.setattr(scrapers, "fetch_remoteok", lambda: [])
     jobs = scrapers.scrape_all_sources()
     assert [j["id"] for j in jobs] == ["x", "y"]
 
