@@ -106,3 +106,38 @@ bash loadtest/run.sh 1000 100 60s u1000   # users, spawn/s, duration, tag
 LT_SAME_IP=1 bash loadtest/run.sh 1000 200 30s sameip   # single-IP / limiter test
 # results + CSVs land in loadtest/results/
 ```
+
+---
+
+## Tier 0 mitigations applied (2026-06-24)
+
+Low-risk, no-new-services changes to buy headroom on the current 1-vCPU / 2 GB
+Standard instance. **These do NOT lift the single-worker ceiling** (that needs the
+Tier 1 scan refactor) — they remove the worst failure mode and tidy bottlenecks.
+
+1. **SSE concurrent-stream cap** (`app.py` — `_sse_semaphore`). Each open
+   `/api/scan/stream` holds a worker thread; unbounded streams could starve every
+   request. Now capped at `max(2, threads-2)`; excess streams get a fast `503` + 
+   `Retry-After` instead of eating threads. Verified: 10 concurrent → 6×200, 4×503.
+2. **Idle-stream auto-close.** A stream opened with no active scan used to ping
+   forever and hold a thread indefinitely — it now closes itself within ~15 s.
+3. **DB pool sized to threads** (`app.py` — `SQLALCHEMY_ENGINE_OPTIONS`, Postgres
+   only). So raising threads doesn't just move the bottleneck to DB connections.
+   `pool_size=GUNICORN_THREADS`, `max_overflow=4`, `pool_timeout=30`.
+4. **Default worker threads 8 → 12** (`gunicorn.conf.py`). More I/O concurrency for
+   DB-bound endpoints. (No CPU gain on 1 vCPU — bcrypt logins are unchanged.)
+5. **New env knobs** documented in `.env.example`: `GUNICORN_THREADS`,
+   `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `MAX_SSE_STREAMS`.
+
+### Render dashboard settings to apply (no redeploy needed for env-only changes)
+- **`REDIS_URL`** → add a Render Redis service and set this, so rate limiting (and
+  later, Tier 1) survives restarts. Already supported in code (`app.py`).
+- Optionally bump **`GUNICORN_THREADS`** (e.g. 16) if you see DB-bound latency — but
+  watch the Supabase pooler connection count.
+- Keep the start command as bare **`gunicorn app:app`** (don't add `--threads` —
+  it would override the config file).
+
+### Still required for real 1000-concurrent capacity
+Tier 1: move scans to RQ + Redis + a background worker, make SSE Redis-backed, then
+run multiple workers/instances. Until then, plan for **~150 concurrent active users**
+per instance, and scale vertically (more vCPUs) for short-term bursts.
