@@ -40,6 +40,16 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from config import (
+    DEFAULT_JOB_REGION,
+    JOB_REGIONS,
+    JSEARCH_API_KEY,
+    get_job_continent_options,
+    get_job_region,
+    get_job_region_label,
+    get_job_region_options,
+    normalize_job_region,
+)
 from models import (
     ApplicationStatus, ErrorLog, Job, ScanHistory, SearchMode, SeenJob, User,
     UserProfile, UserSettings, db,
@@ -47,8 +57,8 @@ from models import (
 
 load_dotenv()
 
-# Singapore is the only market — user-facing dates/times are SGT (UTC+8) while
-# the server clock is UTC. Use these helpers for anything users see or schedule.
+# User-facing dates/times are SGT (UTC+8) while the server clock is UTC.
+# Keep this for daily limits and scheduled scans even as job sourcing regions vary.
 SGT = timezone(timedelta(hours=8))
 
 
@@ -330,12 +340,20 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
 
     user_cfg_json = extra_env.get("JOBSCANNER_USER_CONFIG", "{}")
     max_jobs      = int(extra_env.get("JOBSCANNER_MAX_JOBS", "0"))
+    try:
+        user_cfg_data = json.loads(user_cfg_json)
+    except Exception:
+        user_cfg_data = {}
+    selected_region = normalize_job_region(
+        (user_cfg_data.get("search_config") or {}).get("job_region")
+    )
 
     try:
         # ── 1. Configure SEARCH_CONFIG for this user (serialised via _config_lock) ──
         with _config_lock:
             _cfg.SEARCH_CONFIG.clear()
             _cfg.SEARCH_CONFIG.update({
+                "job_region":               selected_region,
                 "target_titles":             [],
                 "preferred_keywords":        [],
                 "negative_keywords":         [],
@@ -351,13 +369,16 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
             _cfg.load_user_config(user_cfg_json)
             if mode != "analyst":
                 _cfg.set_mode(mode)
+            _cfg.SEARCH_CONFIG["job_region"] = selected_region
             cfg_snapshot = dict(_cfg.SEARCH_CONFIG)
+            region_info = get_job_region(cfg_snapshot.get("job_region"))
 
         # ── 2. Log start ────────────────────────────────────────────────────────
         log("=" * 50)
         log(f"JOB SCANNER - Starting scan [{mode.upper()} mode]")
         log(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         log("=" * 50)
+        log(f"Selected job region: {region_info['label']}")
 
         # ── 3. Load seen jobs from DB ────────────────────────────────────────────
         with app.app_context():
@@ -382,11 +403,15 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
                 "Gemini API key is set, or pick one of the built-in modes.")
             raise RuntimeError(f"No target_titles for mode '{mode}'")
 
-        log("\nScanning job sources (MyCareersFuture, Adzuna, RemoteOK)...")
+        enabled_sources = ", ".join(region_info.get("enabled_sources", [])) or "not available yet"
+        log(f"\nScanning job sources for {region_info['label']} ({enabled_sources})...")
         all_jobs = scrape_all_sources(max_total=max_fetch, cfg=cfg_snapshot)
 
         if not all_jobs:
-            log("No jobs found from any source. Check your internet connection.")
+            if not region_info.get("enabled_sources"):
+                log("This region is not available yet. Stay tuned.")
+            else:
+                log("No live jobs found from the configured API source for this region.")
         else:
             # ── 5. Filter seen ───────────────────────────────────────────────────
             new_jobs = [j for j in all_jobs if j["id"] not in seen_ids]
@@ -426,6 +451,7 @@ def _run_scan_inprocess(user_id: str, mode: str, notify: bool, q: queue.Queue, e
                                 company       = job.get("company", ""),
                                 location      = job.get("location", ""),
                                 source        = job.get("source", ""),
+                                region        = cfg_snapshot.get("job_region", DEFAULT_JOB_REGION),
                                 url           = job.get("url", ""),
                                 posted_date   = job.get("posted_date", ""),
                                 closing_date  = job.get("closing_date") or None,
@@ -526,6 +552,7 @@ def _build_user_env(user: User) -> dict:
     if settings:
         sc = settings.to_dict()
         user_cfg["search_config"] = {
+            "job_region":                sc["job_region"],
             "min_salary":                sc["min_salary"],
             "max_salary":                sc["max_salary"],
             "min_score_threshold":       sc["min_score_threshold"],
@@ -552,13 +579,18 @@ def _build_user_env(user: User) -> dict:
 
 # ── DB helpers ─────────────────────────────────────────────────────────────────
 
-def _jobs_for_user(user_id: str) -> list[dict]:
-    rows = (
-        Job.query
-        .filter_by(user_id=user_id)
-        .order_by(Job.scan_date.desc())
-        .all()
-    )
+def _filter_jobs_by_region(query, region: str):
+    region = normalize_job_region(region)
+    if region == DEFAULT_JOB_REGION:
+        return query.filter((Job.region == region) | (Job.region.is_(None)))
+    return query.filter(Job.region == region)
+
+
+def _jobs_for_user(user_id: str, region: str | None = None) -> list[dict]:
+    query = Job.query.filter_by(user_id=user_id)
+    if region:
+        query = _filter_jobs_by_region(query, region)
+    rows = query.order_by(Job.scan_date.desc()).all()
     return [r.to_dict() for r in rows]
 
 
@@ -581,6 +613,7 @@ def _get_or_create_settings(user_id: str) -> UserSettings:
             max_salary=defaults.get("max_salary", 4000),
             min_score_threshold=defaults.get("min_score_threshold", 40),
             max_jobs_per_notification=defaults.get("max_jobs_per_notification", 20),
+            job_region=normalize_job_region(defaults.get("job_region")),
             target_titles=defaults.get("target_titles", []),
             preferred_keywords=defaults.get("preferred_keywords", []),
             negative_keywords=defaults.get("negative_keywords", []),
@@ -590,6 +623,11 @@ def _get_or_create_settings(user_id: str) -> UserSettings:
         db.session.add(s)
         db.session.commit()
     return s
+
+
+def _current_job_region(user: User) -> str:
+    settings = getattr(user, "settings", None) or _get_or_create_settings(user.id)
+    return normalize_job_region(getattr(settings, "job_region", None))
 
 
 def _get_or_create_profile(user_id: str) -> UserProfile:
@@ -934,7 +972,8 @@ def onboarding():
 @app.route("/api/stats")
 @login_required
 def stats():
-    jobs   = _jobs_for_user(current_user.id)
+    region = _current_job_region(current_user)
+    jobs   = _jobs_for_user(current_user.id, region=region)
     status = _statuses_for_user(current_user.id)
 
     unique = list({j["id"]: j for j in jobs}.values())
@@ -966,7 +1005,8 @@ def stats():
 @app.route("/api/jobs")
 @login_required
 def get_jobs():
-    all_jobs = _jobs_for_user(current_user.id)
+    region = normalize_job_region(request.args.get("region") or _current_job_region(current_user))
+    all_jobs = _jobs_for_user(current_user.id, region=region)
     status   = _statuses_for_user(current_user.id)
 
     unique = list({j["id"]: j for j in all_jobs}.values())
@@ -994,6 +1034,7 @@ def get_jobs():
 
     resp = jsonify(unique)
     resp.headers["X-Hidden-Count"] = str(hidden_count)
+    resp.headers["X-Job-Region"] = region
     return resp
 
 
@@ -1247,9 +1288,21 @@ def generate_cover_note_route():
 def get_config():
     import config as cfg
     s = _get_or_create_settings(current_user.id)
+    region_key = normalize_job_region(s.job_region)
+    region_info = get_job_region(region_key)
     return jsonify({
         "gemini_api_key":            bool(current_user.gemini_api_key or cfg.GEMINI_API_KEY),
         "email_configured":          bool(os.getenv("RESEND_API_KEY")),
+        "job_regions":               get_job_region_options(),
+        "job_continents":            get_job_continent_options(),
+        "job_region":                region_key,
+        "job_region_label":          region_info["label"],
+        "job_region_continent":      region_info["continent"],
+        "job_region_currency":       region_info["currency"],
+        "job_region_sources":        region_info.get("enabled_sources", []),
+        "job_region_api_enabled":    bool(region_info.get("api_enabled")),
+        "job_api_configured":        bool(JSEARCH_API_KEY),
+        "job_source_links":          [],
         "min_salary":                s.min_salary,
         "max_salary":                s.max_salary,
         "min_score_threshold":       s.min_score_threshold,
@@ -1288,6 +1341,11 @@ def update_config():
         if email_to and not _valid_email(email_to):
             return jsonify({"error": "Invalid email address"}), 400
         s.email_to = email_to
+    if "job_region" in data:
+        region_key = (data.get("job_region") or "").strip().lower()
+        if region_key not in JOB_REGIONS:
+            return jsonify({"error": "Unsupported job region"}), 400
+        s.job_region = region_key
     for key in ("email_enabled", "preferred_location"):
         if key in data:
             setattr(s, key, data[key])
@@ -1400,8 +1458,9 @@ def resume_polish():
 
     data    = request.json or {}
     profile = data.get("profile", {})
+    market_label = get_job_region_label(_current_job_region(current_user))
 
-    prompt = f"""You are a professional resume writer specialising in Singapore job applications.
+    prompt = f"""You are a professional resume writer specialising in {market_label} job applications.
 
 Rewrite the following profile sections to sound polished, confident, and ATS-friendly.
 Use action verbs and quantify achievements where reasonable. Keep it concise and truthful.
@@ -1491,18 +1550,19 @@ def resume_tailor():
 
     profile = _get_or_create_profile(current_user.id)
     p       = profile.to_dict()
+    market_label = get_job_region_label(job.region or _current_job_region(current_user))
 
     work_lines = "\n".join(
         f"  - {w.get('title','')} at {w.get('company','')} ({w.get('period','')}): {w.get('summary','')}"
         for w in (p.get("work_history") or [])
     ) or "  (none)"
 
-    prompt = f"""You are a professional resume coach specialising in Singapore job applications.
+    prompt = f"""You are a professional resume coach specialising in {market_label} job applications.
 
 Given the following job listing and the candidate's existing profile, suggest tailored resume improvements specifically for this role.
 
 Job: {job.title} at {job.company}
-Location: {job.location or 'Singapore'}
+Location: {job.location or market_label}
 Salary: {'$'+str(job.salary_min)+'–$'+str(job.salary_max)+'/mo' if job.salary_min and job.salary_max else 'Not specified'}
 Match reasons: {job.match_reasons or 'N/A'}
 
@@ -1692,6 +1752,7 @@ def generate_application_pack():
         profile["email"] = current_user.email
 
     settings = _get_or_create_settings(current_user.id).to_dict()
+    market_label = get_job_region_label(job.region or settings.get("job_region"))
     reasons = [r.strip() for r in (job.match_reasons or "").split("|") if r.strip()]
     profile_text = " ".join([
         profile.get("experience_summary", ""),
@@ -1718,7 +1779,7 @@ def generate_application_pack():
         if isinstance(w, dict)
     ) or "- No work history provided"
 
-    prompt = f"""You are CareerScan's Singapore job application assistant.
+    prompt = f"""You are CareerScan's {market_label} job application assistant.
 
 Create a practical application pack for this candidate and job. Use only truthful information from the candidate profile. If a detail is missing, turn it into an action item instead of inventing it.
 
@@ -1750,7 +1811,7 @@ Return ONLY valid JSON with this exact shape:
 JOB:
 Title: {job.title or ''}
 Company: {job.company or ''}
-Location: {job.location or 'Singapore'}
+Location: {job.location or market_label}
 Salary: {salary}
 Source: {job.source or ''}
 Score: {job.score or 0}/100
@@ -1771,7 +1832,7 @@ Work history:
 SEARCH CONTEXT:
 Target titles: {', '.join(settings.get('target_titles') or [])}
 Likely missing profile keywords: {', '.join(likely_missing) or 'None detected'}
-Preferred location: {settings.get('preferred_location') or 'Singapore'}
+Preferred location: {settings.get('preferred_location') or market_label}
 """
 
     try:
@@ -2162,8 +2223,8 @@ def export_jobs():
             return "'" + s
         return s
 
-    jobs = (Job.query
-            .filter_by(user_id=current_user.id)
+    region = _current_job_region(current_user)
+    jobs = (_filter_jobs_by_region(Job.query.filter_by(user_id=current_user.id), region)
             .order_by(Job.score.desc())
             .all())
 
@@ -2171,12 +2232,12 @@ def export_jobs():
 
     output = io.StringIO()
     writer = _csv.writer(output)
-    writer.writerow(["title", "company", "location", "score", "salary_min", "salary_max",
+    writer.writerow(["title", "company", "location", "region", "score", "salary_min", "salary_max",
                      "source", "posted_date", "closing_date", "status", "url"])
     for j in jobs:
         st = statuses.get(j.source_job_id, {}).get("status", "")
         writer.writerow([_csv_safe(v) for v in (
-            j.title, j.company, j.location, j.score,
+            j.title, j.company, j.location, get_job_region_label(j.region), j.score,
             j.salary_min or "", j.salary_max or "",
             j.source, j.posted_date or "", j.closing_date or "",
             st, j.url or "",
@@ -2624,12 +2685,13 @@ def interview_prep():
 
     reasons = [r.strip() for r in (job.match_reasons or "").split("|") if r.strip()]
     sal = f"${job.salary_min:,}–${job.salary_max:,}/mo" if job.salary_min and job.salary_max else "not specified"
+    market_label = get_job_region_label(job.region or _current_job_region(current_user))
 
-    prompt = f"""You are an interview coach preparing a candidate for a job interview in Singapore.
+    prompt = f"""You are an interview coach preparing a candidate for a job interview in {market_label}.
 
 Role: {job.title}
 Company: {job.company}
-Location: {job.location or 'Singapore'}
+Location: {job.location or market_label}
 Salary: {sal}
 Why they matched: {', '.join(reasons[:6]) or 'Not available'}
 
