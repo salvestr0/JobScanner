@@ -72,15 +72,23 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.config["JSON_SORT_KEYS"]       = False
 app.config["MAX_CONTENT_LENGTH"]   = 5 * 1024 * 1024
 app.config["SECRET_KEY"]           = _secret_key
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///jobscanner_dev.db",
-)
+_db_uri = os.getenv("DATABASE_URL", "sqlite:///jobscanner_dev.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = _db_uri
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_pre_ping": True,
-    "pool_recycle":  300,
-}
+
+# Worker thread count (mirrors gunicorn.conf.py's GUNICORN_THREADS). The DB pool
+# is sized from it so that, when threads are raised for more concurrency, threads
+# don't simply block waiting for a free DB connection (a hidden second bottleneck).
+_gthreads = int(os.getenv("GUNICORN_THREADS", "8"))
+_engine_opts = {"pool_pre_ping": True, "pool_recycle": 300}
+if not _db_uri.startswith("sqlite"):
+    # Postgres (Supabase) only — SQLite uses a different pool and ignores these.
+    _engine_opts.update({
+        "pool_size":    int(os.getenv("DB_POOL_SIZE", str(_gthreads))),
+        "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "4")),
+        "pool_timeout": 30,
+    })
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = _engine_opts
 app.config.update(
     SESSION_COOKIE_SECURE=not _in_dev,
     SESSION_COOKIE_HTTPONLY=True,
@@ -280,6 +288,14 @@ def unauthorized():
 _scans: dict[str, dict] = {}
 _scan_locks: dict[str, threading.Lock] = {}
 _config_lock = threading.Lock()
+
+# Each open /api/scan/stream SSE response holds one worker thread for its whole
+# lifetime. With a single gthread worker that's a small, fixed pool of threads,
+# so unbounded streams can starve every other request (login, dashboard, …).
+# Cap concurrent streams below the thread count to always leave threads free for
+# normal traffic. Override with MAX_SSE_STREAMS.
+_SSE_MAX = int(os.getenv("MAX_SSE_STREAMS", str(max(2, _gthreads - 2))))
+_sse_semaphore = threading.BoundedSemaphore(_SSE_MAX)
 
 
 def _get_scan(user_id: str) -> dict:
@@ -2086,18 +2102,36 @@ def start_scan():
 def stream_scan():
     user_id = current_user.id
 
+    # Cap concurrent streams so they can't consume every worker thread. If we're
+    # at the cap, tell the client to back off rather than holding the connection.
+    if not _sse_semaphore.acquire(blocking=False):
+        return Response(
+            f"data: {json.dumps({'type': 'busy'})}\n\n",
+            status=503, mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Retry-After": "3"},
+        )
+
     @stream_with_context
     def generate():
-        q = _get_scan(user_id)["q"]
-        while True:
-            try:
-                line = q.get(timeout=60)
-                if line is None:
-                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                    break
-                yield f"data: {json.dumps({'type': 'log', 'text': line})}\n\n"
-            except queue.Empty:
-                yield f"data: {json.dumps({'type': 'ping'})}\n\n"
+        try:
+            scan = _get_scan(user_id)
+            q = scan["q"]
+            while True:
+                try:
+                    line = q.get(timeout=15)
+                    if line is None:
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        break
+                    yield f"data: {json.dumps({'type': 'log', 'text': line})}\n\n"
+                except queue.Empty:
+                    # Don't hold a worker thread indefinitely when no scan is
+                    # active (e.g. a stale/idle stream): close it out instead.
+                    if not scan.get("running"):
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        break
+                    yield f"data: {json.dumps({'type': 'ping'})}\n\n"
+        finally:
+            _sse_semaphore.release()
 
     return Response(generate(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

@@ -27,8 +27,13 @@ workers = 1
 
 # Threaded worker so the long SSE stream, the scan thread, and other
 # requests can run concurrently within the one process.
+#
+# Raising threads adds I/O concurrency (DB waits) but NOT CPU throughput on a
+# 1-vCPU instance — CPU-bound work (bcrypt logins) still timeshares one core.
+# app.py sizes the DB connection pool from GUNICORN_THREADS and caps concurrent
+# SSE streams below it, so keep both in mind if you raise this.
 worker_class = "gthread"
-threads = int(os.getenv("GUNICORN_THREADS", "8"))
+threads = int(os.getenv("GUNICORN_THREADS", "12"))
 
 # Generous timeout so long scans (scoring dozens of jobs via Gemini +
 # Supabase writes) don't trip gunicorn's worker-kill timeout.

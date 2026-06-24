@@ -41,3 +41,7 @@ data/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Load-test generated artifacts (keep the harness, ignore outputs)
+loadtest/results/
+loadtest/users.json
