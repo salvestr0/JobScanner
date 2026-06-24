@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contact Support — CareerScan</title>
+  <meta name="description" content="Contact CareerScan support to report issues, share feedback, or ask for help.">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/careerscan-logo.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --cs-ink: #182033;
+      --cs-ink-soft: #354052;
+      --cs-muted: #697386;
+      --cs-line: #e3e7ec;
+      --cs-line-strong: #ced5de;
+      --cs-paper: #ffffff;
+      --cs-canvas: #f6f8fa;
+      --cs-slate: #657da6;
+      --cs-slate-dark: #51698f;
+      --cs-gold: #c1a477;
+      --cs-gold-soft: #f2ece3;
+      --cs-shadow: 0 24px 60px rgba(38, 50, 75, 0.09);
+      --cs-shadow-soft: 0 12px 34px rgba(38, 50, 75, 0.07);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--cs-canvas);
+    }
+
+    body {
+      color: var(--cs-ink);
+      background:
+        radial-gradient(circle at 10% 12%, rgba(193, 164, 119, 0.12), transparent 28rem),
+        radial-gradient(circle at 90% 2%, rgba(101, 125, 166, 0.12), transparent 30rem),
+        linear-gradient(90deg, rgba(226, 232, 240, 0.55) 0 1px, transparent 1px),
+        linear-gradient(rgba(226, 232, 240, 0.45) 0 1px, transparent 1px),
+        linear-gradient(180deg, #ffffff 0%, #f7f9fb 46%, #ffffff 100%);
+      background-size: auto, auto, 82px 82px, 82px 82px, auto;
+      font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    ::selection {
+      color: var(--cs-ink);
+      background: var(--cs-gold-soft);
+    }
+
+    .contact-nav {
+      border-bottom: 1px solid rgba(24, 32, 51, 0.10);
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: 0 8px 28px rgba(38, 50, 75, 0.04);
+    }
+
+    .contact-brand {
+      color: var(--cs-ink);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .contact-link {
+      min-height: 2.55rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.6rem;
+      color: var(--cs-ink-soft);
+      transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+    }
+
+    .contact-link:hover {
+      color: var(--cs-slate-dark);
+      background: #fff;
+      transform: translateY(-1px);
+    }
+
+    .contact-shell {
+      position: relative;
+    }
+
+    .contact-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--cs-slate-dark);
+      background: rgba(101, 125, 166, 0.10);
+      border: 1px solid rgba(101, 125, 166, 0.14);
+      border-radius: 999px;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .contact-kicker::before {
+      content: "";
+      width: 0.42rem;
+      height: 0.42rem;
+      border-radius: 999px;
+      background: var(--cs-gold);
+      box-shadow: 0 0 0 0.25rem rgba(193, 164, 119, 0.14);
+    }
+
+    .contact-title {
+      color: var(--cs-ink);
+      letter-spacing: -0.055em;
+    }
+
+    .contact-copy {
+      color: var(--cs-muted);
+    }
+
+    .contact-info-card,
+    .contact-form-card {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--cs-line);
+      box-shadow: var(--cs-shadow-soft);
+    }
+
+    .contact-form-card {
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--cs-shadow);
+    }
+
+    .contact-form-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--cs-slate), var(--cs-gold));
+    }
+
+    .contact-icon {
+      width: 2.6rem;
+      height: 2.6rem;
+      border-radius: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--cs-slate-dark);
+      background: #eef2f7;
+      border: 1px solid #dde5ef;
+      flex: 0 0 auto;
+    }
+
+    .contact-icon--gold {
+      color: #806744;
+      background: var(--cs-gold-soft);
+      border-color: #e6d7bf;
+    }
+
+    .contact-field {
+      width: 100%;
+      border-radius: 0.9rem;
+      border: 1px solid var(--cs-line);
+      background: #fff;
+      color: var(--cs-ink);
+      font-size: 0.9rem;
+      padding: 0.78rem 0.9rem;
+      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    .contact-field::placeholder {
+      color: #9aa4b2;
+    }
+
+    .contact-field:focus {
+      outline: none;
+      border-color: var(--cs-slate);
+      box-shadow: 0 0 0 4px rgba(101, 125, 166, 0.16);
+    }
+
+    .contact-submit {
+      width: 100%;
+      border-radius: 0.95rem;
+      color: #fff;
+      background: linear-gradient(135deg, #7188ae 0%, #6079a4 100%);
+      box-shadow: 0 14px 28px rgba(101, 125, 166, 0.18);
+      transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+    }
+
+    .contact-submit:hover {
+      transform: translateY(-2px);
+      background: linear-gradient(135deg, #6680aa 0%, #577199 100%);
+      box-shadow: 0 18px 34px rgba(101, 125, 166, 0.22);
+    }
+
+    .contact-submit:active {
+      transform: translateY(0) scale(0.99);
+    }
+  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/careerscan-theme.css') }}">
+</head>
+<body class="cs-contact min-h-screen antialiased">
+
+  <nav class="contact-nav sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 h-[76px] flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3" aria-label="CareerScan home">
+        <img src="{{ url_for('static', filename='images/careerscan-logo.png') }}" alt="CareerScan logo" class="brand-logo-img brand-logo-img--nav">
+        <span class="contact-brand">CareerScan</span>
+      </a>
+      <div class="flex items-center gap-3">
+        {% set language_switcher_class = 'language-switcher--compact-sm' %}
+        {% include "_language_switcher.html" %}
+        {% if current_user.is_authenticated %}
+        <a href="/app" class="contact-link text-sm font-semibold px-3">← Back to app</a>
+        {% else %}
+        <a href="/" class="contact-link text-sm font-semibold px-3">← Back to home</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <main class="contact-shell max-w-6xl mx-auto px-6 py-14 sm:py-18">
+    <div class="grid lg:grid-cols-[0.92fr_1.08fr] gap-8 lg:gap-10 items-start">
+      <section class="space-y-6">
+        <div>
+          <p class="contact-kicker mb-4">Support</p>
+          <h1 class="contact-title text-4xl sm:text-5xl lg:text-6xl font-black leading-[0.98]">Contact CareerScan support</h1>
+          <p class="contact-copy mt-5 text-base sm:text-lg leading-8 max-w-xl">Send feedback, report an issue, or ask for help with your account. We will review your message and follow up by email.</p>
+        </div>
+
+        <div class="contact-info-card rounded-[1.6rem] p-5 sm:p-6 space-y-5">
+          <div class="flex items-start gap-4">
+            <div class="contact-icon contact-icon--gold">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
+            <div>
+              <p class="text-sm font-bold text-[#182033]">Support email</p>
+              <a href="mailto:jaydentng82@gmail.com" class="text-sm text-[#51698f] hover:text-[#354052] font-semibold">jaydentng82@gmail.com</a>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-4">
+            <div class="contact-icon">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.95.68l1.5 4.49a1 1 0 01-.5 1.21l-2.26 1.13a11.04 11.04 0 005.52 5.52l1.13-2.26a1 1 0 011.21-.5l4.49 1.5a1 1 0 01.68.95V19a2 2 0 01-2 2h-1C9.72 21 3 14.28 3 6V5z"/></svg>
+            </div>
+            <div>
+              <p class="text-sm font-bold text-[#182033]">Engineer contact</p>
+              <a href="tel:+6590185228" class="text-sm text-[#354052] hover:text-[#182033] font-semibold">Jayden · +65 9018 5228</a>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-sm text-[#697386] leading-6">Tip: for bug reports, include the page name, what you clicked, and what you expected to happen.</p>
+      </section>
+
+      <section class="contact-form-card rounded-[1.8rem] p-6 sm:p-8">
+        <div class="mb-6">
+          <p class="text-xs font-black uppercase tracking-[0.2em] text-[#51698f] mb-2">Message form</p>
+          <h2 class="text-2xl font-black tracking-tight text-[#182033]">Tell us what happened</h2>
+          <p class="mt-2 text-sm text-[#697386]">Your message will be saved for review and can also be emailed to the support engineer if email is configured.</p>
+        </div>
+
+        {% if sent %}
+        <div class="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-semibold">
+          Thank you — your message has been submitted. We will review it soon.
+        </div>
+        {% endif %}
+        {% if error %}
+        <div class="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-600 text-sm font-semibold">
+          {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="post" action="/contact" class="space-y-5">
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label for="name" class="block text-sm font-bold text-[#354052] mb-1.5">Name</label>
+              <input id="name" name="name" type="text" autocomplete="name" required
+                class="contact-field"
+                value="{{ form.get('name', '') if form else '' }}"
+                placeholder="Your name">
+            </div>
+            <div>
+              <label for="email" class="block text-sm font-bold text-[#354052] mb-1.5">Email</label>
+              <input id="email" name="email" type="email" autocomplete="email" required
+                class="contact-field"
+                value="{{ form.get('email', '') if form else '' }}"
+                placeholder="you@example.com">
+            </div>
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label for="category" class="block text-sm font-bold text-[#354052] mb-1.5">Category</label>
+              <select id="category" name="category" required class="contact-field">
+                <option value="Feedback" {{ 'selected' if form and form.get('category') == 'Feedback' else '' }}>Feedback</option>
+                <option value="Bug Report" {{ 'selected' if form and form.get('category') == 'Bug Report' else '' }}>Bug Report</option>
+                <option value="Account Issue" {{ 'selected' if form and form.get('category') == 'Account Issue' else '' }}>Account Issue</option>
+                <option value="Billing Issue" {{ 'selected' if form and form.get('category') == 'Billing Issue' else '' }}>Billing Issue</option>
+                <option value="Other" {{ 'selected' if form and form.get('category') == 'Other' else '' }}>Other</option>
+              </select>
+            </div>
+            <div>
+              <label for="subject" class="block text-sm font-bold text-[#354052] mb-1.5">Subject</label>
+              <input id="subject" name="subject" type="text" required
+                class="contact-field"
+                value="{{ form.get('subject', '') if form else '' }}"
+                placeholder="How can we help?">
+            </div>
+          </div>
+
+          <div>
+            <label for="message" class="block text-sm font-bold text-[#354052] mb-1.5">Message</label>
+            <textarea id="message" name="message" rows="6" required
+              class="contact-field resize-none"
+              placeholder="Tell us what happened, what page you were on, and what you expected to happen.">{{ form.get('message', '') if form else '' }}</textarea>
+          </div>
+
+          <button type="submit" class="contact-submit text-sm font-black px-5 py-3">
+            Submit message
+          </button>
+        </form>
+
+        <p class="mt-4 text-xs text-[#697386] text-center">For urgent issues, email Jayden directly at jaydentng82@gmail.com.</p>
+      </section>
+    </div>
+  </main>
+
+  <footer class="border-t border-[#e3e7ec] py-8 px-6 bg-white">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <img src="{{ url_for('static', filename='images/careerscan-logo.png') }}" alt="CareerScan logo" class="brand-logo-img brand-logo-img--footer">
+        <span class="text-[#697386] text-sm font-semibold">CareerScan</span>
+      </div>
+      <div class="flex items-center gap-5">
+        <a href="/privacy" class="text-[#697386] hover:text-[#354052] text-sm font-semibold transition-colors">Privacy</a>
+        <a href="/terms" class="text-[#697386] hover:text-[#354052] text-sm font-semibold transition-colors">Terms</a>
+        <span class="text-[#9aa4b2] text-sm">© 2026 CareerScan. Built for Singapore.</span>
+      </div>
+    </div>
+  </footer>
+
+  {% include "_i18n.html" %}
+</body>
+</html>

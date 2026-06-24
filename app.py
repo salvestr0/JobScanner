@@ -917,6 +917,69 @@ def terms_page():
     return render_template("terms.html")
 
 
+@app.route("/contact", methods=["GET", "POST"])
+def contact_page():
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        email = (request.form.get("email") or "").strip().lower()
+        category = (request.form.get("category") or "Feedback").strip()
+        subject = (request.form.get("subject") or "").strip()
+        message = (request.form.get("message") or "").strip()
+
+        allowed_categories = {"Feedback", "Bug Report", "Account Issue", "Billing Issue", "Other"}
+        if category not in allowed_categories:
+            category = "Other"
+
+        if not name or not email or not subject or not message:
+            return render_template(
+                "contact.html",
+                error="Please fill in all required fields.",
+                form=request.form,
+            )
+
+        if not _valid_email(email):
+            return render_template(
+                "contact.html",
+                error="Please enter a valid email address.",
+                form=request.form,
+            )
+
+        submission = {
+            "name": name,
+            "email": email,
+            "category": category,
+            "subject": subject,
+            "message": message,
+            "user_email": current_user.email if current_user.is_authenticated else None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        submissions_path = Path(app.instance_path) / "contact_submissions.jsonl"
+        submissions_path.parent.mkdir(parents=True, exist_ok=True)
+        with submissions_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(submission, ensure_ascii=False) + "\n")
+
+        contact_html = f"""
+        <h2>New CareerScan contact message</h2>
+        <p><strong>Name:</strong> {html.escape(name)}</p>
+        <p><strong>Email:</strong> {html.escape(email)}</p>
+        <p><strong>Category:</strong> {html.escape(category)}</p>
+        <p><strong>Subject:</strong> {html.escape(subject)}</p>
+        <p><strong>Logged-in user:</strong> {html.escape(submission.get('user_email') or 'Guest')}</p>
+        <p><strong>Message:</strong></p>
+        <pre style="white-space:pre-wrap;font-family:ui-monospace,monospace;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:12px">{html.escape(message)}</pre>
+        """
+        _send_email(
+            "jaydentng82@gmail.com",
+            f"[CareerScan Contact] {category}: {subject[:80]}",
+            contact_html,
+        )
+
+        return render_template("contact.html", sent=True)
+
+    return render_template("contact.html")
+
+
 @app.route("/app")
 @login_required
 def app_page():
