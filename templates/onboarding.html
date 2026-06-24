@@ -43,7 +43,28 @@
     <div class="setup-card bg-white border border-stone-200 rounded-2xl p-7 shadow-sm">
       <p class="setup-kicker text-amber-600 text-xs font-semibold uppercase tracking-widest mb-2">Quick Setup</p>
       <h2 class="text-stone-900 text-xl font-semibold mb-1">What jobs are you looking for?</h2>
-      <p class="text-stone-500 text-sm mb-6">Add job titles to search for. You can change these anytime in Settings.</p>
+      <p class="text-stone-500 text-sm mb-6">Choose a target market and add job titles to search for. You can change these anytime in Settings.</p>
+
+      <!-- Target Region -->
+      <div class="mb-5">
+        <label class="block text-stone-700 text-sm font-medium mb-2">Target Job Market</label>
+        <div class="grid grid-cols-2 gap-2">
+          <select x-model="selectedContinent" @change="chooseContinent()"
+            class="w-full px-3 py-2.5 rounded-xl bg-white border border-stone-200 text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
+            <template x-for="c in jobContinents" :key="c.key">
+              <option :value="c.label" x-text="c.label"></option>
+            </template>
+          </select>
+          <select x-model="jobRegion"
+            class="w-full px-3 py-2.5 rounded-xl bg-white border border-stone-200 text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
+            <template x-for="r in countriesForSelectedContinent" :key="r.key">
+              <option :value="r.key" x-text="r.label + (r.api_enabled === false ? ' - Coming soon' : '')"></option>
+            </template>
+          </select>
+        </div>
+        <p class="text-stone-400 text-xs mt-1.5">CareerScan only uses API-backed job sourcing. Unsupported regions are marked as coming soon.</p>
+        <p x-show="!currentRegionApiEnabled" x-cloak class="text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-xs mt-2">暂未开放该地区服务，敬请期待。</p>
+      </div>
 
       <!-- Target Titles -->
       <div class="mb-5">
@@ -137,6 +158,10 @@ function wizard() {
     err: '',
     titles: [],
     prefKws: [],
+    jobRegion: 'sg',
+    selectedContinent: 'Asia',
+    jobRegions: [{ key: 'sg', label: 'Singapore', continent: 'Asia', currency: 'SGD', api_enabled: true }],
+    jobContinents: [{ key: 'asia', label: 'Asia', countries: [{ key: 'sg', label: 'Singapore', currency: 'SGD', api_enabled: true }] }],
     newTitle: '',
     newPrefKw: '',
     titleSuggestions: [
@@ -156,7 +181,31 @@ function wizard() {
         const cfg = await (await fetch('/api/config')).json();
         if (cfg.target_titles?.length)      this.titles  = cfg.target_titles;
         if (cfg.preferred_keywords?.length)  this.prefKws = cfg.preferred_keywords;
+        if (cfg.job_regions?.length)         this.jobRegions = cfg.job_regions;
+        if (cfg.job_continents?.length)      this.jobContinents = cfg.job_continents;
+        if (cfg.job_region)                  this.jobRegion = cfg.job_region;
+        this.syncContinentFromRegion();
       } catch(_){}
+    },
+
+    get currentRegion() {
+      return this.jobRegions.find(r => r.key === this.jobRegion) || this.jobRegions[0];
+    },
+    get currentRegionApiEnabled() {
+      return this.currentRegion?.api_enabled !== false;
+    },
+    get countriesForSelectedContinent() {
+      const group = this.jobContinents.find(c => c.label === this.selectedContinent || c.key === this.selectedContinent);
+      return group?.countries || [];
+    },
+
+    syncContinentFromRegion() {
+      if (this.currentRegion?.continent) this.selectedContinent = this.currentRegion.continent;
+    },
+    chooseContinent() {
+      const countries = this.countriesForSelectedContinent;
+      const next = countries.find(c => c.api_enabled !== false) || countries[0];
+      if (next) this.jobRegion = next.key;
     },
 
     addTitle() {
@@ -177,7 +226,7 @@ function wizard() {
         const r = await fetch('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ target_titles: this.titles, preferred_keywords: this.prefKws }),
+          body: JSON.stringify({ job_region: this.jobRegion, target_titles: this.titles, preferred_keywords: this.prefKws }),
         });
         if (r.ok) { window.location = '/app'; }
         else { this.err = 'Save failed — please try again'; }

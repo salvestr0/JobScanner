@@ -1,5 +1,5 @@
 ﻿"""
-Configuration for CareerJobScan Tool.
+Configuration for CareerScan.
 All credentials are loaded from environment variables (set via .env or Railway).
 """
 
@@ -17,10 +17,170 @@ _load_dotenv()
 GEMINI_API_KEY = _os.getenv("GEMINI_API_KEY", "")
 
 # ============================================================
-# ADZUNA API  (free — register at developer.adzuna.com)
+# LEGACY ADZUNA API SETTINGS
 # ============================================================
+# Kept for backward compatibility with legacy helper functions.
 ADZUNA_APP_ID  = _os.getenv("ADZUNA_APP_ID", "")
 ADZUNA_APP_KEY = _os.getenv("ADZUNA_APP_KEY", "")
+
+# ============================================================
+# JSEARCH / OPENWEB NINJA API
+# ============================================================
+JSEARCH_API_KEY  = _os.getenv("JSEARCH_API_KEY", "") or _os.getenv("OPENWEBNINJA_API_KEY", "")
+JSEARCH_API_HOST = _os.getenv("JSEARCH_API_HOST", "jsearch.p.rapidapi.com")
+
+# ============================================================
+# JOB REGIONS
+# ============================================================
+DEFAULT_JOB_REGION = "sg"
+
+_JOB_COUNTRY_GROUPS = {
+    "Africa": [
+        ("dz", "Algeria"), ("ao", "Angola"), ("bj", "Benin"), ("bw", "Botswana"),
+        ("bf", "Burkina Faso"), ("bi", "Burundi"), ("cm", "Cameroon"), ("cv", "Cabo Verde"),
+        ("cf", "Central African Republic"), ("td", "Chad"), ("km", "Comoros"),
+        ("cg", "Congo"), ("cd", "Democratic Republic of the Congo"), ("ci", "Cote d'Ivoire"),
+        ("dj", "Djibouti"), ("eg", "Egypt"), ("gq", "Equatorial Guinea"), ("er", "Eritrea"),
+        ("sz", "Eswatini"), ("et", "Ethiopia"), ("ga", "Gabon"), ("gm", "Gambia"),
+        ("gh", "Ghana"), ("gn", "Guinea"), ("gw", "Guinea-Bissau"), ("ke", "Kenya"),
+        ("ls", "Lesotho"), ("lr", "Liberia"), ("ly", "Libya"), ("mg", "Madagascar"),
+        ("mw", "Malawi"), ("ml", "Mali"), ("mr", "Mauritania"), ("mu", "Mauritius"),
+        ("ma", "Morocco"), ("mz", "Mozambique"), ("na", "Namibia"), ("ne", "Niger"),
+        ("ng", "Nigeria"), ("rw", "Rwanda"), ("st", "Sao Tome and Principe"),
+        ("sn", "Senegal"), ("sc", "Seychelles"), ("sl", "Sierra Leone"), ("so", "Somalia"),
+        ("za", "South Africa"), ("ss", "South Sudan"), ("sd", "Sudan"), ("tz", "Tanzania"),
+        ("tg", "Togo"), ("tn", "Tunisia"), ("ug", "Uganda"), ("zm", "Zambia"), ("zw", "Zimbabwe"),
+    ],
+    "Asia": [
+        ("af", "Afghanistan"), ("am", "Armenia"), ("az", "Azerbaijan"), ("bh", "Bahrain"),
+        ("bd", "Bangladesh"), ("bt", "Bhutan"), ("bn", "Brunei"), ("kh", "Cambodia"),
+        ("cn", "China"), ("cy", "Cyprus"), ("ge", "Georgia"), ("hk", "Hong Kong"),
+        ("in", "India"), ("id", "Indonesia"), ("ir", "Iran"), ("iq", "Iraq"),
+        ("il", "Israel"), ("jp", "Japan"), ("jo", "Jordan"), ("kz", "Kazakhstan"),
+        ("kw", "Kuwait"), ("kg", "Kyrgyzstan"), ("la", "Laos"), ("lb", "Lebanon"),
+        ("mo", "Macau"), ("my", "Malaysia"), ("mv", "Maldives"), ("mn", "Mongolia"),
+        ("mm", "Myanmar"), ("np", "Nepal"), ("kp", "North Korea"), ("om", "Oman"),
+        ("pk", "Pakistan"), ("ps", "Palestine"), ("ph", "Philippines"), ("qa", "Qatar"),
+        ("sa", "Saudi Arabia"), ("sg", "Singapore"), ("kr", "South Korea"), ("lk", "Sri Lanka"),
+        ("sy", "Syria"), ("tw", "Taiwan"), ("tj", "Tajikistan"), ("th", "Thailand"),
+        ("tl", "Timor-Leste"), ("tr", "Turkey"), ("tm", "Turkmenistan"),
+        ("ae", "United Arab Emirates"), ("uz", "Uzbekistan"), ("vn", "Vietnam"), ("ye", "Yemen"),
+    ],
+    "Europe": [
+        ("al", "Albania"), ("ad", "Andorra"), ("at", "Austria"), ("by", "Belarus"),
+        ("be", "Belgium"), ("ba", "Bosnia and Herzegovina"), ("bg", "Bulgaria"),
+        ("hr", "Croatia"), ("cz", "Czechia"), ("dk", "Denmark"), ("ee", "Estonia"),
+        ("fi", "Finland"), ("fr", "France"), ("de", "Germany"), ("gr", "Greece"),
+        ("hu", "Hungary"), ("is", "Iceland"), ("ie", "Ireland"), ("it", "Italy"),
+        ("xk", "Kosovo"), ("lv", "Latvia"), ("li", "Liechtenstein"), ("lt", "Lithuania"),
+        ("lu", "Luxembourg"), ("mt", "Malta"), ("md", "Moldova"), ("mc", "Monaco"),
+        ("me", "Montenegro"), ("nl", "Netherlands"), ("mk", "North Macedonia"),
+        ("no", "Norway"), ("pl", "Poland"), ("pt", "Portugal"), ("ro", "Romania"),
+        ("ru", "Russia"), ("sm", "San Marino"), ("rs", "Serbia"), ("sk", "Slovakia"),
+        ("si", "Slovenia"), ("es", "Spain"), ("se", "Sweden"), ("ch", "Switzerland"),
+        ("ua", "Ukraine"), ("gb", "United Kingdom"), ("va", "Vatican City"),
+    ],
+    "North America": [
+        ("ag", "Antigua and Barbuda"), ("bs", "Bahamas"), ("bb", "Barbados"), ("bz", "Belize"),
+        ("ca", "Canada"), ("cr", "Costa Rica"), ("cu", "Cuba"), ("dm", "Dominica"),
+        ("do", "Dominican Republic"), ("sv", "El Salvador"), ("gl", "Greenland"),
+        ("gd", "Grenada"), ("gt", "Guatemala"), ("ht", "Haiti"), ("hn", "Honduras"),
+        ("jm", "Jamaica"), ("mx", "Mexico"), ("ni", "Nicaragua"), ("pa", "Panama"),
+        ("pr", "Puerto Rico"), ("kn", "Saint Kitts and Nevis"), ("lc", "Saint Lucia"),
+        ("vc", "Saint Vincent and the Grenadines"), ("tt", "Trinidad and Tobago"),
+        ("us", "United States"),
+    ],
+    "South America": [
+        ("ar", "Argentina"), ("bo", "Bolivia"), ("br", "Brazil"), ("cl", "Chile"),
+        ("co", "Colombia"), ("ec", "Ecuador"), ("fk", "Falkland Islands"), ("gy", "Guyana"),
+        ("py", "Paraguay"), ("pe", "Peru"), ("sr", "Suriname"), ("uy", "Uruguay"),
+        ("ve", "Venezuela"),
+    ],
+    "Oceania": [
+        ("as", "American Samoa"), ("au", "Australia"), ("fj", "Fiji"), ("pf", "French Polynesia"),
+        ("gu", "Guam"), ("ki", "Kiribati"), ("mh", "Marshall Islands"), ("fm", "Micronesia"),
+        ("nr", "Nauru"), ("nc", "New Caledonia"), ("nz", "New Zealand"), ("pw", "Palau"),
+        ("pg", "Papua New Guinea"), ("ws", "Samoa"), ("sb", "Solomon Islands"), ("to", "Tonga"),
+        ("tv", "Tuvalu"), ("vu", "Vanuatu"),
+    ],
+    "Antarctica": [
+        ("aq", "Antarctica"),
+    ],
+}
+
+_JOB_REGION_CURRENCIES = {
+    "ae": "AED", "ar": "ARS", "au": "AUD", "br": "BRL", "ca": "CAD", "ch": "CHF",
+    "cn": "CNY", "de": "EUR", "eg": "EGP", "es": "EUR", "fr": "EUR", "gb": "GBP",
+    "hk": "HKD", "id": "IDR", "in": "INR", "it": "EUR", "jp": "JPY", "kr": "KRW",
+    "my": "MYR", "nl": "EUR", "nz": "NZD", "ph": "PHP", "sg": "SGD", "th": "THB",
+    "tw": "TWD", "us": "USD", "vn": "VND", "za": "ZAR",
+}
+
+
+def _build_job_regions() -> dict:
+    regions = {}
+    for continent, countries in _JOB_COUNTRY_GROUPS.items():
+        for key, label in countries:
+            api_enabled = key != "aq"
+            regions[key] = {
+                "label": label,
+                "continent": continent,
+                "currency": _JOB_REGION_CURRENCIES.get(key, "local"),
+                "default_location": label,
+                "enabled_sources": ["jsearch"] if api_enabled else [],
+                "api_enabled": api_enabled,
+            }
+    return regions
+
+
+JOB_REGIONS = _build_job_regions()
+
+
+def normalize_job_region(region: str | None) -> str:
+    region = (region or DEFAULT_JOB_REGION).strip().lower()
+    return region if region in JOB_REGIONS else DEFAULT_JOB_REGION
+
+
+def get_job_region(region: str | None = None) -> dict:
+    return JOB_REGIONS[normalize_job_region(region)]
+
+
+def get_job_region_label(region: str | None = None) -> str:
+    return get_job_region(region)["label"]
+
+
+def get_job_region_options() -> list[dict]:
+    return [
+        {
+            "key": key,
+            "label": value["label"],
+            "continent": value["continent"],
+            "currency": value["currency"],
+            "default_location": value["default_location"],
+            "enabled_sources": value["enabled_sources"],
+            "api_enabled": bool(value.get("api_enabled")),
+        }
+        for key, value in sorted(JOB_REGIONS.items(), key=lambda item: (item[1]["continent"], item[1]["label"]))
+    ]
+
+
+def get_job_continent_options() -> list[dict]:
+    return [
+        {
+            "key": continent.lower().replace(" ", "_"),
+            "label": continent,
+            "countries": [
+                {
+                    "key": key,
+                    "label": JOB_REGIONS[key]["label"],
+                    "currency": JOB_REGIONS[key]["currency"],
+                    "api_enabled": bool(JOB_REGIONS[key].get("api_enabled")),
+                }
+                for key, _label in countries
+            ],
+        }
+        for continent, countries in _JOB_COUNTRY_GROUPS.items()
+    ]
 
 # ============================================================
 # YOUR PROFILE
@@ -42,6 +202,7 @@ PROFILE = {
 # JOB SEARCH SETTINGS
 # ============================================================
 SEARCH_CONFIG = {
+    "job_region": DEFAULT_JOB_REGION,
     "target_titles": [
         "Data Analyst",
         "Business Analyst",
@@ -106,6 +267,7 @@ _MODES_CACHE_FILE = "data/modes_cache.json"
 _MODES_SEED_FILE = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "prebuilt_modes.json")
 
 _MODE_DEFAULTS = {
+    "job_region": DEFAULT_JOB_REGION,
     "min_salary": 2200,
     "max_salary": 4000,
     "preferred_location": "Sengkang",
@@ -141,7 +303,7 @@ def _generate_mode_via_gemini(mode_name: str) -> dict | None:
         print("  No GEMINI_API_KEY set — cannot auto-generate mode config.")
         return None
 
-    prompt = f"""You are helping generate a job search configuration for a job board scraper targeting Singapore jobs.
+    prompt = f"""You are helping generate a job search configuration for a job board scraper targeting Asia-based jobs.
 
 Job type to search: "{mode_name}"
 
@@ -153,13 +315,13 @@ Candidate profile:
 
 Return ONLY a valid JSON object (no markdown, no explanation) with exactly these keys:
 {{
-  "target_titles": ["8 to 12 specific job titles to search on Singapore job boards"],
+  "target_titles": ["8 to 12 specific job titles to search on job boards"],
   "preferred_keywords": ["15 to 20 keywords that make a posting more relevant to this job type"],
   "negative_keywords": ["8 to 12 red flag terms: commission-only, MLM, senior roles, 5+ years exp, etc."],
   "min_score_threshold": 38
 }}
 
-Use Singapore-appropriate job title conventions. Include both generic and industry-specific terms."""
+Use practical job title conventions for Asian job boards. Include both generic and industry-specific terms."""
 
     try:
         resp = _requests.post(

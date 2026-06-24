@@ -67,6 +67,7 @@ def test_settings_propagate_to_search_config(client):
         user_id=user.id,
         min_salary=2500,
         max_salary=4500,
+        job_region="my",
         target_titles=["data analyst"],
         negative_keywords=["mlm"],
         email_to="digest@test.com",
@@ -75,6 +76,7 @@ def test_settings_propagate_to_search_config(client):
     sc = _user_cfg(flask_app._build_user_env(user))["search_config"]
     assert sc["min_salary"] == 2500
     assert sc["max_salary"] == 4500
+    assert sc["job_region"] == "my"
     assert sc["target_titles"] == ["data analyst"]
     assert sc["negative_keywords"] == ["mlm"]
     assert sc["email_to"] == "digest@test.com"

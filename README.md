@@ -1,6 +1,6 @@
-# Job Scanner — Singapore Job Matching SaaS
+# CareerScan — Region-Aware Job Matching SaaS
 
-AI-powered job scanner for Singapore. Pulls listings from multiple sources daily, scores them against your profile, and surfaces only the matches worth applying to.
+AI-powered job scanner for supported countries and regions. Pulls API-backed listings, scores them against your profile, and surfaces only the matches worth applying to.
 
 **Live app:** [careerscan.onrender.com](https://careerscan.onrender.com)
 
@@ -26,11 +26,9 @@ AI-powered job scanner for Singapore. Pulls listings from multiple sources daily
 
 | Source | Type | Notes |
 |--------|------|-------|
-| **MyCareersFuture** | Singapore govt API | Official, most comprehensive Singapore listings |
-| **Adzuna** | REST API | Requires free API key at [developer.adzuna.com](https://developer.adzuna.com) |
-| **RemoteOK** | Public JSON API | Remote-friendly roles worldwide |
+| **JSearch / OpenWeb Ninja** | REST API | Primary API-backed job sourcing provider for supported countries and regions. Requires `JSEARCH_API_KEY`. |
 
-All sources use official APIs. No HTML scraping.
+CareerScan only uses API-backed job sourcing. Unsupported countries or regions are shown as coming soon. No HTML scraping is used.
 
 ---
 
@@ -87,8 +85,8 @@ python run.py
 | `RESEND_API_KEY` | Email | Resend API key |
 | `RESEND_FROM` | Email | Sender address (verified domain) |
 | `CRON_SECRET` | Cron | Protects `/api/cron/scan` endpoint |
-| `ADZUNA_APP_ID` | Optional | Adzuna API app ID |
-| `ADZUNA_APP_KEY` | Optional | Adzuna API app key |
+| `JSEARCH_API_KEY` | ✅ jobs | JSearch / OpenWeb Ninja API key |
+| `JSEARCH_API_HOST` | Optional | RapidAPI host for JSearch, defaults to `jsearch.p.rapidapi.com` |
 | `SENTRY_DSN` | Optional | Sentry error monitoring |
 | `REDIS_URL` | Optional | Redis for rate limiter (falls back to in-memory) |
 

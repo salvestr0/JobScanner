@@ -26,8 +26,7 @@
     .score-lo  { background:#FEE2E2; color:#991B1B; }
 
     /* ── Source chips ── */
-    .chip-mcf       { background:#EEF2FF; color:#4338CA; }
-    .chip-indeed    { background:#FFF7ED; color:#C2410C; }
+    .chip-jsearch   { background:#EEF2FF; color:#4338CA; }
     .chip-other     { background:#F1F5F9; color:#475569; }
 
     /* ── Terminal ── */
@@ -214,7 +213,7 @@
         <img src="{{ url_for('static', filename='images/careerscan-logo.png') }}" alt="CareerScan logo" class="brand-logo-img brand-logo-img--sidebar">
         <div>
           <div class="text-stone-900 font-semibold text-sm">CareerScan</div>
-          <div class="text-stone-400 text-xs mt-0.5">Singapore</div>
+          <div class="text-stone-400 text-xs mt-0.5" x-text="currentRegionLabel"></div>
         </div>
       </div>
     </div>
@@ -417,7 +416,7 @@
               </div>
               <span class="text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0"
                 :class="chipClass(job.source)"
-                x-text="job.source?.replace('MyCareersFuture','MCF')"></span>
+                x-text="job.source || 'Source'"></span>
               <div class="flex gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button @click="quickStatus(job,'applied')"
                   class="text-xs px-2.5 py-1 rounded-lg border transition-all"
@@ -436,7 +435,7 @@
     <div x-show="page==='scan'" class="page-in p-8 max-w-2xl mx-auto">
       <div class="mb-8">
         <h1 class="text-2xl font-semibold text-slate-900">Run Scan</h1>
-        <p class="text-slate-500 text-sm mt-1">Fetch jobs from MCF, Indeed, Adzuna and RemoteOK, then score them against your profile</p>
+        <p class="text-slate-500 text-sm mt-1">Fetch jobs from supported sources for your selected market, then score them against your profile</p>
       </div>
 
       <!-- Paywall (shown when cancelled / expired / past due) -->
@@ -487,6 +486,29 @@
       </div>
 
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-4 space-y-6">
+
+        <!-- Region -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">Target Job Market</label>
+          <div class="grid grid-cols-2 gap-3">
+            <select x-model="selectedContinent" @change="chooseContinent()"
+              class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
+              <template x-for="c in cfg.job_continents" :key="c.key">
+                <option :value="c.label" x-text="c.label"></option>
+              </template>
+            </select>
+            <select x-model="cfg.job_region" @change="saveRegionPreference()"
+              class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
+              <template x-for="r in countriesForSelectedContinent" :key="r.key">
+                <option :value="r.key" x-text="r.label + (r.api_enabled === false ? ' - Coming soon' : '')"></option>
+              </template>
+            </select>
+          </div>
+          <p class="text-slate-400 text-xs mt-1.5">
+            CareerScan only uses API-backed job sourcing here. Unsupported regions will show as coming soon.
+          </p>
+          <p x-show="regionUnavailableMessage" x-cloak class="text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-xs mt-2" x-text="regionUnavailableMessage"></p>
+        </div>
 
         <!-- Mode -->
         <div>
@@ -548,9 +570,9 @@
       </div>
 
       <!-- Start button -->
-      <button @click="startScan()" :disabled="scanning || (billing.is_free && stats.scans_remaining === 0)"
+      <button @click="startScan()" :disabled="scanning || !currentRegionApiEnabled || !cfg.job_api_configured || (billing.is_free && stats.scans_remaining === 0)"
         class="w-full py-3.5 rounded-2xl font-bold text-sm transition-all mb-5 flex items-center justify-center gap-3"
-        :class="scanning||(billing.is_free&&stats.scans_remaining===0)?'bg-amber-100 text-amber-600 cursor-not-allowed':'bg-amber-500 hover:bg-amber-400 text-white shadow-md shadow-amber-500/20 hover:shadow-lg hover:shadow-amber-500/25'">
+        :class="scanning||!currentRegionApiEnabled||!cfg.job_api_configured||(billing.is_free&&stats.scans_remaining===0)?'bg-amber-100 text-amber-600 cursor-not-allowed':'bg-amber-500 hover:bg-amber-400 text-white shadow-md shadow-amber-500/20 hover:shadow-lg hover:shadow-amber-500/25'">
         <svg x-show="scanning" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -642,7 +664,9 @@
       <div class="flex items-start justify-between mb-6">
         <div>
           <h1 class="text-2xl font-semibold text-slate-900">Jobs</h1>
-          <p class="text-slate-500 text-sm mt-1" x-text="filteredJobs.length+' listings'"></p>
+          <p class="text-slate-500 text-sm mt-1">
+            Region: <span x-text="currentRegionLabel"></span> · <span x-text="filteredJobs.length+' listings'"></span>
+          </p>
         </div>
         <div class="flex items-center gap-2">
           <a x-show="filteredJobs.length > 0" href="/api/jobs/export" download="jobs.csv"
@@ -666,6 +690,18 @@
 
       <!-- Filters -->
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-4 flex gap-3 flex-wrap">
+        <select x-model="selectedContinent" @change="chooseContinent()"
+          class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+          <template x-for="c in cfg.job_continents" :key="c.key">
+            <option :value="c.label" x-text="c.label"></option>
+          </template>
+        </select>
+        <select x-model="cfg.job_region" @change="saveRegionPreference()"
+          class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+          <template x-for="r in countriesForSelectedContinent" :key="r.key">
+            <option :value="r.key" x-text="r.label + (r.api_enabled === false ? ' - Coming soon' : '')"></option>
+          </template>
+        </select>
         <div class="flex-1 min-w-44 relative">
           <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           <input x-model="jSearch" @input="loadJobs()" type="text" placeholder="Search title or company…"
@@ -674,10 +710,7 @@
         <select x-model="jSource" @change="loadJobs()"
           class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
           <option value="">All Sources</option>
-          <option value="MyCareersFuture">MyCareersFuture</option>
-          <option value="Indeed">Indeed</option>
-          <option value="Adzuna">Adzuna</option>
-          <option value="RemoteOK">RemoteOK</option>
+          <option value="JSearch">JSearch</option>
         </select>
         <select x-model="jStatus" @change="loadJobs()"
           class="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
@@ -704,8 +737,12 @@
         <p class="text-slate-400 text-sm mt-1">
           <strong class="text-slate-500">Step 2:</strong>
           <button @click="go('scan')" class="text-amber-600 font-medium hover:underline">Run a Scan</button>
-          to fetch and match jobs from 4 sources.
+          to fetch and match jobs from supported sources.
         </p>
+        <div x-show="regionUnavailableMessage" class="mt-6 max-w-lg mx-auto bg-amber-50 border border-amber-100 rounded-2xl p-4 text-center">
+          <p class="text-amber-800 text-sm font-semibold" x-text="regionUnavailableMessage"></p>
+          <p class="text-amber-700 text-xs mt-1">Only API-backed job sourcing is enabled.</p>
+        </div>
       </div>
 
       <!-- Empty: filters returning nothing -->
@@ -756,7 +793,7 @@
                   class="font-bold text-slate-800 text-sm hover:text-amber-600 transition-colors" x-text="job.title"></a>
                 <span class="text-xs px-2.5 py-0.5 rounded-full font-semibold"
                   :class="chipClass(job.source)"
-                  x-text="job.source?.replace('MyCareersFuture','MCF')"></span>
+                  x-text="job.source || 'Source'"></span>
                 <span x-show="job.app_status" class="text-xs px-2.5 py-0.5 rounded-full font-semibold"
                   :class="job.app_status==='applied'?'bg-emerald-50 text-emerald-700':job.app_status==='interview'?'bg-violet-50 text-violet-700':'bg-red-50 text-red-600'"
                   x-text="job.app_status==='interview'?'Interview':job.app_status?job.app_status.charAt(0).toUpperCase()+job.app_status.slice(1):''"></span>
@@ -765,7 +802,7 @@
               <div class="text-slate-500 text-xs mb-3 flex flex-wrap items-center gap-x-1 gap-y-1">
                 <span x-text="job.company"></span>
                 <span x-show="job.location"> · <span x-text="job.location"></span></span>
-                <span x-show="job.salary_min&&job.salary_max"> · $<span x-text="Number(job.salary_min).toLocaleString()"></span>–$<span x-text="Number(job.salary_max).toLocaleString()"></span>/mo</span>
+                <span x-show="job.salary_min&&job.salary_max"> · <span x-text="currentRegionCurrency"></span> <span x-text="Number(job.salary_min).toLocaleString()"></span>–<span x-text="Number(job.salary_max).toLocaleString()"></span>/mo</span>
                 <template x-if="job.closing_date && deadlineInfo(job.closing_date)">
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border font-semibold"
                     :class="deadlineInfo(job.closing_date).cls"
@@ -1645,6 +1682,29 @@
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
           <h3 class="font-bold text-slate-800 text-sm mb-5">Search Configuration</h3>
           <div class="space-y-5">
+            <!-- Region -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">Target Job Market</label>
+              <div class="grid grid-cols-2 gap-3">
+                <select x-model="selectedContinent" @change="chooseContinent()"
+                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
+                  <template x-for="c in cfg.job_continents" :key="c.key">
+                    <option :value="c.label" x-text="c.label"></option>
+                  </template>
+                </select>
+                <select x-model="cfg.job_region"
+                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
+                  <template x-for="r in countriesForSelectedContinent" :key="r.key">
+                    <option :value="r.key" x-text="r.label + (r.api_enabled === false ? ' - Coming soon' : '')"></option>
+                  </template>
+                </select>
+              </div>
+              <p class="text-slate-400 text-xs mt-1.5">
+                CareerScan uses JSearch / OpenWeb Ninja for API-backed sourcing. Unsupported regions are marked as coming soon.
+              </p>
+              <p x-show="regionUnavailableMessage" x-cloak class="text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-xs mt-2" x-text="regionUnavailableMessage"></p>
+            </div>
+
             <!-- Target Titles -->
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-2">Job Titles to Search</label>
@@ -1711,12 +1771,12 @@
           <div class="space-y-5">
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1.5">Min Salary (SGD/mo)</label>
+                <label class="block text-xs font-semibold text-slate-500 mb-1.5" x-text="'Min Salary (' + currentRegionCurrency + '/mo)'"></label>
                 <input x-model.number="cfg.min_salary" type="number" step="100"
                   class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1.5">Max Salary (SGD/mo)</label>
+                <label class="block text-xs font-semibold text-slate-500 mb-1.5" x-text="'Max Salary (' + currentRegionCurrency + '/mo)'"></label>
                 <input x-model.number="cfg.max_salary" type="number" step="100"
                   class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
               </div>
@@ -2254,8 +2314,14 @@ function app() {
     selNote: null,
     noteBody: '',
     applications: [],
-    cfg: { min_salary:2200, max_salary:4000, min_score_threshold:40, max_jobs_per_notification:20,
+    cfg: { job_region:'sg',
+           job_regions:[{key:'sg', label:'Singapore', continent:'Asia', currency:'SGD', api_enabled:true}],
+           job_continents:[{key:'asia', label:'Asia', countries:[{key:'sg', label:'Singapore', currency:'SGD', api_enabled:true}]}],
+           job_region_label:'Singapore', job_region_continent:'Asia', job_region_currency:'SGD',
+           job_region_api_enabled:true, job_api_configured:false, job_source_links:[],
+           min_salary:2200, max_salary:4000, min_score_threshold:40, max_jobs_per_notification:20,
            email_enabled:false, email_configured:false, email_to:'' },
+    selectedContinent: 'Asia',
 
     // Email verification
     verifyResending: false,
@@ -2404,6 +2470,21 @@ function app() {
     get applied()    { return this.applications.filter(j=>j.status==='applied'); },
     get interviews() { return this.applications.filter(j=>j.status==='interview'); },
     get skipped()    { return this.applications.filter(j=>j.status==='skip'); },
+    get currentRegion() {
+      return (this.cfg.job_regions || []).find(r => r.key === this.cfg.job_region) || this.cfg.job_regions?.[0] || { label:'Singapore', continent:'Asia', currency:'SGD', api_enabled:true };
+    },
+    get currentRegionLabel() { return this.currentRegion?.label || this.cfg.job_region_label || 'Singapore'; },
+    get currentRegionCurrency() { return this.currentRegion?.currency || this.cfg.job_region_currency || 'SGD'; },
+    get currentRegionApiEnabled() { return this.currentRegion?.api_enabled !== false; },
+    get countriesForSelectedContinent() {
+      const group = (this.cfg.job_continents || []).find(c => c.label === this.selectedContinent || c.key === this.selectedContinent);
+      return group?.countries || [];
+    },
+    get regionUnavailableMessage() {
+      if (!this.currentRegionApiEnabled) return '暂未开放该地区服务，敬请期待。';
+      if (!this.cfg.job_api_configured) return 'Job sourcing API is not configured yet.';
+      return '';
+    },
 
     // ── Init ──────────────────────────────────────────────────
     async boot() {
@@ -2500,7 +2581,24 @@ function app() {
         if (!this.cfg.target_titles)      this.cfg.target_titles      = [];
         if (!this.cfg.preferred_keywords) this.cfg.preferred_keywords = [];
         if (!this.cfg.negative_keywords)  this.cfg.negative_keywords  = [];
+        if (!this.cfg.job_regions?.length) this.cfg.job_regions = [{key:'sg', label:'Singapore', continent:'Asia', currency:'SGD', api_enabled:true}];
+        if (!this.cfg.job_continents?.length) this.cfg.job_continents = [{key:'asia', label:'Asia', countries:[{key:'sg', label:'Singapore', currency:'SGD', api_enabled:true}]}];
+        if (!this.cfg.job_region) this.cfg.job_region = 'sg';
+        if (!this.cfg.job_source_links) this.cfg.job_source_links = [];
+        this.syncContinentFromRegion();
       } catch(_){}
+    },
+
+    syncContinentFromRegion() {
+      const region = this.currentRegion;
+      if (region?.continent) this.selectedContinent = region.continent;
+    },
+
+    async chooseContinent() {
+      const countries = this.countriesForSelectedContinent;
+      const next = countries.find(c => c.api_enabled !== false) || countries[0];
+      if (next) this.cfg.job_region = next.key;
+      await this.saveRegionPreference();
     },
 
     addSearchTag(list, inputKey) {
@@ -2538,6 +2636,7 @@ function app() {
         if (this.jSearch) p.set('q', this.jSearch);
         if (this.jSource) p.set('source', this.jSource);
         if (this.jStatus) p.set('status', this.jStatus);
+        if (this.cfg.job_region) p.set('region', this.cfg.job_region);
         if (this.showHidden) p.set('show_hidden', '1');
         const res = await fetch('/api/jobs?' + p);
         this.hiddenCount = parseInt(res.headers.get('X-Hidden-Count') || '0');
@@ -3070,9 +3169,10 @@ function app() {
       this.emailTesting = false;
     },
 
-    async saveCfg() {
+    async saveCfg(showToast = true) {
       try {
         const d = await (await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          job_region:                this.cfg.job_region,
           min_salary:                this.cfg.min_salary,
           max_salary:                this.cfg.max_salary,
           min_score_threshold:       this.cfg.min_score_threshold,
@@ -3083,8 +3183,16 @@ function app() {
           preferred_keywords:        this.cfg.preferred_keywords,
           negative_keywords:         this.cfg.negative_keywords,
         })})).json();
-        this.flash(d.ok?'Settings saved!':'Save failed', d.ok);
-      } catch(_){ this.flash('Network error',false); }
+        if (d.ok) await this.loadCfg();
+        if (showToast) this.flash(d.ok?'Settings saved!':'Save failed', d.ok);
+        return !!d.ok;
+      } catch(_){ if (showToast) this.flash('Network error',false); return false; }
+    },
+
+    async saveRegionPreference() {
+      const ok = await this.saveCfg(false);
+      if (!ok) { this.flash('Region save failed', false); return; }
+      await Promise.all([this.loadStats(), this.loadJobs()]);
     },
 
     async doReset() {
@@ -3144,7 +3252,7 @@ function app() {
 
     // ── Helpers ────────────────────────────────────────────────
     chipClass(src) {
-      return { MyCareersFuture:'chip-mcf', Indeed:'chip-indeed', Adzuna:'chip-other', RemoteOK:'chip-other' }[src] || 'chip-other';
+      return { JSearch:'chip-jsearch' }[src] || 'chip-other';
     },
 
     flash(msg, ok=true) {

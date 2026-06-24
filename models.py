@@ -105,6 +105,7 @@ class UserSettings(db.Model):
     max_jobs_per_notification = db.Column(db.Integer, default=20)
     email_enabled             = db.Column(db.Boolean, default=False)
     email_to                  = db.Column(db.String(255), default="")
+    job_region                = db.Column(db.String(16), default="sg")
     preferred_location        = db.Column(db.String(255), default="Sengkang")
     target_titles             = db.Column(db.JSON, default=list)
     preferred_keywords        = db.Column(db.JSON, default=list)
@@ -125,6 +126,7 @@ class UserSettings(db.Model):
             "max_jobs_per_notification": self.max_jobs_per_notification,
             "email_enabled":             self.email_enabled,
             "email_to":                  self.email_to or "",
+            "job_region":                self.job_region or "sg",
             "preferred_location":        self.preferred_location or "Sengkang",
             "target_titles":             self.target_titles or [],
             "preferred_keywords":        self.preferred_keywords or [],
@@ -148,6 +150,7 @@ class Job(db.Model):
     company       = db.Column(db.String(255))
     location      = db.Column(db.String(255))
     source        = db.Column(db.String(64))
+    region        = db.Column(db.String(16), default="sg")
     url           = db.Column(db.Text)
     posted_date   = db.Column(db.String(64))
     salary_min    = db.Column(db.Integer)
@@ -168,6 +171,7 @@ class Job(db.Model):
             "company":       self.company or "",
             "location":      self.location or "",
             "source":        self.source or "",
+            "region":        self.region or "sg",
             "url":           self.url or "",
             "posted_date":   self.posted_date or "",
             "salary_min":    self.salary_min or "",

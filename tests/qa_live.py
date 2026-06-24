@@ -298,15 +298,15 @@ def test_scan_inprocess_persists_jobs(client):
 
     fake_jobs = [
         {"id": "S1", "title": "Data Analyst", "company": "DBS", "location": "SG",
-         "source": "MyCareersFuture", "url": "http://x/1", "score": 0,
+         "source": "JSearch", "url": "http://x/1", "score": 0,
          "salary_min": 4000, "salary_max": 6000, "match_reasons": []},
         {"id": "S2", "title": "Data Engineer", "company": "OCBC", "location": "SG",
-         "source": "Adzuna", "url": "http://x/2", "score": 0,
+         "source": "JSearch", "url": "http://x/2", "score": 0,
          "salary_min": 5000, "salary_max": 7000, "match_reasons": []},
     ]
     q = _q.Queue()
     flask_app._scans[uid] = {"running": True, "q": q, "history_id": hid}
-    cfg = {"target_titles": ["Data Analyst"], "min_score_threshold": 0,
+    cfg = {"target_titles": ["Data Analyst"], "job_region": "my", "min_score_threshold": 0,
            "max_jobs_per_notification": 20}
     with patch("scrapers.scrape_all_sources", return_value=fake_jobs), \
          patch("scorer.rank_jobs", side_effect=lambda jobs, cfg=None: [dict(j, score=75) for j in jobs]), \
@@ -317,6 +317,7 @@ def test_scan_inprocess_persists_jobs(client):
     with flask_app.app.app_context():
         jobs = Job.query.filter_by(user_id=uid).all()
         assert len(jobs) == 2, [j.title for j in jobs]
+        assert {j.region for j in jobs} == {"my"}
         assert db.session.get(ScanHistory, hid).status == "done"
         # all scraped marked seen
         from models import SeenJob

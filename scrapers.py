@@ -1,19 +1,29 @@
 """
-Job fetchers — MyCareersFuture, Adzuna, RemoteOK.
+JSearch / OpenWeb Ninja API job fetcher for CareerScan.
 
-All sources use official APIs (no HTML scraping).
-LinkedIn / JobStreet / Glints HTML scraping violates their ToS — do not add them back.
+The active scan flow uses API-backed job sourcing only. Do not add HTML scraping
+for job boards such as LinkedIn, JobStreet, JobsDB, Glints, or similar sites.
 """
 
 import hashlib
 import time
+from datetime import datetime, timezone
 
 import re
 import socket
 
 import requests
 
-from config import ADZUNA_APP_ID, ADZUNA_APP_KEY, SEARCH_CONFIG
+from config import (
+    ADZUNA_APP_ID,
+    ADZUNA_APP_KEY,
+    DEFAULT_JOB_REGION,
+    JSEARCH_API_HOST,
+    JSEARCH_API_KEY,
+    SEARCH_CONFIG,
+    get_job_region,
+    normalize_job_region,
+)
 
 # Hard backstop — prevents TCP-stall hangs that bypass requests' timeout
 socket.setdefaulttimeout(10)
@@ -56,12 +66,97 @@ def _parse_salary(val) -> int | None:
 _USD_TO_SGD = 1.35
 
 
+def _cfg_region_key(cfg: dict | None = None) -> str:
+    return normalize_job_region((cfg if cfg is not None else SEARCH_CONFIG).get("job_region"))
+
+
 def _to_monthly_sgd(val, fx: float = 1.0) -> int | None:
     n = _parse_salary(val)
     if n is None:
         return None
     monthly = n / 12 if n >= 12000 else n
     return int(round(monthly * fx))
+
+
+def _to_monthly_from_period(val, period: str | None = "") -> int | None:
+    n = _parse_salary(val)
+    if n is None:
+        return None
+    p = (period or "").lower()
+    if any(word in p for word in ("year", "annual", "yr")):
+        return int(round(n / 12))
+    if any(word in p for word in ("hour", "hr")):
+        return int(round(n * 160))
+    if any(word in p for word in ("week", "wk")):
+        return int(round(n * 4.33))
+    return int(round(n))
+
+
+def _format_posted_date(value) -> str:
+    """Return YYYY-MM-DD from JSearch date strings or Unix timestamps.
+
+    JSearch can return either an ISO-like string (job_posted_at_datetime_utc)
+    or a numeric timestamp (job_posted_at_timestamp). Keep parsing defensive so
+    one unexpected item never breaks the entire scan.
+    """
+    if value in (None, ""):
+        return ""
+
+    # Numeric Unix timestamp: seconds or milliseconds.
+    if isinstance(value, (int, float)):
+        try:
+            ts = float(value)
+            if ts > 10_000_000_000:  # milliseconds
+                ts /= 1000
+            return time.strftime("%Y-%m-%d", time.gmtime(ts))
+        except (OverflowError, OSError, ValueError):
+            return ""
+
+    s = str(value).strip()
+    if not s:
+        return ""
+
+    if s.isdigit():
+        try:
+            ts = float(s)
+            if ts > 10_000_000_000:  # milliseconds
+                ts /= 1000
+            return time.strftime("%Y-%m-%d", time.gmtime(ts))
+        except (OverflowError, OSError, ValueError):
+            return ""
+
+    return s[:10]
+
+
+
+def _format_jsearch_posted_date(value) -> str:
+    """Return YYYY-MM-DD from JSearch date strings or second/millisecond timestamps."""
+    if value is None:
+        return ""
+
+    if isinstance(value, (int, float)):
+        ts = float(value)
+        if ts > 10_000_000_000:
+            ts = ts / 1000
+        try:
+            return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d")
+        except (OverflowError, OSError, ValueError):
+            return ""
+
+    text = str(value).strip()
+    if not text:
+        return ""
+
+    if text.isdigit():
+        try:
+            ts = float(text)
+            if ts > 10_000_000_000:
+                ts = ts / 1000
+            return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d")
+        except (OverflowError, OSError, ValueError):
+            return ""
+
+    return text[:10]
 
 
 def _dedupe_key(job: dict) -> str | None:
@@ -74,6 +169,123 @@ def _dedupe_key(job: dict) -> str | None:
     if not title or not company or title == "unknown" or company == "unknown":
         return None
     return f"{title}|{company}"
+
+
+_JSEARCH_MAX_TITLES = 4
+
+
+def fetch_jsearch(max_pages: int = 1, max_results: int = 0, cfg: dict | None = None) -> list:
+    """
+    Fetch jobs from JSearch / OpenWeb Ninja via RapidAPI.
+    Uses the selected region's ISO-style country code as the API country filter.
+    """
+    if not JSEARCH_API_KEY:
+        print("  [JSearch] Skipping - JSEARCH_API_KEY is not set.")
+        return []
+
+    active_cfg = cfg if cfg is not None else SEARCH_CONFIG
+    region_key = _cfg_region_key(active_cfg)
+    region_info = get_job_region(region_key)
+    if "jsearch" not in region_info.get("enabled_sources", []):
+        print(f"  [JSearch] {region_info['label']} is not available yet.")
+        return []
+
+    titles = active_cfg.get("target_titles") or []
+    if not titles:
+        print("  [JSearch] No target titles configured.")
+        return []
+
+    headers = {
+        "X-RapidAPI-Key": JSEARCH_API_KEY,
+        "X-RapidAPI-Host": JSEARCH_API_HOST,
+    }
+    jobs: list[dict] = []
+    seen_ids: set = set()
+
+    for title in titles[:_JSEARCH_MAX_TITLES]:
+        if max_results > 0 and len(jobs) >= max_results:
+            print(f"  [JSearch] Collected {len(jobs)} candidates - stopping early")
+            break
+
+        print(f"  -> Searching {region_info['label']}: {title}")
+        for page in range(1, max_pages + 1):
+            if max_results > 0 and len(jobs) >= max_results:
+                break
+            try:
+                resp = requests.get(
+                    f"https://{JSEARCH_API_HOST}/search-v2",
+                    headers=headers,
+                    params={
+                        "query": title,
+                        "page": page,
+                        "num_pages": 1,
+                        "country": region_key,
+                        "date_posted": "month",
+                    },
+                    timeout=15,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                payload = data.get("data", {}) if isinstance(data, dict) else {}
+                if isinstance(payload, dict):
+                    results = payload.get("jobs", [])
+                elif isinstance(payload, list):
+                    results = payload
+                else:
+                    results = []
+                if not results:
+                    break
+
+                print(f"     page {page}: {len(results)} listings")
+                for r in results:
+                    if not isinstance(r, dict):
+                        continue
+                    raw_id = r.get("job_id") or r.get("job_apply_link") or r.get("job_google_link")
+                    if not raw_id:
+                        raw_id = hashlib.md5(
+                            f"{r.get('job_title','')}|{r.get('employer_name','')}|{region_key}".encode()
+                        ).hexdigest()[:12]
+                    job_id = f"jsearch_{region_key}_{raw_id}"
+                    if job_id in seen_ids:
+                        continue
+                    seen_ids.add(job_id)
+
+                    location_parts = [
+                        r.get("job_city"),
+                        r.get("job_state"),
+                        r.get("job_country") or region_info["label"],
+                    ]
+                    location = ", ".join(str(p) for p in location_parts if p)
+                    salary_period = r.get("job_salary_period") or ""
+
+                    jobs.append({
+                        "id": job_id,
+                        "title": r.get("job_title") or "Unknown",
+                        "company": r.get("employer_name") or "Unknown",
+                        "description": _clean_html(r.get("job_description", ""))[:1200],
+                        "salary_min": _to_monthly_from_period(r.get("job_min_salary"), salary_period),
+                        "salary_max": _to_monthly_from_period(r.get("job_max_salary"), salary_period),
+                        "location": location or region_info["label"],
+                        "url": r.get("job_apply_link") or r.get("job_google_link") or "",
+                        "posted_date": _format_posted_date(
+                            r.get("job_posted_at_datetime_utc")
+                            or r.get("job_posted_at_timestamp")
+                        ),
+                        "source": "JSearch",
+                        "region": region_key,
+                    })
+
+                time.sleep(0.4)
+
+            except requests.exceptions.Timeout:
+                print(f"  [JSearch] Timeout for '{title}' page {page} - skipping")
+                break
+            except Exception as e:
+                print(f"  [JSearch] Error for '{title}' page {page}: {e}")
+                break
+
+    print(f"[JSearch] {len(jobs)} unique jobs")
+    return jobs
 
 
 # ── MyCareersFuture ───────────────────────────────────────────────────────────
@@ -96,6 +308,11 @@ _MCF_FALLBACKS = [
 
 def fetch_mcf(max_pages: int = 2, max_results: int = 0, cfg: dict | None = None) -> list:
     """Fetch jobs from MyCareersFuture API for up to 2 target titles."""
+    region_key = _cfg_region_key(cfg)
+    if region_key != DEFAULT_JOB_REGION:
+        print("  [MCF] Skipping - MyCareersFuture is Singapore-only.")
+        return []
+
     titles = (cfg if cfg is not None else SEARCH_CONFIG).get("target_titles") or []
     if not titles:
         print("  [MCF] No target titles configured.")
@@ -198,6 +415,7 @@ def fetch_mcf(max_pages: int = 2, max_results: int = 0, cfg: dict | None = None)
                         "posted_date": posted,
                         "closing_date": closing_date,
                         "source": "MyCareersFuture",
+                        "region": region_key,
                     })
                     title_count += 1
 
@@ -238,6 +456,11 @@ def fetch_adzuna(max_pages: int = 1, max_results: int = 0, cfg: dict | None = No
     Requires ADZUNA_APP_ID and ADZUNA_APP_KEY env vars (free at developer.adzuna.com).
     Free tier: 100 calls/day, 50 results/page.
     """
+    region_key = _cfg_region_key(cfg)
+    if region_key != DEFAULT_JOB_REGION:
+        print("  [Adzuna] Skipping - configured only for Singapore in this MVP.")
+        return []
+
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         print("  [Adzuna] Skipping — ADZUNA_APP_ID / ADZUNA_APP_KEY not set.")
         return []
@@ -290,6 +513,7 @@ def fetch_adzuna(max_pages: int = 1, max_results: int = 0, cfg: dict | None = No
                         "url": r.get("redirect_url", ""),
                         "posted_date": (r.get("created") or "")[:10],
                         "source": "Adzuna",
+                        "region": region_key,
                     })
 
                 time.sleep(1)
@@ -344,6 +568,9 @@ def fetch_remoteok(cfg: dict | None = None) -> list:
     if isinstance(data, list) and data:
         data = data[1:]
 
+    region_key = _cfg_region_key(cfg)
+    region_info = get_job_region(region_key)
+
     # Build a set of significant keywords from target titles
     target_keywords: set[str] = set()
     for t in (cfg if cfg is not None else SEARCH_CONFIG)["target_titles"]:
@@ -366,25 +593,36 @@ def fetch_remoteok(cfg: dict | None = None) -> list:
         if not any(kw in combined for kw in target_keywords):
             continue
 
-        # Strict Singapore-only: RemoteOK is a global board, so drop anything
-        # not explicitly located in Singapore (MCF/Adzuna are already SG-scoped).
-        # Worldwide/Anywhere/foreign-country remote roles are excluded.
-        if "singapore" not in (r.get("location") or "").lower():
+        location_text = (r.get("location") or "").lower()
+        region_terms = [t.lower() for t in region_info.get("remoteok_location_terms", [])]
+        global_remote_terms = ["worldwide", "anywhere", "global", "remote", "apac", "asia"]
+
+        if region_key == DEFAULT_JOB_REGION:
+            # Preserve existing Singapore behavior for RemoteOK.
+            if "singapore" not in location_text:
+                continue
+        elif not (
+            any(term in location_text for term in region_terms)
+            or any(term in location_text for term in global_remote_terms)
+        ):
             continue
 
         job_url = r.get("url") or f"https://remoteok.com/remote-jobs/{r.get('id', '')}"
+        salary_min = _to_monthly_sgd(r.get("salary_min"), fx=_USD_TO_SGD) if region_key == DEFAULT_JOB_REGION else None
+        salary_max = _to_monthly_sgd(r.get("salary_max"), fx=_USD_TO_SGD) if region_key == DEFAULT_JOB_REGION else None
 
         jobs.append({
             "id": f"remoteok_{r.get('id', '')}",
             "title": r.get("position", "Unknown"),
             "company": r.get("company", "Unknown"),
             "description": _clean_html(r.get("description", ""))[:800],
-            "salary_min": _to_monthly_sgd(r.get("salary_min"), fx=_USD_TO_SGD),
-            "salary_max": _to_monthly_sgd(r.get("salary_max"), fx=_USD_TO_SGD),
+            "salary_min": salary_min,
+            "salary_max": salary_max,
             "location": r.get("location") or "Remote",
             "url": job_url,
             "posted_date": (r.get("date") or "")[:10],
             "source": "RemoteOK",
+            "region": region_key,
         })
 
     print(f"[RemoteOK] {len(jobs)} matching jobs")
@@ -405,6 +643,11 @@ def scrape_all_sources(max_total: int = 0, cfg: dict | None = None) -> list:
     seen_ids: set = set()
     seen_keys: set = set()
     duplicates = 0
+    region_key = _cfg_region_key(cfg)
+    region_info = get_job_region(region_key)
+    enabled_sources = set(region_info.get("enabled_sources", []))
+
+    print(f"\nSelected job region: {region_info['label']}")
 
     def _ingest(jobs: list) -> None:
         nonlocal duplicates
@@ -420,13 +663,15 @@ def scrape_all_sources(max_total: int = 0, cfg: dict | None = None) -> list:
             seen_ids.add(j["id"])
             if key is not None:
                 seen_keys.add(key)
+            j.setdefault("region", region_key)
             all_jobs.append(j)
 
-    for name, fetcher in [
-        ("MyCareersFuture", lambda: fetch_mcf(max_pages=2, max_results=effective_cap, cfg=cfg)),
-        ("Adzuna",          lambda: fetch_adzuna(max_pages=1, max_results=effective_cap, cfg=cfg)),
-        ("RemoteOK",        lambda: fetch_remoteok(cfg=cfg)),
+    for source_key, name, fetcher in [
+        ("jsearch", "JSearch", lambda: fetch_jsearch(max_pages=1, max_results=effective_cap, cfg=cfg)),
     ]:
+        if source_key not in enabled_sources:
+            print(f"\nSkipping {name} - not enabled for {region_info['label']} in this MVP.")
+            continue
         if len(all_jobs) >= effective_cap:
             break
         print(f"\nScanning {name}...\n")

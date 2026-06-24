@@ -171,13 +171,28 @@ def test_fetch_mcf_max_results_stops_before_second_title(monkeypatch):
 
 
 def test_scrape_all_sources_dedupes_across_results(monkeypatch):
-    monkeypatch.setattr(scrapers, "fetch_mcf",
+    monkeypatch.setattr(scrapers, "fetch_jsearch",
                         lambda **k: [{"id": "x"}, {"id": "x"}, {"id": "y"}])
-    # Isolate the dedup logic from the other live sources (no real HTTP).
-    monkeypatch.setattr(scrapers, "fetch_adzuna", lambda **k: [])
-    monkeypatch.setattr(scrapers, "fetch_remoteok", lambda: [])
     jobs = scrapers.scrape_all_sources()
     assert [j["id"] for j in jobs] == ["x", "y"]
+
+
+def test_scrape_non_singapore_uses_jsearch(monkeypatch):
+    monkeypatch.setattr(scrapers, "fetch_jsearch", lambda **k: [
+        {"id": "r1", "title": "Data Analyst", "company": "Remote Co"}
+    ])
+
+    jobs = scrapers.scrape_all_sources(cfg={"target_titles": ["data analyst"], "job_region": "my"})
+
+    assert jobs[0]["region"] == "my"
+
+
+def test_mcf_skips_non_singapore(monkeypatch):
+    called = []
+    monkeypatch.setattr(scrapers.requests, "get",
+                        lambda *a, **k: called.append(1) or FakeResponse(200))
+    assert fetch_mcf(max_pages=1, cfg={"target_titles": ["data analyst"], "job_region": "my"}) == []
+    assert not called
 
 
 # ── Parsing helpers ─────────────────────────────────────────────────────────────

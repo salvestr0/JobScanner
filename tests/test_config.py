@@ -50,6 +50,16 @@ def test_partial_payload_leaves_other_sections_alone():
     assert config.PROFILE == before_profile
 
 
+def test_region_helpers_default_and_continents():
+    assert config.normalize_job_region("unknown") == "sg"
+    assert config.get_job_region_label("my") == "Malaysia"
+    continents = config.get_job_continent_options()
+    assert any(c["label"] == "Asia" for c in continents)
+    malaysia = config.get_job_region("my")
+    assert malaysia["continent"] == "Asia"
+    assert malaysia["enabled_sources"] == ["jsearch"]
+
+
 # ── set_mode ────────────────────────────────────────────────────────────────────
 
 def test_analyst_mode_is_a_noop():
