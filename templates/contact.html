@@ -234,7 +234,7 @@
             </div>
             <div>
               <p class="text-sm font-bold text-[#182033]">Support email</p>
-              <a href="mailto:jaydentng82@gmail.com" class="text-sm text-[#51698f] hover:text-[#354052] font-semibold">jaydentng82@gmail.com</a>
+              <a href="mailto:support@careerscan.online" class="text-sm text-[#51698f] hover:text-[#354052] font-semibold">support@careerscan.online</a>
             </div>
           </div>
 
@@ -271,6 +271,11 @@
         {% endif %}
 
         <form method="post" action="/contact" class="space-y-5">
+          <!-- Honeypot: hidden from humans, bots fill it in and get silently dropped. -->
+          <div aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">
+            <label for="website">Website</label>
+            <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+          </div>
           <div class="grid sm:grid-cols-2 gap-4">
             <div>
               <label for="name" class="block text-sm font-bold text-[#354052] mb-1.5">Name</label>
@@ -320,7 +325,7 @@
           </button>
         </form>
 
-        <p class="mt-4 text-xs text-[#697386] text-center">For urgent issues, email Jayden directly at jaydentng82@gmail.com.</p>
+        <p class="mt-4 text-xs text-[#697386] text-center">For urgent issues, email us directly at support@careerscan.online.</p>
       </section>
     </div>
   </main>
