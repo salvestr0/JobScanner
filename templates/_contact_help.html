@@ -1,0 +1,102 @@
+<div class="contact-help-floating {{ contact_help_class|default('') }}">
+  <a href="/contact" class="contact-help-floating__link" aria-label="Contact CareerScan support">
+    <span class="contact-help-floating__circle">?</span>
+    <span class="contact-help-floating__copy">
+      <strong>Need help?</strong>
+      <span>Feedback or issue</span>
+    </span>
+  </a>
+</div>
+<style>
+  .contact-help-floating {
+    position: fixed;
+    right: 1.15rem;
+    bottom: 1.15rem;
+    z-index: 35;
+    font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  }
+  .contact-help-floating__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.62rem 0.78rem;
+    border: 1px solid rgba(227, 231, 236, 0.98);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.97);
+    color: #182033;
+    box-shadow: 0 16px 36px rgba(38, 50, 75, 0.13);
+    text-decoration: none;
+    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
+  }
+  .contact-help-floating__link:hover {
+    transform: translateY(-2px);
+    border-color: #c1a477;
+    background: #ffffff;
+    box-shadow: 0 20px 42px rgba(38, 50, 75, 0.17);
+  }
+  .contact-help-floating__circle {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: linear-gradient(135deg, #7188ae 0%, #6079a4 100%);
+    box-shadow: 0 8px 18px rgba(101, 125, 166, 0.18);
+    font-weight: 900;
+    font-size: 0.95rem;
+    flex: 0 0 auto;
+  }
+  .contact-help-floating__copy {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.05;
+    white-space: nowrap;
+  }
+  .contact-help-floating__copy strong {
+    color: #182033;
+    font-size: 0.8rem;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+  }
+  .contact-help-floating__copy span {
+    margin-top: 0.18rem;
+    color: #697386;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  /* Logged-in app: keep it small and out of the sidebar. */
+  .contact-help-floating--app {
+    right: 1.1rem;
+    bottom: 1rem;
+  }
+  .contact-help-floating--app .contact-help-floating__link {
+    flex-direction: column;
+    gap: 0.32rem;
+    padding: 0.58rem 0.62rem;
+    border-radius: 1rem;
+    box-shadow: 0 12px 28px rgba(38, 50, 75, 0.12);
+  }
+  .contact-help-floating--app .contact-help-floating__circle {
+    width: 1.95rem;
+    height: 1.95rem;
+  }
+  .contact-help-floating--app .contact-help-floating__copy {
+    text-align: center;
+  }
+  .contact-help-floating--app .contact-help-floating__copy strong {
+    font-size: 0.72rem;
+  }
+  .contact-help-floating--app .contact-help-floating__copy span {
+    display: none;
+  }
+
+  @media (max-width: 640px) {
+    .contact-help-floating { right: 0.85rem; bottom: 0.85rem; }
+    .contact-help-floating__copy { display: none; }
+    .contact-help-floating__link { padding: 0.55rem; }
+    .contact-help-floating--app .contact-help-floating__link { border-radius: 999px; }
+  }
+</style>

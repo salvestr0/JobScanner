@@ -189,7 +189,7 @@ def _log_gemini_usage(endpoint: str, user_id: str, response_json: dict) -> None:
     )
 
 
-def _send_email(to: str, subject: str, html: str) -> bool:
+def _send_email(to: str, subject: str, html: str, reply_to: str = None) -> bool:
     api_key   = os.getenv("RESEND_API_KEY", "").strip()
     from_addr = os.getenv("RESEND_FROM", "CareerScan <noreply@jobscanner.app>").strip()
     if not api_key:
@@ -205,10 +205,13 @@ def _send_email(to: str, subject: str, html: str) -> bool:
         )
     try:
         import requests as _req
+        payload = {"from": from_addr, "to": [to], "subject": subject, "html": html}
+        if reply_to:
+            payload["reply_to"] = reply_to
         resp = _req.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"from": from_addr, "to": [to], "subject": subject, "html": html},
+            json=payload,
             timeout=10,
         )
         if resp.status_code >= 400:
@@ -915,6 +918,93 @@ def privacy_page():
 @app.route("/terms")
 def terms_page():
     return render_template("terms.html")
+
+
+@app.route("/contact", methods=["GET", "POST"])
+@limiter.limit("3/minute;10/hour", methods=["POST"])
+def contact_page():
+    if request.method == "POST":
+        # Honeypot: a hidden field real users never see. Bots fill it in.
+        # Silently show the success page so spammers can't tell they were caught.
+        if (request.form.get("website") or "").strip():
+            app.logger.info("Contact form honeypot triggered; dropping submission")
+            return render_template("contact.html", sent=True)
+
+        name = (request.form.get("name") or "").strip()
+        email = (request.form.get("email") or "").strip().lower()
+        category = (request.form.get("category") or "Feedback").strip()
+        subject = (request.form.get("subject") or "").strip()
+        message = (request.form.get("message") or "").strip()
+
+        allowed_categories = {"Feedback", "Bug Report", "Account Issue", "Billing Issue", "Other"}
+        if category not in allowed_categories:
+            category = "Other"
+
+        if not name or not email or not subject or not message:
+            return render_template(
+                "contact.html",
+                error="Please fill in all required fields.",
+                form=request.form,
+            )
+
+        if not _valid_email(email):
+            return render_template(
+                "contact.html",
+                error="Please enter a valid email address.",
+                form=request.form,
+            )
+
+        submission = {
+            "name": name,
+            "email": email,
+            "category": category,
+            "subject": subject,
+            "message": message,
+            "user_email": current_user.email if current_user.is_authenticated else None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # Best-effort local backup. Render's filesystem is ephemeral, so this is
+        # NOT durable across deploys — email below is the real delivery channel.
+        try:
+            submissions_path = Path(app.instance_path) / "contact_submissions.jsonl"
+            submissions_path.parent.mkdir(parents=True, exist_ok=True)
+            with submissions_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(submission, ensure_ascii=False) + "\n")
+        except OSError as exc:
+            app.logger.warning("Could not write contact submission to disk: %s", exc)
+
+        contact_html = f"""
+        <h2>New CareerScan contact message</h2>
+        <p><strong>Name:</strong> {html.escape(name)}</p>
+        <p><strong>Email:</strong> {html.escape(email)}</p>
+        <p><strong>Category:</strong> {html.escape(category)}</p>
+        <p><strong>Subject:</strong> {html.escape(subject)}</p>
+        <p><strong>Logged-in user:</strong> {html.escape(submission.get('user_email') or 'Guest')}</p>
+        <p><strong>Message:</strong></p>
+        <pre style="white-space:pre-wrap;font-family:ui-monospace,monospace;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:12px">{html.escape(message)}</pre>
+        """
+        support_to = os.getenv("SUPPORT_EMAIL", "support@careerscan.online").strip()
+        # reply_to = visitor so a reply from support goes straight back to them.
+        sent_ok = _send_email(
+            support_to,
+            f"[CareerScan Contact] {category}: {subject[:80]}",
+            contact_html,
+            reply_to=email,
+        )
+        if not sent_ok:
+            app.logger.error("Contact form email to %s failed to send", support_to)
+            return render_template(
+                "contact.html",
+                error="Sorry, we couldn't send your message right now. "
+                      "Please try again shortly or email us directly at "
+                      + support_to + ".",
+                form=request.form,
+            )
+
+        return render_template("contact.html", sent=True)
+
+    return render_template("contact.html")
 
 
 @app.route("/app")
