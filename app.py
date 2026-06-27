@@ -1636,40 +1636,27 @@ def _normalize_ats_report(raw: dict, target_role: str) -> dict:
     }
 
 
-@app.route("/api/resume/ats-check", methods=["POST"])
-@login_required
-@limiter.limit("5/minute;20/hour")
-def resume_ats_check():
-    """Score an uploaded resume against an SG-aware ATS rubric. Free for all
-    logged-in users (quota-limited) — the top-of-funnel acquisition feature."""
-    import config as cfg
+_PUBLIC_ATS_MAX_BYTES = 2 * 1024 * 1024  # 2 MB cap for the no-login public check
+
+# Global daily ceiling on anonymous ATS checks (across ALL IPs) so a determined
+# abuser rotating IPs can't run the server Gemini bill up unbounded. Tunable via env.
+_PUBLIC_ATS_DAILY_CAP = int(os.getenv("PUBLIC_ATS_DAILY_CAP", "500"))
+
+
+class _AtsCheckError(Exception):
+    """A user-facing ATS-check failure carrying the HTTP status to return."""
+    def __init__(self, message: str, status: int):
+        super().__init__(message)
+        self.message = message
+        self.status = status
+
+
+def _run_ats_check(text: str, api_key: str, target_role: str, log_user: str = "anon") -> dict:
+    """Build the SG-aware ATS prompt, call Gemini, parse + normalize. Shared by the
+    logged-in and public endpoints. Raises _AtsCheckError on any user-facing failure."""
     import requests as _req
-
-    file = request.files.get("resume")
-    if not file or not file.filename:
-        return jsonify({"error": "No file uploaded"}), 400
-
-    target_role = (request.form.get("target_role") or "").strip()[:120]
-
-    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
-    if not api_key:
-        return jsonify({"error": "AI service not configured"}), 400
-
-    allowed, quota_err = _check_ai_quota(current_user)
-    if not allowed:
-        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
-
-    from resume_parser import extract_text
-    try:
-        text = extract_text(file.read(), file.filename)
-    except (ImportError, ValueError) as e:
-        return jsonify({"error": str(e)}), 400
-
-    if not text.strip():
-        # Empty extraction from a PDF/DOCX is itself a strong ATS red flag
-        # (image-only/scanned resume, or a layout the parser couldn't read).
-        return jsonify({"error": "Could not read any text from this file. ATS systems "
-                                 "likely can't either — export a text-based PDF, not a scan or image."}), 400
+    import re as _re
+    import json as _json
 
     role_line = (
         f"\nThe candidate is targeting this role: \"{target_role}\". In keyword_match, "
@@ -1721,39 +1708,146 @@ RESUME TEXT:
         )
         resp.raise_for_status()
         _rj = resp.json()
-        _log_gemini_usage("ats_check", str(current_user.id), _rj)
+        _log_gemini_usage("ats_check", log_user, _rj)
         raw = _rj["candidates"][0]["content"]["parts"][0]["text"]
     except Exception:
-        app.logger.warning("ATS check AI request failed for user %s", current_user.id, exc_info=True)
-        return jsonify({"error": "AI request failed. Please try again later."}), 502
+        app.logger.warning("ATS check AI request failed (user=%s)", log_user, exc_info=True)
+        raise _AtsCheckError("AI request failed. Please try again later.", 502)
 
-    import re as _re
-    import json as _json
     match = _re.search(r'\{[\s\S]*\}', raw)
     if not match:
-        return jsonify({"error": "AI returned unexpected format"}), 502
+        raise _AtsCheckError("AI returned unexpected format", 502)
     try:
         report = _json.loads(match.group())
     except Exception:
-        return jsonify({"error": "Could not parse AI response"}), 502
+        raise _AtsCheckError("Could not parse AI response", 502)
 
-    report = _normalize_ats_report(report, target_role)
+    return _normalize_ats_report(report, target_role)
 
-    # Free gets the score + breakdown; Pro unlocks the detailed how-to fixes.
-    # Always ship the count summary so free users see what they'd unlock, but
-    # never ship the fix text itself to non-paid users (the UI can't be trusted).
-    issues = report["issues"]
-    report["fixes_summary"] = {
+
+def _issue_counts(issues: list) -> dict:
+    return {
         "total":  len(issues),
         "high":   sum(1 for i in issues if i["severity"] == "high"),
         "medium": sum(1 for i in issues if i["severity"] == "medium"),
         "low":    sum(1 for i in issues if i["severity"] == "low"),
     }
+
+
+def _public_ats_report(report: dict) -> dict:
+    """Anonymous tier of the report: overall score, verdict, and category SCORES
+    only — no per-category summaries, strengths, keyword detail, or fixes. Counts
+    hint at what a free account unlocks. Nothing actionable leaks to anon clients."""
+    return {
+        "overall_score":   report["overall_score"],
+        "verdict":         report["verdict"],
+        "categories":      [{"name": c["name"], "score": c["score"]} for c in report["categories"]],
+        "strengths_count": len(report.get("strengths") or []),
+        "fixes_summary":   _issue_counts(report.get("issues") or []),
+        "signup_required": True,
+    }
+
+
+@app.route("/api/resume/ats-check", methods=["POST"])
+@login_required
+@limiter.limit("5/minute;20/hour")
+def resume_ats_check():
+    """Score an uploaded resume against an SG-aware ATS rubric. Free for all
+    logged-in users (quota-limited) — the top-of-funnel acquisition feature."""
+    import config as cfg
+
+    file = request.files.get("resume")
+    if not file or not file.filename:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    target_role = (request.form.get("target_role") or "").strip()[:120]
+
+    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    if not api_key:
+        return jsonify({"error": "AI service not configured"}), 400
+
+    allowed, quota_err = _check_ai_quota(current_user)
+    if not allowed:
+        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
+
+    from resume_parser import extract_text
+    try:
+        text = extract_text(file.read(), file.filename)
+    except (ImportError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
+
+    if not text.strip():
+        # Empty extraction from a PDF/DOCX is itself a strong ATS red flag
+        # (image-only/scanned resume, or a layout the parser couldn't read).
+        return jsonify({"error": "Could not read any text from this file. ATS systems "
+                                 "likely can't either — export a text-based PDF, not a scan or image."}), 400
+
+    try:
+        report = _run_ats_check(text, api_key, target_role, log_user=str(current_user.id))
+    except _AtsCheckError as e:
+        return jsonify({"error": e.message}), e.status
+
+    # Free gets the score + breakdown; Pro unlocks the detailed how-to fixes.
+    # Always ship the count summary so free users see what they'd unlock, but
+    # never ship the fix text itself to non-paid users (the UI can't be trusted).
+    report["fixes_summary"] = _issue_counts(report["issues"])
     report["fixes_locked"] = not _is_paid(current_user)
     if report["fixes_locked"]:
         report["issues"] = []
 
     return jsonify({"ok": True, "report": report})
+
+
+@app.route("/api/public/ats-check", methods=["POST"])
+@limiter.limit("3/day;1/minute")
+@limiter.limit(f"{_PUBLIC_ATS_DAILY_CAP}/day", key_func=lambda: "anon_ats_global")
+def public_ats_check():
+    """Anonymous ATS check — the public lead magnet. Returns score + category bars
+    only (full breakdown/strengths/fixes require an account). Uses the server Gemini
+    key, hard rate-limited both per IP (3/day, 1/min) and globally
+    (_PUBLIC_ATS_DAILY_CAP/day across all IPs) to bound cost/abuse."""
+    import config as cfg
+
+    file = request.files.get("resume")
+    if not file or not file.filename:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    # Read up to the cap (+1 byte) so an oversize file is rejected without buffering
+    # the whole thing into memory.
+    raw_bytes = file.read(_PUBLIC_ATS_MAX_BYTES + 1)
+    if len(raw_bytes) > _PUBLIC_ATS_MAX_BYTES:
+        return jsonify({"error": "File too large — keep it under 2 MB."}), 400
+
+    target_role = (request.form.get("target_role") or "").strip()[:120]
+
+    api_key = cfg.GEMINI_API_KEY
+    if not api_key:
+        return jsonify({"error": "AI service is temporarily unavailable."}), 503
+
+    from resume_parser import extract_text
+    try:
+        text = extract_text(raw_bytes, file.filename)
+    except (ImportError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
+
+    if not text.strip():
+        return jsonify({"error": "Could not read any text from this file. ATS systems "
+                                 "likely can't either — export a text-based PDF, not a scan or image."}), 400
+
+    try:
+        report = _run_ats_check(text, api_key, target_role, log_user="public")
+    except _AtsCheckError as e:
+        return jsonify({"error": e.message}), e.status
+
+    return jsonify({"ok": True, "report": _public_ats_report(report)})
+
+
+@app.route("/free-resume-check")
+def free_ats_check_page():
+    """Public, no-login landing page for the ATS checker — the SEO/acquisition magnet."""
+    if current_user.is_authenticated:
+        return redirect(url_for("app_page"))
+    return render_template("free_ats_check.html")
 
 
 @app.route("/api/resume/tailor", methods=["POST"])

@@ -94,6 +94,7 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `SENTRY_DSN` | Sentry DSN for error monitoring (optional) |
 | `REDIS_URL` | Redis URL for persistent rate limiting (optional, falls back to memory) |
+| `PUBLIC_ATS_DAILY_CAP` | Global daily ceiling on anonymous `/api/public/ats-check` calls across all IPs (optional, default 500) — bounds server Gemini spend on the public lead magnet |
 
 Generate secrets locally:
 ```bash
