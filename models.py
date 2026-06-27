@@ -53,6 +53,8 @@ class User(UserMixin, db.Model):
     seen         = db.relationship("SeenJob",            back_populates="user", cascade="all, delete-orphan")
     modes        = db.relationship("SearchMode",         back_populates="user", cascade="all, delete-orphan")
     scan_history = db.relationship("ScanHistory",        back_populates="user", cascade="all, delete-orphan")
+    resume_files = db.relationship("ResumeFile",         back_populates="user", cascade="all, delete-orphan")
+    resume_versions = db.relationship("ResumeVersion",   back_populates="user", cascade="all, delete-orphan")
 
     def set_password(self, plain: str):
         self.password_hash = bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
@@ -260,6 +262,53 @@ class SearchMode(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=_now)
 
     user = db.relationship("User", back_populates="modes")
+
+
+class ResumeFile(db.Model):
+    """A raw resume/CV upload, retained for the account and for product use.
+
+    Logged-in uploads carry a `user_id` and are purged when the account is
+    deleted (via the `User.resume_files` cascade). Anonymous uploads from the
+    public ATS checker have `user_id = NULL` — they have no account to delete
+    them, so the cleanup cron auto-purges them after
+    `PUBLIC_RESUME_RETENTION_DAYS` (see app.cron_cleanup). The original file
+    bytes are stored as-is in `content`.
+    """
+    __tablename__ = "resume_files"
+
+    id           = db.Column(db.String(36), primary_key=True, default=_uuid)
+    user_id      = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True, index=True)
+    source       = db.Column(db.String(32))   # profile_parse | ats_check | public_ats
+    filename     = db.Column(db.String(255))
+    content_type = db.Column(db.String(128), nullable=True)
+    byte_size    = db.Column(db.Integer)
+    content      = db.Column(db.LargeBinary, nullable=False)
+    target_role  = db.Column(db.String(120), nullable=True)
+    uploaded_at  = db.Column(db.DateTime(timezone=True), default=_now, index=True)
+
+    user = db.relationship("User", back_populates="resume_files")
+
+
+class ResumeVersion(db.Model):
+    """A saved resume-builder version (the "My versions" list in the builder).
+
+    Previously written to disk under data/users/{id}/resume_versions/*.json, which
+    is ephemeral on Render and silently wiped on every deploy/restart. Now persisted
+    in Postgres and purged on account deletion via the User.resume_versions cascade.
+    `profile` holds the full resume profile dict rendered into the PDF.
+    """
+    __tablename__ = "resume_versions"
+
+    id         = db.Column(db.String(36), primary_key=True, default=_uuid)
+    user_id    = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False, index=True)
+    name       = db.Column(db.String(80), default="CareerScan resume")
+    source     = db.Column(db.String(40), default="manual")
+    job_title  = db.Column(db.String(120), default="")
+    company    = db.Column(db.String(120), default="")
+    profile    = db.Column(db.JSON, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=_now, index=True)
+
+    user = db.relationship("User", back_populates="resume_versions")
 
 
 class ErrorLog(db.Model):

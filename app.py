@@ -41,8 +41,8 @@ from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import (
-    ApplicationStatus, ErrorLog, Job, ScanHistory, SearchMode, SeenJob, User,
-    UserProfile, UserSettings, db,
+    ApplicationStatus, ErrorLog, Job, ResumeFile, ResumeVersion, ScanHistory,
+    SearchMode, SeenJob, User, UserProfile, UserSettings, db,
 )
 
 load_dotenv()
@@ -1209,23 +1209,25 @@ def _cover_notes_dir(user_id: str) -> Path:
     return Path(f"data/users/{user_id}/cover_notes")
 
 
-def _resume_versions_dir(user_id: str) -> Path:
-    return Path(f"data/users/{user_id}/resume_versions")
+def _sgt_str(dt) -> str:
+    """Format a stored (UTC) datetime as a 'YYYY-MM-DD HH:MM' string in SGT.
+    Tolerates naive datetimes (SQLite drops tzinfo) by assuming UTC."""
+    if not dt:
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(SGT).strftime("%Y-%m-%d %H:%M")
 
 
-def _resume_version_meta(path: Path) -> dict | None:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    profile = data.get("profile") or {}
+def _resume_version_meta(v: ResumeVersion) -> dict:
+    profile = v.profile or {}
     return {
-        "id": path.stem,
-        "name": data.get("name") or "Untitled resume",
-        "source": data.get("source") or "manual",
-        "created_at": data.get("created_at") or "",
-        "job_title": data.get("job_title") or "",
-        "company": data.get("company") or "",
+        "id": v.id,
+        "name": v.name or "Untitled resume",
+        "source": v.source or "manual",
+        "created_at": _sgt_str(v.created_at),
+        "job_title": v.job_title or "",
+        "company": v.company or "",
         "summary": (profile.get("experience_summary") or "")[:180],
     }
 
@@ -1403,6 +1405,48 @@ def test_email():
 
 # ── Profile ────────────────────────────────────────────────────────────────────
 
+# Cap stored resume blobs. The public checker already enforces a 2 MB limit;
+# logged-in uploads are otherwise unbounded, so bound what we persist to keep the
+# DB and backups sane. Anything larger is still parsed/scored — just not stored.
+_RESUME_STORE_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+
+try:
+    # Anonymous (no-account) public-checker uploads have no deletion path, so the
+    # cleanup cron purges them after this many days to bound PII retention.
+    _PUBLIC_RESUME_RETENTION_DAYS = int(os.getenv("PUBLIC_RESUME_RETENTION_DAYS", "90"))
+except (TypeError, ValueError):
+    _PUBLIC_RESUME_RETENTION_DAYS = 90
+
+
+def _store_resume_file(raw_bytes, filename, source, *, user_id=None,
+                       target_role=None, content_type=None):
+    """Persist a raw resume upload to the resume_files table.
+
+    Best-effort: storing the CV must never break the user-facing parse/score
+    flow, so every error is swallowed (logged) and the failed insert is rolled
+    back. Oversize files are skipped (still processed upstream, just not stored).
+    """
+    try:
+        if not raw_bytes or len(raw_bytes) > _RESUME_STORE_MAX_BYTES:
+            return
+        db.session.add(ResumeFile(
+            user_id=user_id,
+            source=source,
+            filename=(filename or "resume")[:255],
+            content_type=(content_type or None),
+            byte_size=len(raw_bytes),
+            content=raw_bytes,
+            target_role=(target_role or None),
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.warning(
+            "Failed to store resume file (source=%s, user=%s)", source, user_id,
+            exc_info=True,
+        )
+
+
 @app.route("/api/profile/parse-resume", methods=["POST"])
 @login_required
 @limiter.limit("5/minute;30/hour")
@@ -1421,13 +1465,17 @@ def parse_resume():
         return jsonify({"error": quota_err, "quota_exceeded": True}), 429
 
     from resume_parser import extract_text_bounded, parse_with_gemini
+    raw = file.read()
     try:
-        text = extract_text_bounded(file.read(), file.filename)
+        text = extract_text_bounded(raw, file.filename)
     except (ImportError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
 
     if not text.strip():
         return jsonify({"error": "Could not extract text from the file"}), 400
+
+    _store_resume_file(raw, file.filename, "profile_parse",
+                       user_id=current_user.id, content_type=file.content_type)
 
     try:
         profile = parse_with_gemini(text, api_key)
@@ -1775,8 +1823,9 @@ def resume_ats_check():
         return jsonify({"error": quota_err, "quota_exceeded": True}), 429
 
     from resume_parser import extract_text_bounded
+    raw = file.read()
     try:
-        text = extract_text_bounded(file.read(), file.filename)
+        text = extract_text_bounded(raw, file.filename)
     except (ImportError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
 
@@ -1785,6 +1834,9 @@ def resume_ats_check():
         # (image-only/scanned resume, or a layout the parser couldn't read).
         return jsonify({"error": "Could not read any text from this file. ATS systems "
                                  "likely can't either — export a text-based PDF, not a scan or image."}), 400
+
+    _store_resume_file(raw, file.filename, "ats_check", user_id=current_user.id,
+                       target_role=target_role, content_type=file.content_type)
 
     try:
         report = _run_ats_check(text, api_key, target_role, log_user=str(current_user.id))
@@ -1838,6 +1890,11 @@ def public_ats_check():
     if not text.strip():
         return jsonify({"error": "Could not read any text from this file. ATS systems "
                                  "likely can't either — export a text-based PDF, not a scan or image."}), 400
+
+    # Anonymous upload: no user_id. Auto-purged by the cleanup cron after
+    # _PUBLIC_RESUME_RETENTION_DAYS (no account exists to delete it).
+    _store_resume_file(raw_bytes, file.filename, "public_ats",
+                       target_role=target_role, content_type=file.content_type)
 
     try:
         report = _run_ats_check(text, api_key, target_role, log_user="public")
@@ -2232,15 +2289,11 @@ Preferred location: {settings.get('preferred_location') or 'Singapore'}
 @app.route("/api/resume/versions", methods=["GET"])
 @login_required
 def list_resume_versions():
-    versions_dir = _resume_versions_dir(current_user.id)
-    if not versions_dir.exists():
-        return jsonify([])
-    versions = [
-        meta for meta in (_resume_version_meta(path) for path in versions_dir.glob("*.json"))
-        if meta is not None
-    ]
-    versions.sort(key=lambda item: item.get("created_at", ""), reverse=True)
-    return jsonify(versions)
+    versions = (ResumeVersion.query
+                .filter_by(user_id=current_user.id)
+                .order_by(ResumeVersion.created_at.desc())
+                .all())
+    return jsonify([_resume_version_meta(v) for v in versions])
 
 
 @app.route("/api/resume/versions", methods=["POST"])
@@ -2253,23 +2306,17 @@ def save_resume_version():
     if not profile.get("email"):
         profile["email"] = current_user.email
 
-    versions_dir = _resume_versions_dir(current_user.id)
-    versions_dir.mkdir(parents=True, exist_ok=True)
-
-    version_id = f"{datetime.now(SGT).strftime('%Y%m%d%H%M%S')}_{secrets.token_hex(3)}"
-    payload = {
-        "id": version_id,
-        "name": (data.get("name") or "CareerScan resume").strip()[:80],
-        "source": (data.get("source") or "manual").strip()[:40],
-        "job_title": (data.get("job_title") or "").strip()[:120],
-        "company": (data.get("company") or "").strip()[:120],
-        "created_at": datetime.now(SGT).strftime("%Y-%m-%d %H:%M"),
-        "profile": profile,
-    }
-
-    path = versions_dir / f"{version_id}.json"
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    return jsonify({"ok": True, "version": _resume_version_meta(path)})
+    version = ResumeVersion(
+        user_id=current_user.id,
+        name=(data.get("name") or "CareerScan resume").strip()[:80],
+        source=(data.get("source") or "manual").strip()[:40],
+        job_title=(data.get("job_title") or "").strip()[:120],
+        company=(data.get("company") or "").strip()[:120],
+        profile=profile,
+    )
+    db.session.add(version)
+    db.session.commit()
+    return jsonify({"ok": True, "version": _resume_version_meta(version)})
 
 
 @app.route("/api/resume/versions/<version_id>/download", methods=["GET"])
@@ -2278,19 +2325,19 @@ def download_resume_version(version_id):
     from flask import make_response
     from resume_builder import generate_pdf
 
-    safe_id = re.sub(r"[^a-zA-Z0-9_-]", "", version_id)
-    path = _resume_versions_dir(current_user.id) / f"{safe_id}.json"
-    if not path.exists():
+    version = ResumeVersion.query.filter_by(
+        id=version_id, user_id=current_user.id
+    ).first()
+    if not version:
         return jsonify({"error": "Not found"}), 404
 
-    data = json.loads(path.read_text(encoding="utf-8"))
-    profile = data.get("profile") or {}
+    profile = version.profile or {}
     try:
         pdf_bytes = generate_pdf(profile)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    name_slug = re.sub(r"[^a-z0-9_-]", "_", (data.get("name") or "resume").lower().replace(" ", "_"))
+    name_slug = re.sub(r"[^a-z0-9_-]", "_", (version.name or "resume").lower().replace(" ", "_"))
     resp = make_response(pdf_bytes)
     resp.headers["Content-Type"] = "application/pdf"
     resp.headers["Content-Disposition"] = f'attachment; filename="{name_slug}.pdf"'
@@ -3233,6 +3280,14 @@ def cron_cleanup():
         ScanHistory.started_at < cutoff_scans
     ).delete(synchronize_session=False)
 
+    # Anonymous (no-account) resume uploads have no deletion path, so purge them
+    # after the retention window. Logged-in CVs are kept until account deletion.
+    cutoff_anon_resumes = datetime.now(timezone.utc) - timedelta(days=_PUBLIC_RESUME_RETENTION_DAYS)
+    deleted_anon_resumes = ResumeFile.query.filter(
+        ResumeFile.user_id.is_(None),
+        ResumeFile.uploaded_at < cutoff_anon_resumes,
+    ).delete(synchronize_session=False)
+
     # Backstop: fail scans stuck at 'running' >1h (startup reconciliation
     # covers worker-kill restarts; this catches a hung thread with no restart).
     cutoff_running = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -3248,6 +3303,7 @@ def cron_cleanup():
     return jsonify({
         "deleted_jobs": deleted_jobs,
         "deleted_scan_history": deleted_scans,
+        "deleted_anon_resumes": deleted_anon_resumes,
         "failed_stuck_scans": stuck_scans,
     })
 
