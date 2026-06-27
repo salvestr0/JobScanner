@@ -1555,6 +1555,191 @@ Work history:
     return jsonify({"ok": True, "profile": merged})
 
 
+_ATS_CATEGORIES = [
+    "ATS Parse-Friendliness",
+    "Keywords & Skills",
+    "Impact & Quantification",
+    "Clarity & Conciseness",
+    "Completeness",
+]
+
+
+def _clamp_score(value) -> int:
+    """Coerce a model-supplied score to an int in [0, 100]; 0 on garbage."""
+    try:
+        return max(0, min(100, int(round(float(value)))))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _normalize_ats_report(raw: dict, target_role: str) -> dict:
+    """Guarantee the ATS report shape so a malformed model reply can't break the
+    UI. Clamps every score to 0-100 and coerces lists to the expected shape."""
+    raw = raw if isinstance(raw, dict) else {}
+
+    # Categories — keep only known ones, fill any the model omitted.
+    by_name = {}
+    for c in raw.get("categories") or []:
+        if isinstance(c, dict) and c.get("name") in _ATS_CATEGORIES:
+            by_name[c["name"]] = c
+    categories = []
+    for name in _ATS_CATEGORIES:
+        c = by_name.get(name, {})
+        categories.append({
+            "name": name,
+            "score": _clamp_score(c.get("score")),
+            "summary": str(c.get("summary", "") or "")[:300],
+        })
+
+    # Overall — trust the model if sane, else average the categories.
+    overall = raw.get("overall_score")
+    if overall is None or _clamp_score(overall) == 0:
+        scores = [c["score"] for c in categories]
+        overall = round(sum(scores) / len(scores)) if scores else 0
+    overall = _clamp_score(overall)
+
+    issues = []
+    for it in (raw.get("issues") or [])[:12]:
+        if not isinstance(it, dict):
+            continue
+        sev = str(it.get("severity", "medium")).lower()
+        if sev not in ("high", "medium", "low"):
+            sev = "medium"
+        issues.append({
+            "severity": sev,
+            "title": str(it.get("title", "") or "")[:160],
+            "fix": str(it.get("fix", "") or "")[:400],
+        })
+    # high → medium → low so the worst problems surface first.
+    _rank = {"high": 0, "medium": 1, "low": 2}
+    issues.sort(key=lambda i: _rank[i["severity"]])
+
+    strengths = [str(s)[:200] for s in (raw.get("strengths") or [])[:6] if str(s).strip()]
+
+    keyword_match = None
+    km = raw.get("keyword_match")
+    if target_role and isinstance(km, dict):
+        keyword_match = {
+            "score":   _clamp_score(km.get("score")),
+            "matched": [str(s)[:60] for s in (km.get("matched") or [])[:20] if str(s).strip()],
+            "missing": [str(s)[:60] for s in (km.get("missing") or [])[:20] if str(s).strip()],
+        }
+
+    return {
+        "overall_score": overall,
+        "verdict": str(raw.get("verdict", "") or "")[:240],
+        "categories": categories,
+        "issues": issues,
+        "strengths": strengths,
+        "keyword_match": keyword_match,
+        "target_role": target_role,
+    }
+
+
+@app.route("/api/resume/ats-check", methods=["POST"])
+@login_required
+@limiter.limit("5/minute;20/hour")
+def resume_ats_check():
+    """Score an uploaded resume against an SG-aware ATS rubric. Free for all
+    logged-in users (quota-limited) — the top-of-funnel acquisition feature."""
+    import config as cfg
+    import requests as _req
+
+    file = request.files.get("resume")
+    if not file or not file.filename:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    target_role = (request.form.get("target_role") or "").strip()[:120]
+
+    api_key = _decrypt_api_key(current_user.gemini_api_key or "") or cfg.GEMINI_API_KEY
+    if not api_key:
+        return jsonify({"error": "AI service not configured"}), 400
+
+    allowed, quota_err = _check_ai_quota(current_user)
+    if not allowed:
+        return jsonify({"error": quota_err, "quota_exceeded": True}), 429
+
+    from resume_parser import extract_text
+    try:
+        text = extract_text(file.read(), file.filename)
+    except (ImportError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
+
+    if not text.strip():
+        # Empty extraction from a PDF/DOCX is itself a strong ATS red flag
+        # (image-only/scanned resume, or a layout the parser couldn't read).
+        return jsonify({"error": "Could not read any text from this file. ATS systems "
+                                 "likely can't either — export a text-based PDF, not a scan or image."}), 400
+
+    role_line = (
+        f"\nThe candidate is targeting this role: \"{target_role}\". In keyword_match, "
+        f"score how well the resume's keywords align with that role, and list matched "
+        f"and missing keywords a Singapore recruiter/ATS would expect.\n"
+        if target_role else
+        "\nNo target role was given — set keyword_match to null.\n"
+    )
+
+    prompt = f"""You are an ATS (Applicant Tracking System) auditor for the Singapore job market.
+Evaluate the resume text below the way real ATS software (Workday, Greenhouse, Taleo) and a
+Singapore recruiter would. Be specific and honest — do not flatter.
+
+Score each of these categories 0-100:
+- "ATS Parse-Friendliness": clear standard section headings, no signs of tables/columns/graphics
+  that break parsers, machine-readable dates, no garbled text.
+- "Keywords & Skills": presence of relevant hard skills and role keywords.
+- "Impact & Quantification": action verbs and measurable, quantified achievements (numbers, %, $).
+- "Clarity & Conciseness": appropriate length, readable, no filler.
+- "Completeness": contact details, work experience with dates, education, skills section.
+
+Return ONLY a valid JSON object (no markdown fences) with exactly these keys:
+{{
+  "overall_score": 0-100,
+  "verdict": "one blunt sentence summarising ATS-readiness",
+  "categories": [{{"name": "<one of the five exact names above>", "score": 0-100, "summary": "one specific sentence"}}],
+  "issues": [{{"severity": "high|medium|low", "title": "short problem", "fix": "concrete, actionable fix"}}],
+  "strengths": ["specific things the resume does well"],
+  "keyword_match": {{"score": 0-100, "matched": ["..."], "missing": ["..."]}}
+}}
+{role_line}
+RESUME TEXT:
+{text[:8000]}"""
+
+    try:
+        resp = _req.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            params={"key": api_key},
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "thinkingConfig": {"thinkingBudget": 0},
+                    "responseMimeType": "application/json",
+                    "maxOutputTokens": 2048,
+                },
+            },
+            timeout=40,
+        )
+        resp.raise_for_status()
+        _rj = resp.json()
+        _log_gemini_usage("ats_check", str(current_user.id), _rj)
+        raw = _rj["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception:
+        app.logger.warning("ATS check AI request failed for user %s", current_user.id, exc_info=True)
+        return jsonify({"error": "AI request failed. Please try again later."}), 502
+
+    import re as _re
+    import json as _json
+    match = _re.search(r'\{[\s\S]*\}', raw)
+    if not match:
+        return jsonify({"error": "AI returned unexpected format"}), 502
+    try:
+        report = _json.loads(match.group())
+    except Exception:
+        return jsonify({"error": "Could not parse AI response"}), 502
+
+    return jsonify({"ok": True, "report": _normalize_ats_report(report, target_role)})
+
+
 @app.route("/api/resume/tailor", methods=["POST"])
 @login_required
 @limiter.limit("5/minute;20/hour")
