@@ -151,6 +151,19 @@ google_oauth = oauth.register(
 _enc_key = (os.getenv("ENCRYPTION_KEY") or "").strip().encode()
 _fernet  = Fernet(_enc_key) if _enc_key else None
 
+# ── Product analytics (PostHog) ─────────────
+# Public project token + host, exposed to the frontend so the JS SDK can track
+# the acquisition funnel (ATS lead magnet → signup → onboarding → paid). Both
+# are public values, safe in client HTML. Unset → the _analytics.html partial
+# renders nothing, so this is a no-op locally (same pattern as SENTRY_DSN).
+_posthog_key  = os.getenv("POSTHOG_API_KEY", "").strip()
+_posthog_host = os.getenv("POSTHOG_HOST", "https://us.i.posthog.com").strip()
+
+
+@app.context_processor
+def _inject_analytics():
+    return {"posthog_key": _posthog_key, "posthog_host": _posthog_host}
+
 
 def _encrypt_api_key(plaintext: str) -> str:
     if not plaintext or not _fernet:
@@ -2946,8 +2959,11 @@ def create_checkout():
         payment_method_types=["card"],
         line_items=[{"price": price_id, "quantity": 1}],
         mode="subscription",
-        success_url=f"{base}/?billing=success",
-        cancel_url=f"{base}/?billing=cancel",
+        # Land on /app (not /) so the query param survives — / redirects
+        # authenticated users to /app and drops the querystring, which used to
+        # silently swallow the "welcome to Pro" success toast.
+        success_url=f"{base}/app?billing=success",
+        cancel_url=f"{base}/app?billing=cancel",
     )
     return jsonify({"url": session.url})
 

@@ -17,6 +17,7 @@
     [x-cloak] { display: none !important; }
   </style>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/careerscan-theme.css') }}">
+  {% include "_analytics.html" %}
 </head>
 <body class="cs-admin bg-slate-50 text-slate-900 antialiased" x-data="admin()" x-init="boot()">
 
