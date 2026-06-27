@@ -11,6 +11,10 @@ import requests
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 DOC_PARSE_ERROR = "Could not parse .doc file"
+# Bound accumulated text from a .doc piece table so a crafted file (huge piece_count
+# all pointing at the same region) can't amplify a 2 MB upload into hundreds of GB of
+# strings and OOM the worker. Real resumes are a few tens of KB.
+_MAX_DOC_TEXT_CHARS = 2_000_000
 
 PROFILE_SCHEMA = """
 {
@@ -135,6 +139,7 @@ def _extract_doc_text_from_plcpcd(plcpcd: bytes, word_document: bytes) -> str:
         raise ValueError(DOC_PARSE_ERROR)
 
     parts = []
+    total_chars = 0
     for i in range(piece_count):
         cp_start = _read_u32(plcpcd, i * 4)
         cp_end = _read_u32(plcpcd, (i + 1) * 4)
@@ -160,6 +165,9 @@ def _extract_doc_text_from_plcpcd(plcpcd: bytes, word_document: bytes) -> str:
 
         chunk = word_document[byte_offset:byte_offset + byte_count]
         parts.append(chunk.decode(encoding, errors="ignore"))
+        total_chars += char_count
+        if total_chars > _MAX_DOC_TEXT_CHARS:
+            break
 
     text = _clean_doc_text("".join(parts))
     if not text:

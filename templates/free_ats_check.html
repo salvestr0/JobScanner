@@ -113,11 +113,12 @@
         <p class="font-bold text-slate-900 text-lg mb-1">Unlock your full report — free</p>
         <p class="text-slate-600 text-sm mb-4 max-w-md mx-auto">
           Create a free account to see <span class="font-semibold">what's driving each score</span>,
-          your strengths, keyword match, and
-          <span class="font-semibold" x-text="report?.fixes_summary?.total + (report?.fixes_summary?.total===1 ? ' prioritised fix' : ' prioritised fixes')"></span>
+          your strengths and keyword match — plus the
+          <span class="font-semibold" x-text="report?.fixes_summary?.total + (report?.fixes_summary?.total===1 ? ' fix' : ' fixes')"></span>
           <template x-if="report?.fixes_summary?.high">
             <span> (<span class="text-red-600 font-semibold" x-text="report.fixes_summary.high + ' high-priority'"></span>)</span>
-          </template>.
+          </template>
+          you need. <span class="text-slate-400">Step-by-step how-to with Pro.</span>
         </p>
         <a href="/register" class="inline-block px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">Create free account</a>
         <p class="text-xs text-slate-400 mt-3">Already have one? <a href="/login" class="underline hover:text-slate-600">Log in</a></p>
