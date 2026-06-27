@@ -1737,7 +1737,23 @@ RESUME TEXT:
     except Exception:
         return jsonify({"error": "Could not parse AI response"}), 502
 
-    return jsonify({"ok": True, "report": _normalize_ats_report(report, target_role)})
+    report = _normalize_ats_report(report, target_role)
+
+    # Free gets the score + breakdown; Pro unlocks the detailed how-to fixes.
+    # Always ship the count summary so free users see what they'd unlock, but
+    # never ship the fix text itself to non-paid users (the UI can't be trusted).
+    issues = report["issues"]
+    report["fixes_summary"] = {
+        "total":  len(issues),
+        "high":   sum(1 for i in issues if i["severity"] == "high"),
+        "medium": sum(1 for i in issues if i["severity"] == "medium"),
+        "low":    sum(1 for i in issues if i["severity"] == "low"),
+    }
+    report["fixes_locked"] = not _is_paid(current_user)
+    if report["fixes_locked"]:
+        report["issues"] = []
+
+    return jsonify({"ok": True, "report": report})
 
 
 @app.route("/api/resume/tailor", methods=["POST"])

@@ -1731,8 +1731,8 @@
           </div>
         </div>
 
-        <!-- Fixes -->
-        <div x-show="(atsReport?.issues || []).length" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <!-- Fixes (Pro: full how-to) -->
+        <div x-show="!atsReport?.fixes_locked && (atsReport?.issues || []).length" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
           <h3 class="font-bold text-slate-800 text-sm mb-4">Prioritised fixes</h3>
           <div class="space-y-3">
             <template x-for="(it, i) in (atsReport?.issues || [])" :key="i">
@@ -1746,6 +1746,38 @@
                 </div>
               </div>
             </template>
+          </div>
+        </div>
+
+        <!-- Fixes locked (free): show the count, lock the how-to -->
+        <div x-show="atsReport?.fixes_locked && (atsReport?.fixes_summary?.total)"
+          class="cs-pro-lock-card relative rounded-2xl overflow-hidden bg-white border border-slate-100 shadow-sm">
+          <!-- Blurred skeleton of the fix list -->
+          <div class="blur-sm pointer-events-none select-none p-6 space-y-3">
+            <div class="flex gap-3"><div class="h-5 w-12 bg-red-100 rounded"></div><div class="flex-1 space-y-1.5"><div class="h-4 w-40 bg-slate-200 rounded"></div><div class="h-3 w-full bg-slate-100 rounded"></div></div></div>
+            <div class="flex gap-3"><div class="h-5 w-12 bg-amber-100 rounded"></div><div class="flex-1 space-y-1.5"><div class="h-4 w-44 bg-slate-200 rounded"></div><div class="h-3 w-5/6 bg-slate-100 rounded"></div></div></div>
+            <div class="flex gap-3"><div class="h-5 w-12 bg-slate-100 rounded"></div><div class="flex-1 space-y-1.5"><div class="h-4 w-36 bg-slate-200 rounded"></div><div class="h-3 w-4/6 bg-slate-100 rounded"></div></div></div>
+          </div>
+          <!-- Overlay -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl px-6 text-center">
+            <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mb-3">
+              <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+            </div>
+            <p class="font-bold text-slate-800 text-lg mb-1">
+              <span x-text="atsReport?.fixes_summary?.total"></span> prioritised <span x-text="atsReport?.fixes_summary?.total===1 ? 'fix' : 'fixes'"></span> found
+            </p>
+            <p class="text-slate-500 text-sm mb-4 max-w-xs">
+              <template x-if="atsReport?.fixes_summary?.high">
+                <span><span class="font-semibold text-red-600" x-text="atsReport.fixes_summary.high + ' high-priority'"></span> · </span>
+              </template>
+              See exactly how to fix each issue with Pro.
+            </p>
+            <button @click="subscribe()" :disabled="subscribing"
+              class="cs-primary-action px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">
+              <span x-text="subscribing ? 'Redirecting…' : 'Upgrade — $8/mo'"></span>
+            </button>
           </div>
         </div>
 
