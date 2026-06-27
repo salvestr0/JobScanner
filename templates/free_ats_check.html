@@ -14,6 +14,7 @@
     body{font-family:'DM Sans',sans-serif;color:#182033;
       background:linear-gradient(180deg,#ffffff 0%,#f6f8fa 54%,#ffffff 100%);}
   </style>
+  {% include "_analytics.html" %}
 </head>
 <body class="min-h-screen">
 <div x-data="atsPublic()">
@@ -143,7 +144,11 @@ function atsPublic(){return{
       if(r.status===429){ this.error="Free checks are busy right now — sign up free to run yours instantly."; this.checking=false; return; }
       const d = await r.json();
       if(!r.ok){ this.error = d.error || 'Check failed'; }
-      else { this.report = d.report; }
+      else {
+        this.report = d.report;
+        // Lead-magnet conversion funnel entry point.
+        if (window.posthog) posthog.capture('ats_check_completed', { score: d.report?.overall_score });
+      }
     }catch(_){ this.error='Network error'; }
     this.checking=false;
   },

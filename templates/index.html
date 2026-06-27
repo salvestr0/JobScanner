@@ -104,6 +104,7 @@
     @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
   </style>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/careerscan-theme.css') }}">
+  {% include "_analytics.html" %}
 </head>
 
 <body class="cs-app bg-stone-50 antialiased" x-data="app()" x-init="boot()">
@@ -2587,6 +2588,11 @@ function app() {
       this.userHasPassword = meData.has_password !== false;
       this.isAdmin         = meData.is_admin === true;
 
+      // Tie analytics events to this user (no-op if PostHog isn't configured).
+      if (window.posthog && meData.id != null) {
+        posthog.identify(String(meData.id), { email: meData.email });
+      }
+
       await Promise.all([
         this.loadStats(),
         this.loadModes(),
@@ -2614,12 +2620,16 @@ function app() {
         // Sync straight from Stripe instead of waiting on the webhook
         try { this.billing = await (await fetch('/api/billing/sync', { method: 'POST' })).json(); }
         catch(_) { await this.loadBilling?.(); }
-        this.flash(this.billing?.status === 'active'
+        const isActive = this.billing?.status === 'active';
+        this.flash(isActive
           ? 'Subscription active — welcome to Pro!'
           : 'Payment received — your plan will update shortly.', true);
+        if (window.posthog && isActive) posthog.capture('subscription_active');
         history.replaceState({}, '', '/app');
       }
       if (params.get('billing') === 'cancel') {
+        this.flash('Checkout cancelled — no charge was made. Upgrade any time.', false);
+        if (window.posthog) posthog.capture('checkout_cancelled');
         history.replaceState({}, '', '/app');
       }
     },
@@ -2687,6 +2697,7 @@ function app() {
 
     async subscribe() {
       this.subscribing = true;
+      if (window.posthog) posthog.capture('upgrade_clicked');
       try {
         const d = await (await fetch('/api/billing/create-checkout', { method: 'POST' })).json();
         if (d.url) window.location = d.url;

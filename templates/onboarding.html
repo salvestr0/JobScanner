@@ -19,6 +19,7 @@
     [x-cloak] { display:none !important; }
   </style>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/careerscan-theme.css') }}">
+  {% include "_analytics.html" %}
 </head>
 <body class="cs-onboarding min-h-screen bg-stone-50 flex flex-col items-center justify-center p-4"
   x-data="wizard()" x-init="init()">
@@ -180,7 +181,10 @@ function wizard() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ target_titles: this.titles, preferred_keywords: this.prefKws }),
         });
-        if (r.ok) { window.location = '/app'; }
+        if (r.ok) {
+          if (window.posthog) posthog.capture('onboarding_completed', { titles: this.titles.length });
+          window.location = '/app';
+        }
         else { this.err = 'Save failed — please try again'; }
       } catch(_) { this.err = 'Network error'; }
       this.saving = false;
