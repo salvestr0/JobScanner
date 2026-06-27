@@ -1420,9 +1420,9 @@ def parse_resume():
     if not allowed:
         return jsonify({"error": quota_err, "quota_exceeded": True}), 429
 
-    from resume_parser import extract_text, parse_with_gemini
+    from resume_parser import extract_text_bounded, parse_with_gemini
     try:
-        text = extract_text(file.read(), file.filename)
+        text = extract_text_bounded(file.read(), file.filename)
     except (ImportError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
 
@@ -1774,9 +1774,9 @@ def resume_ats_check():
     if not allowed:
         return jsonify({"error": quota_err, "quota_exceeded": True}), 429
 
-    from resume_parser import extract_text
+    from resume_parser import extract_text_bounded
     try:
-        text = extract_text(file.read(), file.filename)
+        text = extract_text_bounded(file.read(), file.filename)
     except (ImportError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
 
@@ -1829,9 +1829,9 @@ def public_ats_check():
     if not api_key:
         return jsonify({"error": "AI service is temporarily unavailable."}), 503
 
-    from resume_parser import extract_text
+    from resume_parser import extract_text_bounded
     try:
-        text = extract_text(raw_bytes, file.filename)
+        text = extract_text_bounded(raw_bytes, file.filename)
     except (ImportError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
 

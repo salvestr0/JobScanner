@@ -51,6 +51,92 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
         raise ValueError(f"Unsupported file type: .{ext}")
 
 
+# ── Bounded parsing ──────────────────────────────────────────────────────────
+# Untrusted uploads (especially from the unauthenticated public ATS checker) are
+# parsed by pypdf/python-docx/olefile, which can hang on CPU-bound crafted files or
+# blow up memory on decompression bombs. The hosted app runs a SINGLE gunicorn
+# worker, so one bad parse can take the whole site down. gunicorn uses threaded
+# workers, so a SIGALRM/in-thread timeout is unreliable — instead run the parse in
+# a short-lived child process with a hard wall-clock timeout (kills even C-bound
+# loops at the OS level) and a best-effort memory cap on Linux.
+PARSE_TIMEOUT_SECONDS = 15
+_PARSE_MEM_LIMIT_BYTES = 512 * 1024 * 1024  # best-effort, Linux only
+PARSE_TIMEOUT_ERROR = ("This file took too long to read — it may be corrupted or too "
+                       "complex. Try exporting a simpler, text-based PDF.")
+
+
+def _parse_worker(file_bytes: bytes, filename: str, conn) -> None:
+    """Child-process entrypoint: parse and send a tagged result back. Never raises
+    out of the process — always sends ('ok'|'import_error'|'value_error', payload)."""
+    try:
+        # Short-circuit any library logging so a handler lock inherited from the
+        # parent (forked mid-log by another thread) can't deadlock the child.
+        import logging
+        logging.disable(logging.CRITICAL)
+        try:
+            import resource
+            resource.setrlimit(resource.RLIMIT_AS, (_PARSE_MEM_LIMIT_BYTES, _PARSE_MEM_LIMIT_BYTES))
+        except Exception:
+            pass  # not Linux / not permitted — rely on the wall-clock timeout
+        conn.send(("ok", extract_text(file_bytes, filename)))
+    except ImportError as e:
+        conn.send(("import_error", str(e)))
+    except ValueError as e:
+        conn.send(("value_error", str(e)))
+    except MemoryError:
+        conn.send(("value_error", "This file is too complex to read safely. Try a simpler, text-based export."))
+    except Exception:
+        conn.send(("value_error", "Could not read this file."))
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def extract_text_bounded(file_bytes: bytes, filename: str, timeout: int = PARSE_TIMEOUT_SECONDS) -> str:
+    """extract_text run in a short-lived child process with a wall-clock timeout and
+    (on Linux) a memory cap. Raises ImportError or ValueError exactly like
+    extract_text, so callers handle it identically. Falls back to in-process parsing
+    only if a subprocess genuinely can't be started."""
+    import multiprocessing as mp
+    try:
+        ctx = mp.get_context("fork")
+    except ValueError:
+        # No fork (Windows/dev): spawn would re-import __main__, which is fragile
+        # under the dev WSGI server, and the real threat is the hosted Linux endpoint
+        # — which always has fork. Local dev input is trusted, so parse in-process.
+        return extract_text(file_bytes, filename)
+
+    try:
+        recv_conn, send_conn = ctx.Pipe(duplex=False)
+        proc = ctx.Process(target=_parse_worker, args=(file_bytes, filename, send_conn), daemon=True)
+        proc.start()
+    except Exception:
+        return extract_text(file_bytes, filename)  # can't spawn — don't break the feature
+
+    send_conn.close()  # parent keeps only the read end so child EOF is observable
+    status = payload = None
+    try:
+        if not recv_conn.poll(timeout):
+            raise ValueError(PARSE_TIMEOUT_ERROR)
+        try:
+            status, payload = recv_conn.recv()
+        except EOFError:
+            raise ValueError("Could not read this file.")
+    finally:
+        recv_conn.close()
+        if proc.is_alive():
+            proc.terminate()
+        proc.join(2)
+
+    if status == "ok":
+        return payload
+    if status == "import_error":
+        raise ImportError(payload)
+    raise ValueError(payload)
+
+
 def _extract_pdf(data: bytes) -> str:
     try:
         import pypdf
