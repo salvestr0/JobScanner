@@ -1638,6 +1638,10 @@ def _normalize_ats_report(raw: dict, target_role: str) -> dict:
 
 _PUBLIC_ATS_MAX_BYTES = 2 * 1024 * 1024  # 2 MB cap for the no-login public check
 
+# Global daily ceiling on anonymous ATS checks (across ALL IPs) so a determined
+# abuser rotating IPs can't run the server Gemini bill up unbounded. Tunable via env.
+_PUBLIC_ATS_DAILY_CAP = int(os.getenv("PUBLIC_ATS_DAILY_CAP", "500"))
+
 
 class _AtsCheckError(Exception):
     """A user-facing ATS-check failure carrying the HTTP status to return."""
@@ -1796,10 +1800,12 @@ def resume_ats_check():
 
 @app.route("/api/public/ats-check", methods=["POST"])
 @limiter.limit("3/day;1/minute")
+@limiter.limit(f"{_PUBLIC_ATS_DAILY_CAP}/day", key_func=lambda: "anon_ats_global")
 def public_ats_check():
     """Anonymous ATS check — the public lead magnet. Returns score + category bars
     only (full breakdown/strengths/fixes require an account). Uses the server Gemini
-    key and is hard rate-limited per IP to bound cost/abuse."""
+    key, hard rate-limited both per IP (3/day, 1/min) and globally
+    (_PUBLIC_ATS_DAILY_CAP/day across all IPs) to bound cost/abuse."""
     import config as cfg
 
     file = request.files.get("resume")

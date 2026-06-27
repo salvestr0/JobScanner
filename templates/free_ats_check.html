@@ -139,7 +139,7 @@ function atsPublic(){return{
       fd.append('resume', this.file);
       if(this.targetRole.trim()) fd.append('target_role', this.targetRole.trim());
       const r = await fetch('/api/public/ats-check', { method:'POST', body:fd });
-      if(r.status===429){ this.error="You've used your free checks for today — sign up free to keep going."; this.checking=false; return; }
+      if(r.status===429){ this.error="Free checks are busy right now — sign up free to run yours instantly."; this.checking=false; return; }
       const d = await r.json();
       if(!r.ok){ this.error = d.error || 'Check failed'; }
       else { this.report = d.report; }
