@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Free ATS Resume Checker (Singapore) — CareerScan</title>
+  <meta name="description" content="Check your resume against the Applicant Tracking Systems used by Singapore employers — get an instant ATS score and category breakdown, free. No sign-up to see your score.">
+  <link rel="canonical" href="https://careerscan.online/free-resume-check">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak]{display:none!important}
+    body{font-family:'DM Sans',sans-serif;color:#182033;
+      background:linear-gradient(180deg,#ffffff 0%,#f6f8fa 54%,#ffffff 100%);}
+  </style>
+</head>
+<body class="min-h-screen">
+<div x-data="atsPublic()">
+
+  <!-- Header -->
+  <header class="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
+    <a href="/" class="font-bold text-slate-900 text-lg">CareerScan</a>
+    <div class="flex items-center gap-3 text-sm">
+      <a href="/login" class="text-slate-600 hover:text-slate-900 font-medium">Log in</a>
+      <a href="/register" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white font-semibold rounded-xl transition-colors">Sign up free</a>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-6 pb-20">
+    <!-- Hero -->
+    <div class="text-center mt-8 mb-8">
+      <h1 class="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">Free ATS Resume Check</h1>
+      <p class="text-slate-500 mt-3 max-w-xl mx-auto">See how your resume scores against the Applicant Tracking Systems used by Singapore employers — instantly, no account needed for your score.</p>
+    </div>
+
+    <!-- Upload card -->
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-6">
+      <label
+        class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors"
+        :class="dragging ? 'border-amber-400 bg-amber-50' : 'border-slate-200 hover:border-amber-300 hover:bg-slate-50'"
+        @dragover.prevent="dragging=true" @dragleave.prevent="dragging=false"
+        @drop.prevent="dragging=false; handleDrop($event)">
+        <input type="file" class="hidden" accept=".pdf,.docx,.doc,.txt" @change="handleFile($event)">
+        <svg class="w-8 h-8 mb-2" :class="dragging?'text-amber-600':'text-slate-300'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <span class="text-sm font-medium" :class="dragging?'text-amber-600':'text-slate-400'"
+          x-text="file ? file.name : 'Drop resume here or click to browse'"></span>
+        <span class="text-xs text-slate-400 mt-0.5">PDF · DOCX · TXT · max 2 MB</span>
+      </label>
+
+      <div class="mt-4">
+        <label class="block text-xs font-semibold text-slate-500 mb-1.5">Target role <span class="font-normal text-slate-400">(optional)</span></label>
+        <input x-model="targetRole" type="text" placeholder="e.g. Data Analyst, Marketing Executive"
+          class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors">
+      </div>
+
+      <div class="flex items-center gap-3 mt-4">
+        <button @click="run()" :disabled="!file || checking"
+          class="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
+          <svg x-show="checking" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <span x-text="checking ? 'Analysing…' : 'Check my resume'"></span>
+        </button>
+        <span x-show="error" x-text="error" class="text-xs font-medium text-red-500"></span>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div x-show="report" x-cloak class="space-y-6">
+      <!-- Score header -->
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-6">
+        <div class="flex-shrink-0 w-24 h-24 rounded-full flex items-center justify-center" :class="scoreRing">
+          <div class="text-center">
+            <div class="text-2xl font-bold leading-none" :class="scoreText" x-text="report?.overall_score"></div>
+            <div class="text-[10px] text-slate-400 mt-0.5">/ 100</div>
+          </div>
+        </div>
+        <div>
+          <div class="text-sm font-bold uppercase tracking-wide mb-1" :class="scoreText" x-text="band"></div>
+          <p class="text-slate-600 text-sm" x-text="report?.verdict"></p>
+        </div>
+      </div>
+
+      <!-- Category bars (numbers only — no summaries for anon) -->
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <h3 class="font-bold text-slate-800 text-sm mb-4">Breakdown</h3>
+        <div class="space-y-3.5">
+          <template x-for="c in (report?.categories || [])" :key="c.name">
+            <div>
+              <div class="flex items-center justify-between text-xs mb-1">
+                <span class="font-semibold text-slate-700" x-text="c.name"></span>
+                <span class="font-bold text-slate-500" x-text="c.score"></span>
+              </div>
+              <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full rounded-full" :class="c.score>=75?'bg-emerald-500':c.score>=50?'bg-amber-500':'bg-red-500'" :style="'width:'+c.score+'%'"></div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Signup wall: what an account unlocks -->
+      <div class="rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50 to-white shadow-sm p-7 text-center">
+        <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mb-3 mx-auto">
+          <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+        <p class="font-bold text-slate-900 text-lg mb-1">Unlock your full report — free</p>
+        <p class="text-slate-600 text-sm mb-4 max-w-md mx-auto">
+          Create a free account to see <span class="font-semibold">what's driving each score</span>,
+          your strengths, keyword match, and
+          <span class="font-semibold" x-text="report?.fixes_summary?.total + (report?.fixes_summary?.total===1 ? ' prioritised fix' : ' prioritised fixes')"></span>
+          <template x-if="report?.fixes_summary?.high">
+            <span> (<span class="text-red-600 font-semibold" x-text="report.fixes_summary.high + ' high-priority'"></span>)</span>
+          </template>.
+        </p>
+        <a href="/register" class="inline-block px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-amber-500/20">Create free account</a>
+        <p class="text-xs text-slate-400 mt-3">Already have one? <a href="/login" class="underline hover:text-slate-600">Log in</a></p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+function atsPublic(){return{
+  file:null, dragging:false, targetRole:'', checking:false, error:'', report:null,
+  handleFile(e){ this.file = e.target.files[0] || null; this.error=''; },
+  handleDrop(e){ const f = e.dataTransfer.files[0]; if(f){ this.file=f; this.error=''; } },
+  async run(){
+    if(!this.file || this.checking) return;
+    this.checking=true; this.error=''; this.report=null;
+    try{
+      const fd = new FormData();
+      fd.append('resume', this.file);
+      if(this.targetRole.trim()) fd.append('target_role', this.targetRole.trim());
+      const r = await fetch('/api/public/ats-check', { method:'POST', body:fd });
+      if(r.status===429){ this.error="You've used your free checks for today — sign up free to keep going."; this.checking=false; return; }
+      const d = await r.json();
+      if(!r.ok){ this.error = d.error || 'Check failed'; }
+      else { this.report = d.report; }
+    }catch(_){ this.error='Network error'; }
+    this.checking=false;
+  },
+  get scoreText(){ const s=this.report?.overall_score??0; return s>=75?'text-emerald-600':s>=50?'text-amber-600':'text-red-500'; },
+  get scoreRing(){ const s=this.report?.overall_score??0; return s>=75?'bg-emerald-50 border-4 border-emerald-200':s>=50?'bg-amber-50 border-4 border-amber-200':'bg-red-50 border-4 border-red-200'; },
+  get band(){ const s=this.report?.overall_score??0; return s>=75?'ATS-ready':s>=50?'Needs work':'At risk'; }
+}}
+</script>
+</body>
+</html>
