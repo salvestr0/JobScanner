@@ -42,7 +42,7 @@
         <p class="text-stone-500 text-sm">When you use CareerScan, we collect:</p>
         <ul class="mt-3 space-y-1.5 text-stone-500 text-sm list-disc pl-5">
           <li><strong class="text-stone-700">Account data</strong> — name, email address, and password (hashed).</li>
-          <li><strong class="text-stone-700">Profile data</strong> — job titles, skills, salary expectations, location preferences, and any resume you upload.</li>
+          <li><strong class="text-stone-700">Profile data</strong> — job titles, skills, salary expectations, location preferences, and any resume you upload. We store the original resume file you upload (e.g. via profile import or the ATS checker), not just the text extracted from it.</li>
           <li><strong class="text-stone-700">Usage data</strong> — scans run, jobs viewed, applications tracked, and feature interactions.</li>
           <li><strong class="text-stone-700">Billing data</strong> — handled entirely by Stripe. We never store your card details.</li>
           <li><strong class="text-stone-700">AI API keys</strong> — if you provide your own AI API key, it is stored encrypted using AES-256 (Fernet).</li>
@@ -74,7 +74,8 @@
 
       <section>
         <h2 class="text-lg font-semibold text-stone-900 mb-3">4. Data retention</h2>
-        <p class="text-stone-500 text-sm">Your data is retained for as long as your account is active. If you delete your account from Settings, all your personal data, profile, resume, and scan history is permanently deleted within 30 days.</p>
+        <p class="text-stone-500 text-sm">Your data is retained for as long as your account is active. If you delete your account from Settings, all your personal data, profile, resume files, and scan history is permanently deleted within 30 days.</p>
+        <p class="mt-3 text-stone-500 text-sm">If you use the free ATS checker without an account, the resume you upload is stored to provide the check and is automatically deleted within 90 days. To have it removed sooner, email us at the address below.</p>
       </section>
 
       <section>

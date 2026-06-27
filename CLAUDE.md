@@ -24,7 +24,7 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | File | Purpose |
 |------|---------|
 | `app.py` | All Flask routes and API endpoints |
-| `models.py` | User, UserProfile, UserSettings, Job, ApplicationStatus, SeenJob, SearchMode |
+| `models.py` | User, UserProfile, UserSettings, Job, ApplicationStatus, SeenJob, SearchMode, ResumeFile (raw CV uploads), ResumeVersion (saved builder versions) |
 | `templates/index.html` | Main SPA (Alpine.js) — all pages except login/register/onboarding |
 | `templates/onboarding.html` | 2-step onboarding wizard (job prefs → Gemini key) |
 | `config.py` | Loads env vars, SEARCH_CONFIG defaults, Gemini mode generation; loads pre-built modes from `prebuilt_modes.json` then overlays runtime cache |
@@ -36,7 +36,7 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | `cover_notes.py` | Gemini cover note generation |
 | `notifier.py` | Resend email digest |
 | `resume_parser.py` | PDF/DOCX → Gemini → structured profile |
-| `migrations/` | Flask-Migrate / Alembic — head: `a3f9c2e7b481` |
+| `migrations/` | Flask-Migrate / Alembic — head: `c7e1a93f5b62` |
 
 ---
 
@@ -95,6 +95,7 @@ Singapore job-matching SaaS. Multi-user, hosted, legally defensible (no scraping
 | `SENTRY_DSN` | Sentry DSN for error monitoring (optional) |
 | `REDIS_URL` | Redis URL for persistent rate limiting (optional, falls back to memory) |
 | `PUBLIC_ATS_DAILY_CAP` | Global daily ceiling on anonymous `/api/public/ats-check` calls across all IPs (optional, default 500) — bounds server Gemini spend on the public lead magnet |
+| `PUBLIC_RESUME_RETENTION_DAYS` | Days before anonymous (no-account) ATS-checker resume uploads are auto-purged by the cleanup cron (optional, default 90). Logged-in CVs are kept until account deletion |
 
 Generate secrets locally:
 ```bash
@@ -116,7 +117,7 @@ python -m flask db migrate -m "description"
 python -m flask db upgrade
 ```
 
-Migration chain: starts at `f7ef5236638b`, branch reconciled by merge `a8e2d5f31b7c`, current head: `a3f9c2e7b481`
+Migration chain: starts at `f7ef5236638b`, branch reconciled by merge `a8e2d5f31b7c`, current head: `c7e1a93f5b62`
 
 ---
 
